@@ -1,0 +1,11 @@
+Model Information:
+* title:	Computer processor destruction (CPU) [Animated]
+* source:	https://sketchfab.com/3d-models/computer-processor-destruction-cpu-animated-b26dfce80eb14f5386e14cb1bdaaaef2
+* author:	sliqixy (https://sketchfab.com/sliqixy)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Computer processor destruction (CPU) [Animated]" (https://sketchfab.com/3d-models/computer-processor-destruction-cpu-animated-b26dfce80eb14f5386e14cb1bdaaaef2) by sliqixy (https://sketchfab.com/sliqixy) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)

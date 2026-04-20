@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "CompuClass",
+    "slug": "CompuClass",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "CompuClasscom.lint123.compuclass",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Camera access is required for AR experiences.",
+        "NSPhotoLibraryUsageDescription": "Allow CompuClass to save documents",
+        "NSPhotoLibraryAddUsageDescription": "Allow CompuClass to save documents to your device"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "CompuClasscom.lint123.compuclass",
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "de58943b-ff1e-4471-85dd-37198408d602"
+      }
+    }
+  }
+}

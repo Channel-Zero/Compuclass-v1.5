@@ -1,0 +1,11 @@
+Model Information:
+* title:	RTX 3060 TI Zotac Twin Edge OC (GPU Model)
+* source:	https://sketchfab.com/3d-models/rtx-3060-ti-zotac-twin-edge-oc-gpu-model-a5a78b9331b14c61b6bc0e99afd21b1c
+* author:	ramyissa (https://sketchfab.com/ramyissa)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "RTX 3060 TI Zotac Twin Edge OC (GPU Model)" (https://sketchfab.com/3d-models/rtx-3060-ti-zotac-twin-edge-oc-gpu-model-a5a78b9331b14c61b6bc0e99afd21b1c) by ramyissa (https://sketchfab.com/ramyissa) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

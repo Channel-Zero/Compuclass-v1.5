@@ -1,0 +1,11 @@
+Model Information:
+* title:	Parts of a Computer
+* source:	https://sketchfab.com/3d-models/parts-of-a-computer-e1c0e3cdf8744423b71d1737949efd47
+* author:	Jordan Elevons (https://sketchfab.com/jordan.elevons)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Parts of a Computer" (https://sketchfab.com/3d-models/parts-of-a-computer-e1c0e3cdf8744423b71d1737949efd47) by Jordan Elevons (https://sketchfab.com/jordan.elevons) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
