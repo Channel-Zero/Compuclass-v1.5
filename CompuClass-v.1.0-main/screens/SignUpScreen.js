@@ -23,8 +23,12 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
     if (password.length < 6) { Alert.alert('Error', 'Password must be at least 6 characters'); return; }
     setLoading(true);
     try {
-      await authService.signUp(email, password, fullName, role);
-      Alert.alert('Success', 'Account created! Please check your email to verify.', [{ text: 'OK', onPress: onSignUp }]);
+      const { session } = await authService.signUp(email, password, fullName, role);
+      if (session) {
+        Alert.alert('Success', 'Account created!', [{ text: 'OK', onPress: onSignUp }]);
+      } else {
+        Alert.alert('Verify your email', 'Account created! Check your email to verify it, then sign in.', [{ text: 'OK', onPress: onBackToLogin }]);
+      }
     } catch (error) { Alert.alert('Error', error.message); }
     finally { setLoading(false); }
   };

@@ -20,9 +20,11 @@ export const authService = {
         throw error;
       }
 
-      
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
-      await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
+
+      if (data.session) {
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+        await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
+      }
       console.log('✅ Sign up successful:', email);
       return data;
     } catch (error) {

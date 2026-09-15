@@ -269,7 +269,8 @@ BEGIN
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
-    CASE 
+    CASE
+      WHEN NEW.raw_user_meta_data->>'role' = 'lecturer' THEN 'lecturer'
       WHEN NEW.email = 'lecturer@compuclass.com' THEN 'lecturer'
       ELSE 'student'
     END
