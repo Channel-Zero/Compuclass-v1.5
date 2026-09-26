@@ -564,8 +564,13 @@ export default function GameScreen({ navigation }) {
       } else {
         const lane = Math.floor(Math.random() * 3);
         const comp = PC_COMPONENTS[Math.floor(Math.random() * PC_COMPONENTS.length)];
-        const id = idCounter.current++;
-        const obj = { id, lane, y: -PICKUP_SIZE, ...comp, anim: new Animated.Value(-PICKUP_SIZE) };
+        // comp.id is the component TYPE (e.g. 'hdd'), reused by every pickup of
+        // that type — collectPickup()'s QUESTIONS lookup and the "Collected"
+        // summary dedupe both depend on that. spawnId is the per-instance id
+        // used for the React key and for removing this exact pickup, so two
+        // pickups of the same type on screen at once don't collide.
+        const spawnId = idCounter.current++;
+        const obj = { ...comp, spawnId, lane, y: -PICKUP_SIZE, anim: new Animated.Value(-PICKUP_SIZE) };
         pickupsRef.current = [...pickupsRef.current, obj];
         setPickups(prev => [...prev, obj]);
       }
@@ -618,7 +623,7 @@ export default function GameScreen({ navigation }) {
         pick.y = newY;
         pick.anim.setValue(newY);
         if (pick.lane === playerLane && newY > GROUND_Y - 75 && newY < GROUND_Y + 15) {
-          pickupsRef.current = pickupsRef.current.filter(p => p.id !== pick.id);
+          pickupsRef.current = pickupsRef.current.filter(p => p.spawnId !== pick.spawnId);
           setPickups([...pickupsRef.current]);
           collectPickup(pick);
           continue;
@@ -668,7 +673,7 @@ export default function GameScreen({ navigation }) {
 
       {/* Pickups */}
       {pickups.map(pick => (
-        <Animated.View key={pick.id} style={[styles.pickupWrap, {
+        <Animated.View key={pick.spawnId} style={[styles.pickupWrap, {
           left: LANES[pick.lane] - PICKUP_SIZE / 2,
           transform: [{ translateY: pick.anim }],
           backgroundColor: pick.color + '25',
