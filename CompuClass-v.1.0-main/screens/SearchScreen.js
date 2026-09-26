@@ -61,7 +61,10 @@ export default function SearchScreen({ navigation }) {
     const pattern = `%${escapeLikePattern(query.trim().slice(0, LIMITS.search))}%`;
     try {
       const [quizzesRes, docsRes] = await Promise.all([
-        supabase.from('quizzes').select('*, quiz_questions(*)').ilike('title', pattern),
+        // Only the question count is displayed here — fetch ids, not full rows,
+        // so correct_answer never reaches a student's device for quizzes they
+        // haven't started yet.
+        supabase.from('quizzes').select('*, quiz_questions(id)').ilike('title', pattern),
         supabase.from('documents').select('*').ilike('title', pattern),
       ]);
       // Ignore responses for queries the user has already typed past.

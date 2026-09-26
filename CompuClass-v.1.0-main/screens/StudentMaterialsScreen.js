@@ -34,7 +34,10 @@ export default function StudentMaterialsScreen({ navigation }) {
     try {
       const [docsRes, quizzesRes] = await Promise.all([
         supabase.from('documents').select('*').eq('folder_id', folderId),
-        supabase.from('quizzes').select('*, quiz_questions(*)').eq('folder_id', folderId),
+        // Only the question count is displayed here — fetch ids, not full rows,
+        // so correct_answer never reaches a student's device for quizzes they
+        // haven't started yet.
+        supabase.from('quizzes').select('*, quiz_questions(id)').eq('folder_id', folderId),
       ]);
       if (docsRes.error) throw docsRes.error;
       if (quizzesRes.error) throw quizzesRes.error;

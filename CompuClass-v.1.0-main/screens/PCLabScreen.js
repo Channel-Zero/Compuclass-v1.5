@@ -28,9 +28,14 @@ const steps = ['Install Motherboard', 'Install CPU', 'Install RAM', 'Install Gra
 
 export default function PCLabScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  // Live width so the two-column grid follows window resizes on web.
-  const { width } = useWindowDimensions();
-  const cardWidth = (width - 56) / 2;
+  // Live width/height so the grid and AR viewer follow window resizes and
+  // adapt to tablets/laptops, not just phone-sized viewports.
+  const { width, height } = useWindowDimensions();
+  const contentWidth = Math.min(width, 960);
+  const numColumns = width < 500 ? 2 : width < 900 ? 3 : 4;
+  const cardGap = 16;
+  const cardWidth = (contentWidth - 32 - cardGap * (numColumns - 1)) / numColumns;
+  const arHeight = Math.min(480, Math.max(260, height * 0.4));
   const [selectedComponents, setSelectedComponents] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -161,7 +166,7 @@ export default function PCLabScreen({ navigation }) {
         )}
       </View>
 
-      <View style={styles.content}>
+      <View style={[styles.content, { maxWidth: 960, width: '100%', alignSelf: 'center' }]}>
         {/* 3D Model */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>3D PC Model</Text>
@@ -174,7 +179,7 @@ export default function PCLabScreen({ navigation }) {
             <Text style={styles.expandText}>Fullscreen</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.arContainer}><RealAR /></View>
+        <View style={[styles.arContainer, { height: arHeight }]}><RealAR /></View>
 
         {/* Components */}
         <Text style={[styles.sectionTitle, { marginTop: 20, marginBottom: 12 }]}>Available Components</Text>
@@ -227,8 +232,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '800', color: TEXT },
   expandBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, backgroundColor: GREEN + '20', borderRadius: 10 },
   expandText: { fontSize: 12, fontWeight: '700', color: GREEN },
-  arContainer: { height: 300, borderRadius: 16, overflow: 'hidden', borderWidth: 3, borderColor: GREEN },
-  componentsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  arContainer: { borderRadius: 16, overflow: 'hidden', borderWidth: 3, borderColor: GREEN },
+  componentsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   componentCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 3, position: 'relative' },
   componentInstalled: { opacity: 0.5 },
   componentIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
