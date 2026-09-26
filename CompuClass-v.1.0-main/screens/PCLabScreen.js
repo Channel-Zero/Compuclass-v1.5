@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Animated, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import RealAR from '../components/RealAR';
@@ -131,25 +130,17 @@ export default function PCLabScreen({ navigation }) {
   );
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-      <LinearGradient colors={[GREEN, '#16A34A']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.75}>
-          <Ionicons name="arrow-back" size={22} color={WHITE} />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Ionicons name="desktop" size={22} color={WHITE} />
-          <Text style={styles.headerTitle}>Interactive PC Building Lab 🖥️</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.infoBtn}
-          onPress={() => { setIsFullscreen(true); setShowInstructions(true); }}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="information-circle-outline" size={22} color={WHITE} />
-        </TouchableOpacity>
-      </LinearGradient>
+    <View style={styles.container}>
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={[styles.floatingBackBtn, { top: insets.top + 12 }]}
+        activeOpacity={0.75}
+      >
+        <Ionicons name="arrow-back" size={22} color={WHITE} />
+      </TouchableOpacity>
 
-      <View style={[styles.content, { maxWidth: 960, width: '100%', alignSelf: 'center' }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+      <View style={[styles.content, { maxWidth: 960, width: '100%', alignSelf: 'center', marginTop: insets.top + 64 }]}>
         {/* 3D Model */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>3D PC Model</Text>
@@ -192,18 +183,19 @@ export default function PCLabScreen({ navigation }) {
           })}
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16, paddingHorizontal: 16, gap: 12 },
-  headerContent: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  headerTitle: { fontSize: 15, fontWeight: '800', color: WHITE, flex: 1 },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  infoBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  content: { paddingHorizontal: 16, marginTop: 16 },
+  floatingBackBtn: {
+    position: 'absolute', left: 16, zIndex: 10,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(17,24,39,0.55)', alignItems: 'center', justifyContent: 'center',
+  },
+  content: { paddingHorizontal: 16 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '800', color: TEXT },
   expandBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, backgroundColor: GREEN + '20', borderRadius: 10 },
