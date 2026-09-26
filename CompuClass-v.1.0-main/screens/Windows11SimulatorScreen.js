@@ -65,6 +65,9 @@ export default function Windows11SimulatorScreen() {
     <View style={styles.container}>
       {!isFullscreen && (
         <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
+            <Ionicons name="arrow-back" size={18} color={WHITE} />
+          </TouchableOpacity>
           <View style={styles.titleRow}>
             <View style={styles.headerIconWrap}>
               <Ionicons name="desktop" size={20} color={WHITE} />
@@ -123,6 +126,9 @@ export default function Windows11SimulatorScreen() {
       <View style={styles.container}>
         <StatusBar hidden={false} />
         <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
+            <Ionicons name="arrow-back" size={18} color={WHITE} />
+          </TouchableOpacity>
           <View style={styles.titleRow}>
             <View style={styles.headerIconWrap}>
               <Ionicons name="desktop" size={20} color={WHITE} />

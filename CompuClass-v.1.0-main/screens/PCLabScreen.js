@@ -130,12 +130,12 @@ export default function PCLabScreen({ navigation }) {
     </View>
   );
 
-  const progress = (selectedComponents.length / steps.length) * 100;
-
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
       <LinearGradient colors={[GREEN, '#16A34A']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        {/* No back button — PC Lab is a tab screen. Show menu icon instead */}
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.75}>
+          <Ionicons name="arrow-back" size={22} color={WHITE} />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
           <Ionicons name="desktop" size={22} color={WHITE} />
           <Text style={styles.headerTitle}>Interactive PC Building Lab 🖥️</Text>
@@ -148,23 +148,6 @@ export default function PCLabScreen({ navigation }) {
           <Ionicons name="information-circle-outline" size={22} color={WHITE} />
         </TouchableOpacity>
       </LinearGradient>
-
-      {/* Build progress */}
-      <View style={styles.progressSection}>
-        <View style={styles.progressLabelRow}>
-          <Text style={styles.progressLabel}>Build Progress</Text>
-          <Text style={styles.progressPct}>{selectedComponents.length}/{steps.length} parts</Text>
-        </View>
-        <View style={styles.progressBarBg}>
-          <Animated.View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-        </View>
-        {currentStep < steps.length && (
-          <View style={styles.nextStepHint}>
-            <Ionicons name="arrow-forward-circle" size={16} color={GREEN} />
-            <Text style={styles.nextStepText}>Next: {steps[currentStep]}</Text>
-          </View>
-        )}
-      </View>
 
       <View style={[styles.content, { maxWidth: 960, width: '100%', alignSelf: 'center' }]}>
         {/* 3D Model */}
@@ -218,16 +201,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16, paddingHorizontal: 16, gap: 12 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   headerTitle: { fontSize: 15, fontWeight: '800', color: WHITE, flex: 1 },
+  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   infoBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  progressSection: { backgroundColor: WHITE, margin: 16, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  progressLabel: { fontSize: 13, fontWeight: '800', color: TEXT },
-  progressPct: { fontSize: 13, fontWeight: '700', color: GREEN },
-  progressBarBg: { height: 10, backgroundColor: '#E5E7EB', borderRadius: 5, overflow: 'hidden', marginBottom: 10 },
-  progressBarFill: { height: '100%', backgroundColor: GREEN, borderRadius: 5 },
-  nextStepHint: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  nextStepText: { fontSize: 12, color: GREEN, fontWeight: '700' },
-  content: { paddingHorizontal: 16 },
+  content: { paddingHorizontal: 16, marginTop: 16 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '800', color: TEXT },
   expandBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, backgroundColor: GREEN + '20', borderRadius: 10 },
