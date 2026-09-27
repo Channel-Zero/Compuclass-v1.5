@@ -22,7 +22,8 @@ export default function Windows11SimulatorScreen() {
 
   useEffect(() => {
     startSession();
-    return () => { endSession(); ScreenOrientation.unlockAsync(); };
+    // unlockAsync rejects on web (no orientation lock outside fullscreen), so ignore failures like the other calls do.
+    return () => { endSession(); ScreenOrientation.unlockAsync().catch(() => {}); };
   }, []);
 
   const startSession = async () => {
@@ -155,7 +156,7 @@ export default function Windows11SimulatorScreen() {
             style={styles.webview}
             onLoadStart={() => setLoading(true)}
             onLoadEnd={() => setLoading(false)}
-            onError={(e) => { Alert.alert('Error', `Failed to load: ${e.nativeEvent.description}`); setLoading(false); }}
+            onError={(e) => { console.error('[Windows11Simulator] WebView load error:', e.nativeEvent); Alert.alert('Error', 'The Windows 11 simulator failed to load. Check your internet connection and try again.'); setLoading(false); }}
             onShouldStartLoadWithRequest={(req) => !req.url.startsWith('about:')}
             javaScriptEnabled domStorageEnabled allowsFullscreenVideo
             mediaPlaybackRequiresUserAction={false} scalesPageToFit bounces={false} scrollEnabled

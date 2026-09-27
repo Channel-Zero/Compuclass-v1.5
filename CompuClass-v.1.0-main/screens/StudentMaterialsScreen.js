@@ -4,9 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { supabase } from '../config/supabase';
+import { openRemoteDocument } from '../utils/fileDownload';
+import { getErrorMessage } from '../utils/errorMessages';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
@@ -27,7 +27,7 @@ export default function StudentMaterialsScreen({ navigation }) {
       const { data, error } = await supabase.from('folders').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       setFolders(data);
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials' })); }
   };
 
   const loadFolderContent = async (folderId) => {
@@ -40,20 +40,15 @@ export default function StudentMaterialsScreen({ navigation }) {
       if (quizzesRes.error) throw quizzesRes.error;
       setDocuments(docsRes.data);
       setQuizzes(quizzesRes.data);
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials' })); }
   };
 
   const openDocument = async (doc) => {
     try {
       if (!doc.file_url) { Alert.alert('Error', 'No file URL available'); return; }
-      const fileName = doc.file_name || `${doc.title}.pdf`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-      const result = await FileSystem.downloadAsync(doc.file_url, fileUri);
-      if (result.status === 200) {
-        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
-        else Alert.alert('Success', 'File downloaded');
-      } else { Alert.alert('Error', 'Download failed'); }
-    } catch (error) { Alert.alert('Error', error.message || 'Failed to download document'); }
+      const outcome = await openRemoteDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
+      if (outcome === 'downloaded') Alert.alert('Success', 'File downloaded');
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials', fallback: 'Failed to download document' })); }
   };
 
   if (selectedFolder) return (

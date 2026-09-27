@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import { escapeLikePattern, LIMITS } from '../utils/inputValidation';
+import { openRemoteDocument } from '../utils/fileDownload';
+import { getErrorMessage } from '../utils/errorMessages';
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
@@ -40,33 +43,51 @@ export default function SearchScreen({ navigation }) {
   const [quizzes, setQuizzes] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
   const inputRef = useRef(null);
 
+  const latestSearch = useRef(0);
+
+  // Debounced: previously every keystroke fired two Supabase queries.
   useEffect(() => {
-    if (searchQuery.length > 0) searchContent();
-    else { setQuizzes([]); setDocuments([]); }
+    if (searchQuery.length === 0) { setQuizzes([]); setDocuments([]); setLoading(false); return; }
+    setLoading(true);
+    const timer = setTimeout(() => searchContent(searchQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const searchContent = async () => {
-    setLoading(true);
+  const searchContent = async (query) => {
+    const searchId = ++latestSearch.current;
+    const pattern = `%${escapeLikePattern(query.trim().slice(0, LIMITS.search))}%`;
     try {
       const [quizzesRes, docsRes] = await Promise.all([
-        supabase.from('quizzes').select('*, quiz_questions(*)').ilike('title', `%${searchQuery}%`),
-        supabase.from('documents').select('*').ilike('title', `%${searchQuery}%`),
+        supabase.from('quizzes').select('*, quiz_questions(*)').ilike('title', pattern),
+        supabase.from('documents').select('*').ilike('title', pattern),
       ]);
+      // Ignore responses for queries the user has already typed past.
+      if (searchId !== latestSearch.current) return;
+      // supabase-js returns errors rather than throwing; previously a failed
+      // search just looked like "No results found".
+      if (quizzesRes.error || docsRes.error) throw quizzesRes.error || docsRes.error;
+      setSearchError('');
       setQuizzes(quizzesRes.data || []);
       setDocuments(docsRes.data || []);
-    } catch (error) { console.error('Search error:', error); }
-    setLoading(false);
+    } catch (error) {
+      if (searchId === latestSearch.current) {
+        setQuizzes([]); setDocuments([]);
+        setSearchError(getErrorMessage(error, { context: 'Search', fallback: "Couldn't load results. Please try again." }));
+      }
+    }
+    if (searchId === latestSearch.current) setLoading(false);
   };
 
   const openDocument = async (doc) => {
     try {
-      const fileName = doc.file_name || `${doc.title}.pdf`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-      const result = await FileSystem.downloadAsync(doc.file_url, fileUri);
-      if (result.status === 200 && await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
-    } catch (error) { console.error('Download error:', error); }
+      const outcome = await openRemoteDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
+      if (outcome === 'downloaded') Alert.alert('Success', 'File downloaded');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, { context: 'SearchDownload', fallback: 'Failed to download document' }));
+    }
   };
 
   const hasResults = quizzes.length > 0 || documents.length > 0;
@@ -86,6 +107,7 @@ export default function SearchScreen({ navigation }) {
             placeholderTextColor={MUTED}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            maxLength={LIMITS.search}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSearchQuery(''); }} activeOpacity={0.75}>
@@ -173,7 +195,15 @@ export default function SearchScreen({ navigation }) {
               </View>
             )}
 
-            {!hasResults && (
+            {searchError ? (
+              <View style={styles.emptyState} accessibilityRole="alert">
+                <View style={[styles.emptyIconWrap, { backgroundColor: '#EF4444' }]}>
+                  <Ionicons name="cloud-offline" size={40} color={WHITE} />
+                </View>
+                <Text style={styles.emptyTitle}>Search failed</Text>
+                <Text style={styles.emptySubtitle}>{searchError}</Text>
+              </View>
+            ) : !hasResults && (
               <View style={styles.emptyState}>
                 <View style={[styles.emptyIconWrap, { backgroundColor: MUTED }]}>
                   <Ionicons name="search" size={40} color={WHITE} />

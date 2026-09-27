@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Dimensions, Animated } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Animated, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,10 +12,8 @@ import CPUAR from '../components/CPUAR';
 import GPUAR from '../components/GPUAR';
 import PSUAR from '../components/PSUAR';
 
-const { width } = Dimensions.get('window');
 const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
-const CARD_W = (width - 56) / 2;
 
 const components = [
   { id: 'motherboard', name: 'Motherboard',  icon: 'hardware-chip',    color: '#2563EB' },
@@ -30,6 +28,9 @@ const steps = ['Install Motherboard', 'Install CPU', 'Install RAM', 'Install Gra
 
 export default function PCLabScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  // Live width so the two-column grid follows window resizes on web.
+  const { width } = useWindowDimensions();
+  const cardWidth = (width - 56) / 2;
   const [selectedComponents, setSelectedComponents] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -181,7 +182,7 @@ export default function PCLabScreen({ navigation }) {
           {components.map((component, index) => {
             const installed = selectedComponents.includes(component.id);
             return (
-              <Animated.View key={component.id} style={{ transform: [{ scale: cardScales[index] }], width: CARD_W }}>
+              <Animated.View key={component.id} style={{ transform: [{ scale: cardScales[index] }], width: cardWidth }}>
                 <TouchableOpacity
                   style={[styles.componentCard, installed && styles.componentInstalled]}
                   onPress={() => handleComponentPress(component.id, index)}
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },
   fullscreenBackBtn: { position: 'absolute', left: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 10 },
   instructionsOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 2 },
-  instructionsCard: { backgroundColor: WHITE, borderRadius: 20, padding: 24, marginHorizontal: 24, width: width - 48 },
+  instructionsCard: { backgroundColor: WHITE, borderRadius: 20, padding: 24, marginHorizontal: 24, alignSelf: 'stretch', maxWidth: 520 },
   instructionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   instructionsTitle: { fontSize: 17, fontWeight: '800', color: TEXT },
   instructionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 12 },

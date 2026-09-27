@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import { WebView } from 'react-native-webview';
+import WebView from './WebEmbed';
 
 export default function RealAR() {
 

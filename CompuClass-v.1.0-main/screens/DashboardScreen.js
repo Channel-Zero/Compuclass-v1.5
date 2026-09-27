@@ -1,51 +1,79 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Animated, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
-import { supabase } from '../config/supabase';
-import { authService } from '../services/authService';
+import React, { useRef, useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
+  Animated,
+  ActivityIndicator,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
+import { supabase } from "../config/supabase";
+import { authService } from "../services/authService";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
-const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const WHITE = '#FFFFFF';
-const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563';
+const BLUE = "#2563EB";
+const YELLOW = "#FACC15";
+const RED = "#EF4444";
+const GREEN = "#22C55E";
+const PURPLE = "#8B5CF6";
+const WHITE = "#FFFFFF";
+const BG = "#F3F4F6";
+const TEXT = "#111827";
+const MUTED = "#4B5563";
 
 const DAILY_TIPS = [
-  { icon: 'hardware-chip', color: BLUE,   tip: 'The CPU is the brain of the computer. More cores = better multitasking.' },
-  { icon: 'battery-charging', color: GREEN, tip: 'A PSU that is too weak can cause random shutdowns and hardware damage.' },
-  { icon: 'layers', color: PURPLE,         tip: 'RAM is temporary storage. Closing apps frees up RAM immediately.' },
-  { icon: 'save', color: RED,              tip: 'SSDs are up to 10x faster than HDDs because they have no moving parts.' },
-  { icon: 'thermometer', color: '#F97316', tip: 'Thermal paste between the CPU and cooler prevents overheating.' },
-  { icon: 'grid', color: BLUE,             tip: 'The motherboard connects all components. Compatibility matters when upgrading.' },
-  { icon: 'desktop', color: GREEN,         tip: 'GPU handles graphics. A dedicated GPU is essential for gaming and video editing.' },
+  { icon: "hardware-chip", color: BLUE, tip: "The CPU is the brain of the computer. More cores = better multitasking." },
+  { icon: "battery-charging", color: GREEN, tip: "A PSU that is too weak can cause random shutdowns and hardware damage." },
+  { icon: "layers", color: PURPLE, tip: "RAM is temporary storage. Closing apps frees up RAM immediately." },
+  { icon: "save", color: RED, tip: "SSDs are up to 10x faster than HDDs because they have no moving parts." },
+  { icon: "thermometer", color: "#F97316", tip: "Thermal paste between the CPU and cooler prevents overheating." },
+  { icon: "grid", color: BLUE, tip: "The motherboard connects all components. Compatibility matters when upgrading." },
+  { icon: "desktop", color: GREEN, tip: "GPU handles graphics. A dedicated GPU is essential for gaming and video editing." },
 ];
 
-function AnimatedCard({ onPress, style, children }) {
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function AnimatedCard({ onPress, style, children, activeOpacity = 0.85 }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const onPressIn = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 50 }).start();
-  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50 }).start();
+  const onPressIn = () =>
+    Animated.spring(scale, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  const onPressOut = () =>
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
   return (
     <Animated.View style={[{ transform: [{ scale }] }, style]}>
       <TouchableOpacity
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress?.(); }}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onPress?.();
+        }}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        activeOpacity={0.85}
+        activeOpacity={activeOpacity}
       >
         {children}
       </TouchableOpacity>
     </Animated.View>
   );
-}
-
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
 }
 
 export default function DashboardScreen({ navigation }) {
@@ -132,13 +160,17 @@ export default function DashboardScreen({ navigation }) {
     finally { setLoading(false); }
   };
 
-  const displayName = user?.user_metadata?.full_name || user?.profile?.full_name || 'Student';
-  const firstName = displayName.split(' ')[0];
+  const displayName =
+    user?.user_metadata?.full_name || user?.profile?.full_name || "Student";
+  const firstName = displayName.split(" ")[0];
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: 100 + insets.bottom },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       {/* Greeting */}
@@ -173,7 +205,7 @@ export default function DashboardScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Daily Tip */}
+      {/* Daily tip */}
       <View style={styles.tipCard}>
         <View style={[styles.tipIconWrap, { backgroundColor: tip.color }]}>
           <Ionicons name={tip.icon} size={20} color={WHITE} />
@@ -219,7 +251,7 @@ export default function DashboardScreen({ navigation }) {
         ))
       )}
 
-      {/* Last Score */}
+      {/* Last score */}
       {lastScore && (
         <>
           <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Recent Activity</Text>
@@ -263,7 +295,9 @@ export default function DashboardScreen({ navigation }) {
         <LinearGradient colors={['#7C3AED', '#4F46E5']} style={styles.gameCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <View style={styles.gameCardLeft}>
             <Text style={styles.gameCardTitle}>CompuRunner</Text>
-            <Text style={styles.gameCardDesc}>Run, dodge obstacles & collect PC components. Answer questions to survive!</Text>
+            <Text style={styles.gameCardDesc}>
+              Run, dodge obstacles &amp; collect PC components. Answer questions to survive!
+            </Text>
             <View style={styles.gamePlayBtn}>
               <Text style={styles.gamePlayBtnText}>Play Now →</Text>
             </View>
@@ -300,19 +334,46 @@ export default function DashboardScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  greetingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginBottom: 16 },
+  greetingText: { fontSize: 22, fontWeight: "900", color: TEXT },
+  greetingSubText: { fontSize: 13, color: MUTED, marginTop: 2 },
+
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 16, marginBottom: 10 },
+  seeAll: { fontSize: 13, fontWeight: "700", color: BLUE },
+
+  loadingWrap: { alignItems: "center", paddingVertical: 24 },
+  emptyCard: { alignItems: "center", backgroundColor: WHITE, marginHorizontal: 16, borderRadius: 16, padding: 24, marginBottom: 20, gap: 8 },
+  emptyText: { fontSize: 15, fontWeight: "700", color: TEXT },
+  emptySubText: { fontSize: 12, color: MUTED, textAlign: "center" },
+
   container: { flex: 1, backgroundColor: BG },
   content: { paddingTop: 8 },
 
-  greetingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 16 },
-  greetingText: { fontSize: 22, fontWeight: '900', color: TEXT },
-  greetingSubText: { fontSize: 13, color: MUTED, marginTop: 2 },
-  xpBadge: { backgroundColor: YELLOW, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  xpText: { fontSize: 12, fontWeight: '900', color: TEXT },
-
-  statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 20 },
-  statCard: { flex: 1, borderRadius: 14, alignItems: 'center', paddingVertical: 14, gap: 4 },
-  statValue: { fontSize: 18, fontWeight: '900', color: WHITE },
-  statLabel: { fontSize: 10, fontWeight: '600', color: WHITE, opacity: 0.85 },
+  streakBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: WHITE,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  streakEmoji: { fontSize: 20 },
+  streakText: { flex: 1, fontSize: 13, fontWeight: "700", color: TEXT },
+  xpBadge: {
+    backgroundColor: YELLOW,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  xpText: { fontSize: 12, fontWeight: "900", color: TEXT },
 
   tipCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, marginHorizontal: 16, marginBottom: 20, borderRadius: 16, padding: 14, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   tipIconWrap: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -320,14 +381,29 @@ const styles = StyleSheet.create({
   tipLabel: { fontSize: 11, fontWeight: '800', color: MUTED, marginBottom: 4 },
   tipText: { fontSize: 13, color: TEXT, lineHeight: 19, fontWeight: '500' },
 
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 10 },
-  sectionTitle: { fontSize: 17, fontWeight: '900', color: TEXT, marginHorizontal: 16, marginBottom: 10 },
-  seeAll: { fontSize: 13, fontWeight: '700', color: BLUE },
+  statsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 14,
+    alignItems: "center",
+    paddingVertical: 14,
+    gap: 4,
+  },
+  statValue: { fontSize: 16, fontWeight: "900" },
+  statLabel: { fontSize: 10, fontWeight: "600" },
 
-  loadingWrap: { alignItems: 'center', paddingVertical: 24 },
-  emptyCard: { alignItems: 'center', backgroundColor: WHITE, marginHorizontal: 16, borderRadius: 16, padding: 24, marginBottom: 20, gap: 8 },
-  emptyText: { fontSize: 15, fontWeight: '700', color: TEXT },
-  emptySubText: { fontSize: 12, color: MUTED, textAlign: 'center' },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: TEXT,
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
 
   quizCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, marginHorizontal: 16, marginBottom: 10, borderRadius: 16, padding: 14, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   quizIconWrap: { width: 46, height: 46, borderRadius: 12, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center' },

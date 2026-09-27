@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import { WebView } from 'react-native-webview';
+import WebView from './WebEmbed';
 
 export default function GPUAR() {
   const sketchfabEmbedUrl = 'https://sketchfab.com/models/6f527569f14b4efc94c7072842bd41ac/embed?autostart=1&ui_controls=1&ui_infos=0&ui_inspector=0&ui_stop=0&ui_watermark=0';

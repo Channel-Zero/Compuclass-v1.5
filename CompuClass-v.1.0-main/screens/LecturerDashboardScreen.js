@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { lecturerService } from '../services/lecturerService';
+import { getErrorMessage } from '../utils/errorMessages';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
 const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const WHITE = '#FFFFFF';
@@ -19,7 +20,7 @@ const quickActions = (navigation, lecturerService) => [
       let folderId = f[0]?.id;
       if (!folderId) { const nf = await lecturerService.createFolder('General', 'General documents'); folderId = nf.id; }
       navigation.navigate('ContentUpload', { folderId });
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
   }},
   { icon: 'help-circle', label: 'Create Quiz', color: YELLOW, onPress: async () => {
     try {
@@ -27,7 +28,7 @@ const quickActions = (navigation, lecturerService) => [
       let folderId = f[0]?.id;
       if (!folderId) { const nf = await lecturerService.createFolder('General', 'General quizzes'); folderId = nf.id; }
       navigation.navigate('QuizCreation', { folderId });
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
   }},
 ];
 
@@ -46,7 +47,7 @@ export default function LecturerDashboardScreen({ navigation }) {
 
   const loadFolders = async () => {
     try { const data = await lecturerService.getFolders(); setFolders(data); }
-    catch (error) { Alert.alert('Error', error.message); }
+    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
   };
 
   const handlePostAnnouncement = async () => {
@@ -68,7 +69,8 @@ export default function LecturerDashboardScreen({ navigation }) {
       await lecturerService.createFolder(folderName, folderDescription);
       setShowCreateFolder(false); setFolderName(''); setFolderDescription('');
       loadFolders();
-    } catch (error) { Alert.alert('Error', error.message); }
+      Alert.alert('Success', 'Folder created successfully');
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
     finally { setLoading(false); }
   };
 
@@ -76,8 +78,8 @@ export default function LecturerDashboardScreen({ navigation }) {
     Alert.alert('Delete Folder', 'Are you sure? This will delete all content inside.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        try { await lecturerService.deleteFolder(folderId); loadFolders(); }
-        catch (error) { Alert.alert('Error', error.message); }
+        try { await lecturerService.deleteFolder(folderId); loadFolders(); Alert.alert('Success', 'Folder deleted'); }
+        catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
       }},
     ]);
   };

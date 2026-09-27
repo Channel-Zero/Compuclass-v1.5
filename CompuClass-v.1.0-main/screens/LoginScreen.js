@@ -3,8 +3,15 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingVi
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { authService } from '../services/authService';
+import { limiters, RateLimitError } from '../utils/rateLimiter';
+import { getErrorMessage } from '../utils/errorMessages';
+import { logSecurityEvent, maskEmail } from '../utils/securityLog';
 
 const { height } = Dimensions.get('window');
+
+// Only wrong-credential errors count toward the lockout, not network blips.
+const isCredentialFailure = (error) =>
+  error?.code === 'invalid_credentials' || /invalid login credentials/i.test(error?.message || '');
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const WHITE = '#FFFFFF';
 const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
 
@@ -16,9 +23,27 @@ export default function LoginScreen({ onLogin, onSignUp, onForgotPassword }) {
 
   const handleLogin = async () => {
     if (!email || !password) { Alert.alert('Error', 'Please enter email and password'); return; }
+    const trimmedEmail = email.trim();
     setLoading(true);
-    try { await authService.signIn(email, password); onLogin(); }
-    catch (error) { Alert.alert('Error', error.message); }
+    try {
+      const { allowed, retryAfterMs } = await limiters.login.check(trimmedEmail);
+      if (!allowed) {
+        logSecurityEvent('login_blocked_locked_out', { email: maskEmail(trimmedEmail), retryAfterSeconds: Math.ceil(retryAfterMs / 1000) });
+        throw new RateLimitError(retryAfterMs);
+      }
+      await authService.signIn(trimmedEmail, password);
+      await limiters.login.reset(trimmedEmail);
+      onLogin();
+    } catch (error) {
+      if (isCredentialFailure(error)) {
+        const result = await limiters.login.recordFailure(trimmedEmail);
+        logSecurityEvent('login_failed', { email: maskEmail(trimmedEmail), recentFailures: result.failures });
+        if (result.lockedNow) {
+          logSecurityEvent('login_lockout', { email: maskEmail(trimmedEmail), lockoutSeconds: Math.ceil(result.retryAfterMs / 1000), lockoutNumber: result.lockouts });
+        }
+      }
+      Alert.alert('Error', getErrorMessage(error, { context: 'login' }));
+    }
     finally { setLoading(false); }
   };
 
@@ -63,7 +88,7 @@ export default function LoginScreen({ onLogin, onSignUp, onForgotPassword }) {
           </TouchableOpacity>
 
           <View style={styles.signUpRow}>
-            <Text style={styles.signUpText}>Don't have an account? </Text>
+            <Text style={styles.signUpText}>Don&apos;t have an account? </Text>
             <TouchableOpacity onPress={onSignUp}>
               <Text style={styles.signUpLink}>Sign Up</Text>
             </TouchableOpacity>

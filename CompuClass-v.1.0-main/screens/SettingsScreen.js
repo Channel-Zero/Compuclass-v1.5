@@ -7,6 +7,8 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
 import { supabase } from '../config/supabase';
+import { saveTextFile } from '../utils/fileDownload';
+import { getErrorMessage } from '../utils/errorMessages';
 
 const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
@@ -39,13 +41,10 @@ export default function SettingsScreen({ navigation }) {
     try {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       const exportData = JSON.stringify({ user: { email: user.email, name: user.user_metadata?.full_name }, profile, exportDate: new Date().toISOString() }, null, 2);
-      const FileSystem = await import('expo-file-system');
-      const Sharing = await import('expo-sharing');
-      const fileUri = FileSystem.documentDirectory + `compuclass_data_${Date.now()}.json`;
-      await FileSystem.writeAsStringAsync(fileUri, exportData);
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(fileUri);
-      else Alert.alert('Success', 'Data exported to: ' + fileUri);
-    } catch { Alert.alert('Error', 'Failed to export data'); }
+      const outcome = await saveTextFile(`compuclass_data_${Date.now()}.json`, exportData);
+      if (outcome === 'downloaded') Alert.alert('Success', 'Your data has been downloaded.');
+      else if (outcome !== 'shared') Alert.alert('Success', 'Data exported to: ' + outcome);
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'ExportData', fallback: 'Failed to export data' })); }
   };
 
   const sections = [
@@ -65,7 +64,7 @@ export default function SettingsScreen({ navigation }) {
     {
       title: 'About',
       items: [
-        { icon: 'information-circle', label: 'About CompuClass', subtitle: 'Version 1.0.0', color: '#FACC15', onPress: () => Alert.alert('CompuClass', 'Version 1.0.0\n\nInteractive Computer Learning Platform\n\n© 2025 CompuClass') },
+        { icon: 'information-circle', label: 'About CompuClass', subtitle: 'Version 1.0.0', color: '#FACC15', onPress: () => Alert.alert('CompuClass', `Version 1.0.0\n\nInteractive Computer Learning Platform\n\n© ${new Date().getFullYear()} CompuClass`) },
       ],
     },
   ];

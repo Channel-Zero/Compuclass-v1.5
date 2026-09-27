@@ -1,0 +1,89 @@
+// CompuClass App Architecture ERD
+// Paste this into dbdiagram.io to visualize
+
+Table profiles {
+  id uuid [pk]
+  full_name text
+  role text [default: 'student']
+  created_at timestamp
+}
+
+Table folders {
+  id uuid [pk]
+  name text
+  description text
+  lecturer_id uuid [ref: > profiles.id]
+  created_at timestamp
+}
+
+Table documents {
+  id uuid [pk]
+  title text
+  file_url text
+  file_name text
+  file_type text
+  file_size integer
+  folder_id uuid [ref: > folders.id]
+  lecturer_id uuid [ref: > profiles.id]
+  created_at timestamp
+}
+
+Table quizzes {
+  id uuid [pk]
+  title text
+  description text
+  passing_score integer [default: 70]
+  folder_id uuid [ref: > folders.id]
+  created_at timestamp
+}
+
+Table quiz_questions {
+  id uuid [pk]
+  quiz_id uuid [ref: > quizzes.id]
+  question text
+  options jsonb
+  correct_answer text
+  order_index integer
+  created_at timestamp
+}
+
+Table classes {
+  id uuid [pk]
+  name text
+  description text
+  lecturer_id uuid [ref: > profiles.id]
+  created_at timestamp
+}
+
+Table class_students {
+  id uuid [pk]
+  class_id uuid [ref: > classes.id]
+  student_id uuid [ref: > profiles.id]
+  joined_at timestamp
+
+  indexes {
+    (class_id, student_id) [unique]
+  }
+}
+
+Table quiz_assignments {
+  id uuid [pk]
+  quiz_id uuid [ref: > quizzes.id]
+  class_id uuid [ref: > classes.id]
+  assigned_at timestamp
+}
+
+Table quiz_attempts {
+  id uuid [pk]
+  user_id uuid [ref: > profiles.id]
+  quiz_id uuid [ref: > quizzes.id]
+  score integer
+  completed_at timestamp
+}
+
+Table material_views {
+  id uuid [pk]
+  user_id uuid [ref: > profiles.id]
+  document_id uuid [ref: > documents.id]
+  created_at timestamp
+}

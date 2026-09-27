@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { aiService } from '../services/aiService';
+import { RateLimitError } from '../utils/rateLimiter';
 
 const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#6B7280'; const BUBBLE_AI = '#EFF6FF';
@@ -100,8 +101,9 @@ export default function ChatbotScreen({ navigation, route }) {
       const recentMessages = updatedMessages.slice(-10);
       const reply = await aiService.chatWithAI(recentMessages, context, imageBase64);
       setMessages(prev => [...prev, { id: Date.now() + 1, role: 'ai', text: reply, timestamp: new Date().toISOString() }]);
-    } catch {
-      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'ai', text: 'Sorry, I ran into an issue. Please try again.', timestamp: new Date().toISOString() }]);
+    } catch (error) {
+      const text = error instanceof RateLimitError ? error.userMessage : 'Sorry, I ran into an issue. Please try again.';
+      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'ai', text, timestamp: new Date().toISOString() }]);
     } finally {
       setLoading(false);
       scrollToBottom();

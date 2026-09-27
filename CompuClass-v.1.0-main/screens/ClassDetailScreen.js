@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { lecturerService } from '../services/lecturerService';
+import { getErrorMessage } from '../utils/errorMessages';
 
 export default function ClassDetailScreen({ navigation, route }) {
   const { theme } = useTheme();
@@ -31,7 +32,7 @@ export default function ClassDetailScreen({ navigation, route }) {
       setStudents(data.students);
     } catch (error) {
       console.error('Class detail error:', error);
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
     }
   };
 
@@ -49,7 +50,7 @@ export default function ClassDetailScreen({ navigation, route }) {
             Alert.alert('Success', 'Student removed');
           } catch (error) {
             console.error('Remove student error:', error);
-            Alert.alert('Error', error.message);
+            Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
           }
         }
       }

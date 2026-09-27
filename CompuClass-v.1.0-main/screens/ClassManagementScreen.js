@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Modal, Tex
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { lecturerService } from '../services/lecturerService';
+import { getErrorMessage } from '../utils/errorMessages';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const GREEN = '#22C55E'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
@@ -22,7 +23,7 @@ export default function ClassManagementScreen({ navigation }) {
 
   const loadClasses = async () => {
     try { const data = await lecturerService.getClasses(); setClasses(data); }
-    catch (error) { Alert.alert('Error', error.message); }
+    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'ClassManagement' })); }
   };
 
   const loadStudents = async () => {
@@ -37,7 +38,7 @@ export default function ClassManagementScreen({ navigation }) {
       await lecturerService.createClass(className, classDescription);
       setShowCreateClass(false); setClassName(''); setClassDescription('');
       loadClasses(); Alert.alert('Success', 'Class created successfully');
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'ClassManagement' })); }
     finally { setLoading(false); }
   };
 
@@ -48,7 +49,7 @@ export default function ClassManagementScreen({ navigation }) {
       await lecturerService.assignStudentsToClass(selectedClass.id, selectedStudents);
       setShowAssignStudents(false); setSelectedStudents([]);
       loadClasses(); Alert.alert('Success', 'Students assigned successfully');
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'ClassManagement' })); }
     finally { setLoading(false); }
   };
 
@@ -102,7 +103,7 @@ export default function ClassManagementScreen({ navigation }) {
           <Ionicons name="arrow-back" size={20} color={WHITE} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Class Management</Text>
-        <TouchableOpacity onPress={() => setShowCreateClass(true)} style={styles.addBtn}>
+        <TouchableOpacity onPress={() => setShowCreateClass(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="Create class">
           <Ionicons name="add" size={22} color={WHITE} />
         </TouchableOpacity>
       </LinearGradient>
