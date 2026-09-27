@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 
 import DashboardScreen from './screens/DashboardScreen';
 import PCLabScreen from './screens/PCLabScreen';
+import PCAssemblyScreen from './screens/PCAssemblyScreen';
 import QuizScreen from './screens/QuizScreen';
 import TroubleshootingScreen from './screens/TroubleshootingScreen';
 import SearchScreen from './screens/SearchScreen';
@@ -77,7 +78,7 @@ function LecturerStack() {
 
 const MAZE_ROUTES = ['CircuitMaze', 'CircuitMazeLobby', 'CircuitMazeTopic'];
 // Routes that take over the whole screen, so the floating tab bar is hidden.
-const FULLSCREEN_ROUTES = [...MAZE_ROUTES, 'Chatbot', 'Game', 'Windows 11', 'PC Lab'];
+const FULLSCREEN_ROUTES = [...MAZE_ROUTES, 'Chatbot', 'Game', 'Windows 11', 'PC Lab', 'PC Assembly'];
 
 // Floating pill tab bar
 function CustomTabBar({ state, descriptors, navigation }) {
@@ -344,6 +345,7 @@ function AppContent() {
                 {() => <ProfileScreen onLogout={handleLogout} />}
               </Tab.Screen>
               <Tab.Screen name="PC Lab" component={PCLabScreen} options={{ tabBarButton: () => null, headerShown: false }} />
+              <Tab.Screen name="PC Assembly" component={PCAssemblyScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="Windows 11" component={Windows11SimulatorScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="Quiz" component={QuizScreen} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Troubleshoot" component={TroubleshootingScreen} options={{ tabBarButton: () => null }} />

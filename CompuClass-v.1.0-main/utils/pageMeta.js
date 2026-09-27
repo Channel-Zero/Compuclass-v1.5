@@ -19,6 +19,7 @@ export const PAGE_META = {
   Search: { title: 'Search', description: 'Search CompuClass quizzes and learning documents.' },
   Profile: { title: 'My Profile', description: 'View your CompuClass profile, XP, level, streak and badges.' },
   'PC Lab': { title: 'PC Lab', description: 'Explore 3D computer components and learn how to assemble a PC in the CompuClass virtual lab.' },
+  'PC Assembly': { title: 'PC Assembly Challenge', description: 'Drag and drop PC components into the right slot to build a computer from scratch.' },
   'Windows 11': { title: 'Windows 11 Simulator', description: 'Practise using Windows 11 in a safe, browser-based simulator.' },
   Quiz: { title: 'Quizzes', description: 'Take quizzes assigned by your lecturer and test your computer knowledge.' },
   Troubleshoot: { title: 'Troubleshooting Guide', description: 'Step-by-step guides for diagnosing and fixing common computer problems.' },

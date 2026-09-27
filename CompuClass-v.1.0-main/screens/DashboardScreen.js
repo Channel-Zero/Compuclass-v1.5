@@ -473,6 +473,12 @@ export default function DashboardScreen({ navigation }) {
             screen: "Windows 11",
           },
           {
+            label: "PC Assembly",
+            icon: "construct",
+            color: GREEN,
+            screen: "PC Assembly",
+          },
+          {
             label: "AI Assistant",
             icon: "chatbubble-ellipses",
             color: "#8B5CF6",
