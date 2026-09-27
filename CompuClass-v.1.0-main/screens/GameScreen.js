@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Dimensions, TouchableOpacity,
-  Animated, PanResponder, TextInput, StatusBar,
+  Animated, PanResponder, TextInput, StatusBar, ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../config/supabase';
+import { authService } from '../services/authService';
 
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -237,7 +240,7 @@ function StartScreen({ onStart, highScore }) {
 }
 
 // ── Game Over Screen ──────────────────────────────────────────────────────────
-function GameOverScreen({ score, highScore, collected, onRestart, onHome }) {
+function GameOverScreen({ score, highScore, collected, leaderboard, onRestart, onHome }) {
   const slideUp = useRef(new Animated.Value(80)).current;
   const fadeIn = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -288,6 +291,19 @@ function GameOverScreen({ score, highScore, collected, onRestart, onHome }) {
         <TouchableOpacity style={styles.homeBtn} onPress={onHome}>
           <Text style={styles.homeBtnText}>← Back to Dashboard</Text>
         </TouchableOpacity>
+
+        {leaderboard.length > 0 && (
+          <View style={styles.leaderboardWrap}>
+            <Text style={styles.leaderboardTitle}>🏆 Leaderboard</Text>
+            {leaderboard.map((entry, i) => (
+              <View key={i} style={styles.leaderboardRow}>
+                <Text style={styles.leaderboardRank}>{['🥇','🥈','🥉','4️⃣','5️⃣'][i]}</Text>
+                <Text style={styles.leaderboardName}>{entry.profiles?.full_name || 'Player'}</Text>
+                <Text style={styles.leaderboardScore}>{entry.score}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </Animated.View>
     </LinearGradient>
   );
@@ -298,6 +314,7 @@ export default function GameScreen({ navigation }) {
   const [phase, setPhase] = useState('start');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [lives, setLives] = useState(3);
   const [energy, setEnergy] = useState(100);
   const [collected, setCollected] = useState([]);
@@ -330,6 +347,32 @@ export default function GameScreen({ navigation }) {
   const playSound = () => {};
   const startMusic = () => {};
   const stopMusic = () => {};
+
+  useEffect(() => {
+    AsyncStorage.getItem('compurunner_highscore').then(v => { if (v) setHighScore(parseInt(v)); });
+    loadLeaderboard();
+  }, []);
+
+  const loadLeaderboard = async () => {
+    try {
+      const { data } = await supabase.from('game_scores').select('score, profiles(full_name)').order('score', { ascending: false }).limit(5);
+      setLeaderboard(data || []);
+    } catch {}
+  };
+
+  const saveScore = async (finalScore) => {
+    try {
+      const stored = await AsyncStorage.getItem('compurunner_highscore');
+      const prev = stored ? parseInt(stored) : 0;
+      if (finalScore > prev) {
+        await AsyncStorage.setItem('compurunner_highscore', String(finalScore));
+        setHighScore(finalScore);
+        const user = await authService.getCurrentUser();
+        if (user) await supabase.from('game_scores').upsert({ user_id: user.id, score: finalScore }, { onConflict: 'user_id' });
+        loadLeaderboard();
+      }
+    } catch {}
+  };
 
   // Animated values
   const playerX = useRef(new Animated.Value(LANES[1] - PLAYER_W / 2)).current;
@@ -541,6 +584,7 @@ export default function GameScreen({ navigation }) {
     clearInterval(tickRef.current);
     clearInterval(spawnRef.current);
     setHighScore(prev => Math.max(prev, scoreRef.current));
+    saveScore(scoreRef.current);
     setTimeout(() => setPhase('gameover'), 400);
   };
 
@@ -646,7 +690,7 @@ export default function GameScreen({ navigation }) {
 
   if (phase === 'start') return <StartScreen onStart={startGame} highScore={highScore} />;
   if (phase === 'gameover') return (
-    <GameOverScreen score={score} highScore={highScore} collected={collected}
+    <GameOverScreen score={score} highScore={highScore} collected={collected} leaderboard={leaderboard}
       onRestart={startGame} onHome={() => navigation.goBack()} />
   );
 
@@ -904,6 +948,18 @@ const styles = StyleSheet.create({
   restartBtnText: { fontSize: 18, fontWeight: '900', color: TEXT, letterSpacing: 1 },
   homeBtn: { paddingVertical: 12 },
   homeBtnText: { fontSize: 14, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
+  leaderboardWrap: { width: '100%', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 16, marginTop: 8 },
+  leaderboardTitle: { fontSize: 14, fontWeight: '900', color: WHITE, marginBottom: 12, textAlign: 'center', letterSpacing: 1 },
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  leaderboardRank: { fontSize: 18, width: 32 },
+  leaderboardName: { flex: 1, fontSize: 13, fontWeight: '700', color: WHITE },
+  leaderboardScore: { fontSize: 14, fontWeight: '900', color: YELLOW },
+  leaderboardWrap: { width: '100%', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 16, marginTop: 8 },
+  leaderboardTitle: { fontSize: 14, fontWeight: '900', color: WHITE, marginBottom: 12, textAlign: 'center', letterSpacing: 1 },
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  leaderboardRank: { fontSize: 18, width: 32 },
+  leaderboardName: { flex: 1, fontSize: 13, fontWeight: '700', color: WHITE },
+  leaderboardScore: { fontSize: 14, fontWeight: '900', color: YELLOW },
 
   // Question
   questionOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', padding: 20 },

@@ -79,7 +79,7 @@ const scenarios = [
 
 const likelihoodColor = (l) => l === 'High' ? RED : l === 'Medium' ? YELLOW : GREEN;
 
-export default function TroubleshootingScreen() {
+export default function TroubleshootingScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [selectedScenario, setSelectedScenario] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -219,6 +219,10 @@ export default function TroubleshootingScreen() {
           <Ionicons name="arrow-forward" size={18} color={WHITE} />
         </TouchableOpacity>
       )}
+      <TouchableOpacity style={styles.chatbotBtn} onPress={() => navigation.navigate('Chatbot', { context: `Help me troubleshoot: ${selectedScenario.title}` })} activeOpacity={0.85}>
+        <Ionicons name="chatbubbles" size={16} color={RED} />
+        <Text style={styles.chatbotBtnText}>Ask CompuBot</Text>
+      </TouchableOpacity>
       <View style={{ height: 32 }} />
     </ScrollView>
   );
@@ -279,4 +283,6 @@ const styles = StyleSheet.create({
   completeBtnText: { color: WHITE, fontWeight: '800', fontSize: 13 },
   nextStepBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: RED, margin: 16, padding: 16, borderRadius: 14, gap: 8, shadowColor: RED, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   nextStepText: { color: WHITE, fontSize: 15, fontWeight: '900' },
+  chatbotBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: RED + '12', borderWidth: 1.5, borderColor: RED + '30' },
+  chatbotBtnText: { fontSize: 13, fontWeight: '700', color: RED },
 });

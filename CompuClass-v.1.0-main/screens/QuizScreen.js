@@ -163,6 +163,10 @@ export default function QuizScreen({ route, navigation }) {
         <Text style={styles.nextBtnText}>{currentQuestion + 1 === questions.length ? 'Finish Quiz 🎉' : 'Next Question'}</Text>
         <Ionicons name="arrow-forward" size={18} color={WHITE} />
       </TouchableOpacity>
+      <TouchableOpacity style={styles.chatbotBtn} onPress={() => navigation.navigate('Chatbot', { context: `Help me with this quiz question: ${currentQ?.question}` })} activeOpacity={0.85}>
+        <Ionicons name="chatbubbles" size={16} color={BLUE} />
+        <Text style={styles.chatbotBtnText}>Ask CompuBot</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -182,8 +186,8 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 60 },
   emptyText: { fontSize: 18, fontWeight: '700', color: TEXT, marginTop: 16 },
   emptySubtext: { fontSize: 13, color: MUTED, marginTop: 6, textAlign: 'center' },
-  quizCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 12, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  quizIconWrap: { width: 52, height: 52, borderRadius: 14, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center' },
+  quizCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 12, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  quizIconWrap: { width: 46, height: 46, borderRadius: 12, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center' },
   quizInfo: { flex: 1 },
   quizTitle: { fontSize: 15, fontWeight: '700', color: TEXT, marginBottom: 3 },
   quizDesc: { fontSize: 13, color: MUTED, marginBottom: 3 },
@@ -191,12 +195,12 @@ const styles = StyleSheet.create({
   questionScroll: { flex: 1, padding: 20 },
   questionText: { fontSize: 20, fontWeight: '800', color: TEXT, marginBottom: 24, lineHeight: 28 },
   optionsWrap: { gap: 12 },
-  optionBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 14, padding: 14, gap: 14, borderWidth: 2, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  optionBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 14, padding: 14, gap: 14, borderWidth: 2, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   optionBtnSelected: { borderColor: BLUE, backgroundColor: BLUE + '10' },
   optionLetter: { width: 34, height: 34, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   optionLetterText: { fontSize: 14, fontWeight: '800', color: TEXT },
   optionText: { fontSize: 15, color: TEXT, flex: 1 },
-  nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BLUE, margin: 16, padding: 16, borderRadius: 14, gap: 8, shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BLUE, margin: 16, height: 54, borderRadius: 14, gap: 8, shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   nextBtnDisabled: { backgroundColor: '#D1D5DB', shadowOpacity: 0 },
   nextBtnText: { color: WHITE, fontSize: 16, fontWeight: '800' },
   resultBanner: { alignItems: 'center', padding: 40 },
@@ -209,8 +213,10 @@ const styles = StyleSheet.create({
   resultBtnText: { fontWeight: '700', fontSize: 14 },
   reviewSection: { padding: 20, paddingBottom: 40 },
   reviewTitle: { fontSize: 18, fontWeight: '800', color: TEXT, marginBottom: 16 },
-  reviewCard: { backgroundColor: WHITE, borderRadius: 14, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  reviewCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   reviewQ: { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 8 },
   reviewA: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
   correctA: { fontSize: 13, color: GREEN, fontWeight: '600' },
+  chatbotBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 16, marginBottom: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: BLUE + '12', borderWidth: 1.5, borderColor: BLUE + '30' },
+  chatbotBtnText: { fontSize: 13, fontWeight: '700', color: BLUE },
 });

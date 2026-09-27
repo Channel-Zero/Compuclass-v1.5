@@ -214,8 +214,8 @@ const styles = StyleSheet.create({
 
   section: { marginBottom: 24 },
   sectionLabel: { fontSize: 13, fontWeight: '800', color: MUTED, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  resultCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 14, padding: 14, marginBottom: 8, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  resultIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center' },
+  resultCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 14, marginBottom: 8, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  resultIconWrap: { width: 46, height: 46, borderRadius: 12, backgroundColor: YELLOW, alignItems: 'center', justifyContent: 'center' },
   resultInfo: { flex: 1 },
   resultTitle: { fontSize: 14, fontWeight: '700', color: TEXT },
   resultSubtitle: { fontSize: 12, color: MUTED, marginTop: 2, fontWeight: '500' },

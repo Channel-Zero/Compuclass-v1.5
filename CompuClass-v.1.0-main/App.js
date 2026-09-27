@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, PanResponder, Animated, Dimensions, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Dimensions, StyleSheet, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -64,17 +64,17 @@ function LecturerStack() {
 // Floating pill tab bar
 function CustomTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
-  const visibleTabs = ['Dashboard', 'Lecturer', 'Search', 'Profile'];
+  const visibleTabs = ['Dashboard', 'Lecturer', 'Quiz', 'Profile'];
   const scaleAnims = useRef(visibleTabs.map(() => new Animated.Value(1))).current;
   const hiddenScreens = ['Chatbot', 'Game', 'Windows 11', 'PC Lab'];
 
   if (hiddenScreens.includes(state.routes[state.index]?.name)) return null;
 
   const tabConfig = {
-    Dashboard: { icon: 'home', iconOff: 'home-outline', label: 'Home' },
-    Lecturer:  { icon: 'home', iconOff: 'home-outline', label: 'Lecturer' },
-    Search:    { icon: 'search', iconOff: 'search-outline', label: 'Search' },
-    Profile:   { icon: 'person', iconOff: 'person-outline', label: 'Profile' },
+    Dashboard: { icon: 'home',        iconOff: 'home-outline',   label: 'Home'    },
+    Lecturer:  { icon: 'home',        iconOff: 'home-outline',   label: 'Lecturer'},
+    Quiz:      { icon: 'help-circle', iconOff: 'help-circle-outline', label: 'Quiz'},
+    Profile:   { icon: 'person',      iconOff: 'person-outline', label: 'Profile' },
   };
 
   const visibleRoutes = state.routes.filter(r => visibleTabs.includes(r.name));
@@ -153,16 +153,6 @@ function AppContent() {
   const [userRole, setUserRole] = useState(null);
   const [currentRoute, setCurrentRoute] = useState('');
   const navigationRef = useRef(null);
-  const sidebarTranslateX = useRef(new Animated.Value(-width * 0.8)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: () => false,
-      onPanResponderMove: () => {},
-      onPanResponderRelease: () => {},
-    })
-  ).current;
-
   useEffect(() => { checkUser(); }, []);
 
   const checkUser = async () => {
@@ -246,6 +236,7 @@ function AppContent() {
 
   return (
     <SafeAreaProvider>
+      <View style={{ flex: 1 }}>
       <SafeAreaView style={{ flex: 1, backgroundColor: WHITE }} edges={['left', 'right']}>
         <NavigationContainer
           ref={navigationRef}
@@ -254,7 +245,7 @@ function AppContent() {
             setCurrentRoute(route?.name || '');
           }}
         >
-          <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+          <View style={{ flex: 1 }}>
             <StatusBar style="dark" backgroundColor={WHITE} />
             <Tab.Navigator
               tabBar={props => <CustomTabBar {...props} />}
@@ -269,13 +260,13 @@ function AppContent() {
               ) : (
                 <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: 'Home' }} />
               )}
-              <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarLabel: 'Search' }} />
+              <Tab.Screen name="Quiz" component={QuizScreen} options={{ tabBarLabel: 'Quiz' }} />
+              <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Profile" options={{ tabBarLabel: 'Profile' }}>
                 {() => <ProfileScreen onLogout={handleLogout} />}
               </Tab.Screen>
               <Tab.Screen name="PC Lab" component={PCLabScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="Windows 11" component={Windows11SimulatorScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="Quiz" component={QuizScreen} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Troubleshoot" component={TroubleshootingScreen} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Materials" component={StudentMaterialsScreen} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarButton: () => null }} />
@@ -284,13 +275,13 @@ function AppContent() {
             </Tab.Navigator>
           </View>
         </NavigationContainer>
-        <Sidebar
-          visible={sidebarVisible}
-          onClose={() => setSidebarVisible(false)}
-          onNavigate={handleNavigate}
-          translateX={sidebarTranslateX}
-        />
       </SafeAreaView>
+      <Sidebar
+        visible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        onNavigate={handleNavigate}
+      />
+      </View>
     </SafeAreaProvider>
   );
 }
