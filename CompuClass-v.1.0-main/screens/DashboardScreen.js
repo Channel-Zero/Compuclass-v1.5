@@ -291,7 +291,7 @@ export default function DashboardScreen({ navigation }) {
 
       {/* Game card */}
       <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Play & Learn</Text>
-      <AnimatedCard onPress={() => navigation.navigate('Game')} style={{ marginBottom: 16 }}>
+      <AnimatedCard onPress={() => navigation.navigate('GameRunnerLobby')} style={{ marginBottom: 16 }}>
         <LinearGradient colors={['#7C3AED', '#4F46E5']} style={styles.gameCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <View style={styles.gameCardLeft}>
             <Text style={styles.gameCardTitle}>CompuRunner</Text>
@@ -303,6 +303,21 @@ export default function DashboardScreen({ navigation }) {
             </View>
           </View>
           <Text style={styles.gameCardEmoji}>🏃</Text>
+        </LinearGradient>
+      </AnimatedCard>
+
+      <AnimatedCard onPress={() => navigation.navigate('CircuitMazeTopic')} style={{ marginBottom: 16 }}>
+        <LinearGradient colors={['#0EA5E9', '#22C55E']} style={styles.gameCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+          <View style={styles.gameCardLeft}>
+            <Text style={styles.gameCardTitle}>Circuit Maze</Text>
+            <Text style={styles.gameCardDesc}>
+              Navigate the maze and wire up circuits to test your electronics know-how!
+            </Text>
+            <View style={styles.gamePlayBtn}>
+              <Text style={styles.gamePlayBtnText}>Play Now →</Text>
+            </View>
+          </View>
+          <Text style={styles.gameCardEmoji}>🔌</Text>
         </LinearGradient>
       </AnimatedCard>
 

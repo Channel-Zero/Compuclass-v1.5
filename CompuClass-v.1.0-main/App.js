@@ -1,3 +1,4 @@
+import 'react-native-url-polyfill/auto';
 import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -36,6 +37,7 @@ import CircuitMazeScreen from './screens/CircuitMazeScreen';
 import CircuitMazeLobbyScreen from './screens/CircuitMazeLobbyScreen';
 import CircuitMazeTopicScreen from './screens/CircuitMazeTopicScreen';
 import GameScreen from './screens/GameScreen';
+import GameRunnerLobbyScreen from './screens/GameRunnerLobbyScreen';
 import NotFoundScreen from './screens/NotFoundScreen';
 import Sidebar, { getSidebarHiddenX } from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -77,7 +79,7 @@ function LecturerStack() {
 
 const MAZE_ROUTES = ['CircuitMaze', 'CircuitMazeLobby', 'CircuitMazeTopic'];
 // Routes that take over the whole screen, so the floating tab bar is hidden.
-const FULLSCREEN_ROUTES = [...MAZE_ROUTES, 'Chatbot', 'Game', 'Windows 11', 'PC Lab'];
+const FULLSCREEN_ROUTES = [...MAZE_ROUTES, 'Chatbot', 'Game', 'GameRunnerLobby', 'Windows 11', 'PC Lab'];
 
 // Floating pill tab bar
 function CustomTabBar({ state, descriptors, navigation }) {
@@ -356,6 +358,7 @@ function AppContent() {
               <Tab.Screen name="CircuitMazeLobby" component={CircuitMazeLobbyScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="CircuitMazeTopic" component={CircuitMazeTopicScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="Game" component={GameScreen} options={{ tabBarButton: () => null, headerShown: false }} />
+              <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} options={{ tabBarButton: () => null, headerShown: false }} />
             </Tab.Navigator>
           </View>
         </NavigationContainer>
