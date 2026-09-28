@@ -130,7 +130,13 @@ export default function PCLabScreen({ navigation }) {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
       <LinearGradient colors={[GREEN, '#16A34A']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        {/* No back button — PC Lab is a tab screen. Show menu icon instead */}
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={22} color={WHITE} />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
           <Ionicons name="desktop" size={22} color={WHITE} />
           <Text style={styles.headerTitle}>Interactive PC Building Lab 🖥️</Text>
@@ -211,6 +217,7 @@ export default function PCLabScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16, paddingHorizontal: 16, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   headerTitle: { fontSize: 15, fontWeight: '800', color: WHITE, flex: 1 },
   infoBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },

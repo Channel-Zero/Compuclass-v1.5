@@ -236,7 +236,8 @@ function ScorePopup({ x, y, value, color, onDone }) {
 }
 
 // ── Start Screen ──────────────────────────────────────────────────────────────
-function StartScreen({ onStart, highScore }) {
+function StartScreen({ onStart, onBack, highScore }) {
+  const insets = useSafeAreaInsets();
   const pulse = useRef(new Animated.Value(1)).current;
   const float = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -256,6 +257,16 @@ function StartScreen({ onStart, highScore }) {
       {/* Decorative circles */}
       <View style={[styles.decorCircle, { width: 200, height: 200, top: -60, right: -60, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
       <View style={[styles.decorCircle, { width: 140, height: 140, bottom: 80, left: -40, backgroundColor: 'rgba(255,255,255,0.04)' }]} />
+
+      {onBack && (
+        <TouchableOpacity
+          style={[styles.gameBackBtn, { top: insets.top + 10 }]}
+          onPress={onBack}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.gameBackBtnText}>←</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.startContent}>
         <View style={styles.startEmojiWrap}>
@@ -705,6 +716,19 @@ export default function GameScreen({ navigation, route }) {
     }, 1300);
   };
 
+  const quitGame = () => {
+    gameActive.current = false;
+    stopLegAnim();
+    stopMusic();
+    clearInterval(tickRef.current);
+    clearInterval(spawnRef.current);
+    if (roomChannelRef.current) {
+      gameRunnerService.unsubscribe(roomChannelRef.current);
+      roomChannelRef.current = null;
+    }
+    navigation.goBack();
+  };
+
   const endGame = async () => {
     gameActive.current = false;
     stopLegAnim();
@@ -843,7 +867,7 @@ export default function GameScreen({ navigation, route }) {
   const legL = legAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['20deg', '0deg', '-20deg'] });
   const legR = legAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-20deg', '0deg', '20deg'] });
 
-  if (phase === 'start') return <StartScreen onStart={startGame} highScore={highScore} />;
+  if (phase === 'start') return <StartScreen onStart={startGame} onBack={() => navigation.goBack()} highScore={highScore} />;
   if (phase === 'gameover') return (
     <GameOverScreen score={score} highScore={highScore} collected={collected} leaderboard={leaderboard}
       onRestart={startGame} onHome={() => navigation.goBack()} finishRank={isMulti ? finishRank : null} />
@@ -944,8 +968,14 @@ export default function GameScreen({ navigation, route }) {
       )}
 
       {/* HUD */}
-      <View style={[styles.hudRow, { top: insets.top + 10 }]} pointerEvents="none">
+      <View style={[styles.hudRow, { top: insets.top + 10 }]} pointerEvents="box-none">
         <View style={styles.hudCard}>
+          <TouchableOpacity onPress={quitGame} style={styles.hudQuitBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.hudQuitBtnText}>✕</Text>
+          </TouchableOpacity>
+
+          <View style={styles.hudDivider} />
+
           <View style={styles.hudScoreWrap}>
             <Text style={styles.hudScore}>{score}</Text>
             <Text style={styles.hudScoreLabel}>SCORE</Text>
@@ -1110,6 +1140,13 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 8,
   },
   hudDivider: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.12)' },
+  hudQuitBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  hudQuitBtnText: { fontSize: 13, fontWeight: '900', color: WHITE },
+  gameBackBtn: {
+    position: 'absolute', left: 16, zIndex: 10, width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center',
+  },
+  gameBackBtnText: { fontSize: 20, fontWeight: '900', color: WHITE, marginTop: -2 },
   hudScoreWrap: { width: 56 },
   hudScore: { fontSize: 20, fontWeight: '900', color: WHITE, lineHeight: 22 },
   hudScoreLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 1.5 },

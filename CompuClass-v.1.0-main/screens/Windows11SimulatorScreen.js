@@ -66,6 +66,9 @@ export default function Windows11SimulatorScreen() {
       {!isFullscreen && (
         <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.header}>
           <View style={styles.titleRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="arrow-back" size={20} color={WHITE} />
+            </TouchableOpacity>
             <View style={styles.headerIconWrap}>
               <Ionicons name="desktop" size={20} color={WHITE} />
             </View>
@@ -124,6 +127,9 @@ export default function Windows11SimulatorScreen() {
         <StatusBar hidden={false} />
         <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.header}>
           <View style={styles.titleRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="arrow-back" size={20} color={WHITE} />
+            </TouchableOpacity>
             <View style={styles.headerIconWrap}>
               <Ionicons name="desktop" size={20} color={WHITE} />
             </View>
@@ -176,6 +182,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 52, paddingBottom: 14, paddingHorizontal: 16 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   headerIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 15, fontWeight: '900', color: WHITE },
   headerSubtitle: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
