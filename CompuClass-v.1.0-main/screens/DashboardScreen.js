@@ -327,6 +327,7 @@ export default function DashboardScreen({ navigation }) {
         {[
           { icon: 'book',           label: 'Materials',   screen: 'Materials',    color: PURPLE },
           { icon: 'desktop',        label: 'PC Lab',      screen: 'PC Lab',       color: GREEN  },
+          { icon: 'construct',      label: 'PC Assembly', screen: 'PC Assembly',  color: '#F59E0B' },
           { icon: 'laptop',         label: 'Windows 11',  screen: 'Windows 11',   color: BLUE   },
           { icon: 'bug',            label: 'Troubleshoot',screen: 'Troubleshoot', color: RED    },
           { icon: 'search',         label: 'Search',      screen: 'Search',       color: MUTED  },

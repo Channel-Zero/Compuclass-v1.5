@@ -18,6 +18,7 @@ const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563';
 const menuItems = [
   { icon: 'book',        title: 'Learning Materials', screen: 'Materials',    color: PURPLE },
   { icon: 'desktop',     title: 'PC Lab',             screen: 'PC Lab',       color: GREEN  },
+  { icon: 'construct',   title: 'PC Assembly',        screen: 'PC Assembly',  color: BLUE   },
   { icon: 'laptop',      title: 'Windows 11',         screen: 'Windows 11',   color: BLUE   },
   { icon: 'help-circle', title: 'Quiz',               screen: 'Quiz',         color: YELLOW },
   { icon: 'podium',      title: 'Leaderboard',        screen: 'Leaderboard',  color: PURPLE },

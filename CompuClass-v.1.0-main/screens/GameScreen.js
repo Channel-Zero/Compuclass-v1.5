@@ -33,15 +33,19 @@ const PICKUP_SIZE = 44;
 const INITIAL_SPEED = 4;
 const GAME_TICK = 16;
 
+// `answer` is the one canonical response QUESTIONS[id] is actually asking
+// for — kept separate from `name` (the emoji-label, e.g. "SSD") and `hint`
+// (the on-screen clue text) so the abbreviation itself can never accidentally
+// count as having spelled it out.
 const PC_COMPONENTS = [
-  { id: 'cpu', emoji: '🖥️', name: 'CPU',         hint: 'Central Processing Unit',  color: BLUE,    points: 50 },
-  { id: 'ram', emoji: '💾', name: 'RAM',         hint: 'Random Access Memory',      color: GREEN,   points: 50 },
-  { id: 'gpu', emoji: '🎮', name: 'GPU',         hint: 'Graphics Processing Unit',  color: PURPLE,  points: 75 },
-  { id: 'psu', emoji: '🔌', name: 'PSU',         hint: 'Power Supply Unit',         color: YELLOW,  points: 50 },
-  { id: 'ssd', emoji: '💿', name: 'SSD',         hint: 'Solid State Drive',         color: '#EC4899', points: 60 },
-  { id: 'mb',  emoji: '🔧', name: 'Motherboard', hint: 'Main circuit board',        color: '#F97316', points: 75 },
-  { id: 'fan', emoji: '🌀', name: 'CPU Fan',     hint: 'Keeps the CPU cool',        color: '#06B6D4', points: 40 },
-  { id: 'hdd', emoji: '🗄️', name: 'HDD',         hint: 'Hard Disk Drive',           color: RED,     points: 40 },
+  { id: 'cpu', emoji: '🖥️', name: 'CPU',         hint: 'Central Processing Unit',  answer: 'Central Processing Unit', color: BLUE,    points: 50 },
+  { id: 'ram', emoji: '💾', name: 'RAM',         hint: 'Random Access Memory',      answer: 'Random Access Memory',    color: GREEN,   points: 50 },
+  { id: 'gpu', emoji: '🎮', name: 'GPU',         hint: 'Graphics Processing Unit',  answer: 'Graphics Processing Unit', color: PURPLE,  points: 75 },
+  { id: 'psu', emoji: '🔌', name: 'PSU',         hint: 'Power Supply Unit',         answer: 'Power Supply Unit',       color: YELLOW,  points: 50 },
+  { id: 'ssd', emoji: '💿', name: 'SSD',         hint: 'Solid State Drive',         answer: 'Solid State Drive',       color: '#EC4899', points: 60 },
+  { id: 'mb',  emoji: '🔧', name: 'Motherboard', hint: 'Main circuit board',        answer: 'Motherboard',             color: '#F97316', points: 75 },
+  { id: 'fan', emoji: '🌀', name: 'CPU Fan',     hint: 'Keeps the CPU cool',        answer: 'CPU Fan',                 color: '#06B6D4', points: 40 },
+  { id: 'hdd', emoji: '🗄️', name: 'HDD',         hint: 'Hard Disk Drive',           answer: 'Hard Disk Drive',         color: RED,     points: 40 },
 ];
 
 const OBSTACLES = [
@@ -690,15 +694,13 @@ export default function GameScreen({ navigation, route }) {
     addScorePopup(px, py - 20, pts, pickup.color);
     gameActive.current = false;
     const qs = QUESTIONS[pickup.id];
-    setQuestion({ component: pickup, question: qs[0], answer: pickup.name.toLowerCase() });
+    setQuestion({ component: pickup, question: qs[0], answer: pickup.answer });
   };
 
   const submitAnswer = () => {
     if (!question) return;
     const input = answerInput.trim().toLowerCase();
-    const correct = input === question.answer.toLowerCase() ||
-      input === question.component.hint.toLowerCase() ||
-      input === question.component.id.toLowerCase();
+    const correct = input === question.answer.toLowerCase();
     if (correct) {
       scoreRef.current += 100;
       setScore(scoreRef.current);
@@ -774,11 +776,13 @@ export default function GameScreen({ navigation, route }) {
       } else {
         const lane = Math.floor(Math.random() * 3);
         const comp = PC_COMPONENTS[Math.floor(Math.random() * PC_COMPONENTS.length)];
-        // comp.id is the component type ('psu', 'cpu', ...), used later for the
-        // question lookup — spawnId is this specific pickup instance's identity,
-        // since two pickups of the same type can be on screen at once.
+        // comp.id is the component TYPE (e.g. 'hdd'), reused by every pickup of
+        // that type — collectPickup()'s QUESTIONS lookup and the "Collected"
+        // summary dedupe both depend on that. spawnId is the per-instance id
+        // used for the React key and for removing this exact pickup, so two
+        // pickups of the same type on screen at once don't collide.
         const spawnId = idCounter.current++;
-        const obj = { lane, y: -PICKUP_SIZE, ...comp, spawnId, anim: new Animated.Value(-PICKUP_SIZE) };
+        const obj = { ...comp, spawnId, lane, y: -PICKUP_SIZE, anim: new Animated.Value(-PICKUP_SIZE) };
         pickupsRef.current = [...pickupsRef.current, obj];
         setPickups(prev => [...prev, obj]);
       }
@@ -1042,7 +1046,7 @@ export default function GameScreen({ navigation, route }) {
             )}
             {answerFeedback === 'wrong' && (
               <View style={[styles.feedbackBox, { backgroundColor: RED + '15' }]}>
-                <Text style={styles.feedbackWrong}>❌  Answer: {question.component.name}</Text>
+                <Text style={styles.feedbackWrong}>❌  Answer: {question.answer}</Text>
               </View>
             )}
             {!answerFeedback && (

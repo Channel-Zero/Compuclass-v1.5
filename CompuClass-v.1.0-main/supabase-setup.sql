@@ -161,6 +161,19 @@ CREATE POLICY "Everyone can view quizzes" ON quizzes FOR SELECT USING (true);
 CREATE POLICY "Lecturers can manage own quizzes" ON quizzes FOR ALL USING (auth.uid() = lecturer_id);
 
 -- Quiz questions policies
+--
+-- KNOWN GAP: this table's `correct_answer` column is row-visible to any
+-- authenticated (or anon, per the GRANT below) client, since Postgres RLS
+-- filters rows, not columns, and app-roles (student/lecturer) share the same
+-- `authenticated` Postgres role — so a column-level REVOKE would also block
+-- lecturers from seeing answers for quizzes they own. The app itself never
+-- fetches `correct_answer` directly (see get_quiz_questions_for_attempt /
+-- submit_quiz_attempt below, and the narrowed `quiz_questions(id)` selects in
+-- SearchScreen.js / StudentMaterialsScreen.js), but a client that calls the
+-- REST API directly with the public anon key still could. Closing this
+-- properly means moving correct_answer into its own deny-all table reachable
+-- only through a SECURITY DEFINER function, mirroring the
+-- gamification.quiz_attempt_stats pattern in section 9 below.
 CREATE POLICY "Everyone can view quiz questions" ON quiz_questions FOR SELECT USING (true);
 CREATE POLICY "Lecturers can manage quiz questions" ON quiz_questions FOR ALL USING (
   EXISTS (SELECT 1 FROM quizzes WHERE id = quiz_questions.quiz_id AND lecturer_id = auth.uid())
@@ -215,17 +228,34 @@ ON CONFLICT (id) DO NOTHING;
 -- 6. CREATE STORAGE POLICIES
 -- ============================================
 
-CREATE POLICY "Anyone can upload documents" ON storage.objects 
-FOR INSERT WITH CHECK (bucket_id = 'documents' AND auth.role() = 'authenticated');
+-- Uploads/updates/deletes are scoped to the uploader's own folder
+-- (files are stored as `${user.id}/...`, see lecturerService.js / authService.js).
+-- Previously these only checked `auth.role() = 'authenticated'`, which let ANY
+-- signed-in user overwrite or delete files under someone else's user-id prefix
+-- despite the policy names saying "own". DROP + recreate so this script stays
+-- re-runnable against a project that already has the old policies applied.
+DROP POLICY IF EXISTS "Anyone can upload documents" ON storage.objects;
+DROP POLICY IF EXISTS "Users can upload own documents" ON storage.objects;
+CREATE POLICY "Users can upload own documents" ON storage.objects
+FOR INSERT WITH CHECK (
+  bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]
+);
 
-CREATE POLICY "Anyone can view documents" ON storage.objects 
+DROP POLICY IF EXISTS "Anyone can view documents" ON storage.objects;
+CREATE POLICY "Anyone can view documents" ON storage.objects
 FOR SELECT USING (bucket_id = 'documents');
 
-CREATE POLICY "Lecturers can delete own documents" ON storage.objects 
-FOR DELETE USING (bucket_id = 'documents' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Lecturers can delete own documents" ON storage.objects;
+CREATE POLICY "Lecturers can delete own documents" ON storage.objects
+FOR DELETE USING (
+  bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]
+);
 
-CREATE POLICY "Lecturers can update own documents" ON storage.objects 
-FOR UPDATE USING (bucket_id = 'documents' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Lecturers can update own documents" ON storage.objects;
+CREATE POLICY "Lecturers can update own documents" ON storage.objects
+FOR UPDATE USING (
+  bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]
+);
 
 -- ============================================
 -- 7. CREATE FUNCTIONS
