@@ -35,7 +35,7 @@ export default function StudentMaterialsScreen({ navigation }) {
     try {
       const [docsRes, quizzesRes] = await Promise.all([
         supabase.from('documents').select('*').eq('folder_id', folderId),
-        supabase.from('quizzes').select('id, title, description, passing_score, question_count').eq('folder_id', folderId),
+        supabase.from('quizzes').select('id, title, description, passing_score').eq('folder_id', folderId),
       ]);
       if (docsRes.error) throw docsRes.error;
       if (quizzesRes.error) throw quizzesRes.error;
@@ -96,9 +96,7 @@ export default function StudentMaterialsScreen({ navigation }) {
                 <Ionicons name="help-circle" size={18} color={TEXT} />
               </View>
               <Text style={styles.itemTitle}>{quiz.title}</Text>
-              <View style={styles.questionBadge}>
-                <Text style={styles.questionBadgeText}>{quiz.question_count || 0} Q</Text>
-              </View>
+              <Text style={styles.itemMeta}>Pass {quiz.passing_score ?? 70}%</Text>
             </TouchableOpacity>
           ))}
         <View style={{ height: 32 }} />
@@ -168,6 +166,7 @@ const styles = StyleSheet.create({
   itemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 14, padding: 14, marginBottom: 8, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   itemIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   itemTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
+  itemMeta: { fontSize: 12, color: MUTED, fontWeight: '600' },
   downloadBadge: { width: 32, height: 32, borderRadius: 10, backgroundColor: PURPLE + '15', alignItems: 'center', justifyContent: 'center' },
   questionBadge: { backgroundColor: YELLOW + '30', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   questionBadgeText: { fontSize: 11, fontWeight: '800', color: TEXT },

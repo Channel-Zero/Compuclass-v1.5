@@ -7,6 +7,12 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 
+function optionLabel(option) {
+  if (option == null) return '';
+  if (typeof option === 'string' || typeof option === 'number') return String(option);
+  return option.option_text || option.text || option.label || '';
+}
+
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
 const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
@@ -34,10 +40,10 @@ export default function QuizScreen({ route, navigation }) {
       const { data: classStudents } = await supabase.from('class_students').select('class_id').eq('student_id', user.id);
       const classIds = classStudents?.map((cs) => cs.class_id) || [];
       if (classIds.length === 0) { setAvailableQuizzes([]); setLoading(false); return; }
-      const { data: assignments } = await supabase.from('quiz_assignments').select('quiz_id').in('class_id', classIds);
-      const quizIds = assignments?.map((a) => a.quiz_id) || [];
+      const { data: assignments } = await supabase.from('quiz_assignments').select('quiz_id, is_published').in('class_id', classIds);
+      const quizIds = assignments?.filter((a) => a.is_published).map((a) => a.quiz_id) || [];
       if (quizIds.length === 0) { setAvailableQuizzes([]); setLoading(false); return; }
-      const { data: quizzes, error } = await supabase.from('quizzes').select('id, title, description, passing_score, question_count').in('id', quizIds);
+      const { data: quizzes, error } = await supabase.from('quizzes').select('id, title, description, passing_score').in('id', quizIds);
       if (error) throw error;
       setAvailableQuizzes(quizzes || []);
     } catch (error) { Alert.alert('Error', error.message || 'Failed to load quizzes'); }
@@ -46,17 +52,21 @@ export default function QuizScreen({ route, navigation }) {
 
   const loadQuiz = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_quiz_for_student', { p_quiz_id: quizId });
-      if (error) throw error;
-      setQuiz(data);
-      setQuestions(data?.questions || []);
+      const [{ data: quizRow, error: quizError }, { data: questionRows, error: questionError }] = await Promise.all([
+        supabase.from('quizzes').select('id, title, description, passing_score').eq('id', quizId).single(),
+        supabase.rpc('get_quiz_questions_for_attempt', { p_quiz_id: quizId }),
+      ]);
+      if (quizError) throw quizError;
+      if (questionError) throw questionError;
+      setQuiz(quizRow);
+      setQuestions(questionRows || []);
     } catch (error) { Alert.alert('Error', error.message || 'Failed to load quiz'); navigation.goBack(); }
     finally { setLoading(false); }
   };
 
   const handleNextQuestion = () => {
     if (submitting || selectedAnswer === null) { Alert.alert('Please select an answer'); return; }
-    const newAnswers = [...answers, { questionId: questions[currentQuestion].id, selected: selectedAnswer }];
+    const newAnswers = [...answers, { question_id: questions[currentQuestion].id, selected_answer: selectedAnswer }];
     setAnswers(newAnswers);
     if (currentQuestion + 1 < questions.length) { setCurrentQuestion(currentQuestion + 1); setSelectedAnswer(null); }
     else submitQuizAttempt(newAnswers);
@@ -70,8 +80,21 @@ export default function QuizScreen({ route, navigation }) {
         p_answers: answerPayload,
       });
       if (error) throw error;
-      setResult(data);
-      setScore(data?.correct || 0);
+      setResult({
+        score: data?.score ?? 0,
+        passed: data?.passed,
+        passingScore: data?.passing_score,
+        correct: data?.correct_count ?? 0,
+        total: data?.total_questions ?? answerPayload.length,
+        review: (data?.review || []).map((item) => ({
+          questionId: item.question_id,
+          question: item.question,
+          selected: item.selected_answer,
+          isCorrect: item.is_correct,
+          correctAnswer: item.correct_answer,
+        })),
+      });
+      setScore(data?.correct_count || 0);
       setQuizCompleted(true);
     } catch (error) {
       Alert.alert('Could not save quiz', error.message || 'Check your connection and try again.');
@@ -159,14 +182,17 @@ export default function QuizScreen({ route, navigation }) {
       <ScrollView style={styles.questionScroll}>
         <Text style={styles.questionText}>{currentQ.question}</Text>
         <View style={styles.optionsWrap}>
-          {Array.isArray(options) && options.map((option, index) => (
-            <TouchableOpacity key={index} style={[styles.optionBtn, selectedAnswer === option && styles.optionBtnSelected]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedAnswer(option); }} activeOpacity={0.75}>
-              <View style={[styles.optionLetter, selectedAnswer === option && { backgroundColor: BLUE }]}>
-                <Text style={[styles.optionLetterText, selectedAnswer === option && { color: WHITE }]}>{String.fromCharCode(65 + index)}</Text>
+          {Array.isArray(options) && options.map((option, index) => {
+            const label = optionLabel(option);
+            return (
+            <TouchableOpacity key={index} style={[styles.optionBtn, selectedAnswer === label && styles.optionBtnSelected]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedAnswer(label); }} activeOpacity={0.75}>
+              <View style={[styles.optionLetter, selectedAnswer === label && { backgroundColor: BLUE }]}>
+                <Text style={[styles.optionLetterText, selectedAnswer === label && { color: WHITE }]}>{String.fromCharCode(65 + index)}</Text>
               </View>
-              <Text style={[styles.optionText, selectedAnswer === option && { color: BLUE, fontWeight: '700' }]}>{option}</Text>
+              <Text style={[styles.optionText, selectedAnswer === label && { color: BLUE, fontWeight: '700' }]}>{label}</Text>
             </TouchableOpacity>
-          ))}
+            );
+          })}
         </View>
       </ScrollView>
       <TouchableOpacity style={[styles.nextBtn, (selectedAnswer === null || submitting) && styles.nextBtnDisabled]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleNextQuestion(); }} disabled={selectedAnswer === null || submitting} activeOpacity={0.85}>

@@ -57,7 +57,7 @@ export default function SearchScreen({ navigation }) {
       try {
         const term = searchQuery.trim().replace(/[%_]/g, '');
         const [quizzesRes, docsRes] = await Promise.all([
-          supabase.from('quizzes').select('id, title, description, question_count').ilike('title', `%${term}%`),
+          supabase.from('quizzes').select('id, title, description').ilike('title', `%${term}%`),
           supabase.from('documents').select('id, title, file_name, file_type, file_url').ilike('title', `%${term}%`),
         ]);
         if (requestId !== requestRef.current) return;
@@ -151,7 +151,7 @@ export default function SearchScreen({ navigation }) {
                     </View>
                     <View style={styles.resultInfo}>
                       <Text style={styles.resultTitle}>{quiz.title}</Text>
-                      <Text style={styles.resultSubtitle}>{quiz.question_count || 0} questions</Text>
+                      <Text style={styles.resultSubtitle}>{quiz.description || 'Quiz'}</Text>
                     </View>
                     <View style={styles.resultBadge}>
                       <Text style={styles.resultBadgeText}>Quiz</Text>

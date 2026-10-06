@@ -1,845 +1,527 @@
--- CompuClass database setup for a NEW Supabase project.
--- Run this whole file once in the Supabase SQL Editor.
+-- Fresh CompuClass database only.
+-- Do NOT run this file on the live project Compu-ClassV1 (qdtbmdsssjmapodladcs).
+-- That database already has these tables, plus RPC bodies that are not in git.
+-- On the live project run only:
+--   supabase/migrations/20261006140000_security_hardening.sql
 --
--- Already have a database created from an older copy of this file?
--- Do NOT run this script again (CREATE TABLE will fail).
--- Run supabase/migrations/20261006140000_security_hardening.sql instead.
+-- This script creates the live table shape (public + gamification) with RLS
+-- enabled and no policies yet, so a new database is closed until the migration
+-- adds policies and the functions this repository owns.
 --
--- Lecturers are not chosen at signup. After the first user exists, promote
--- them from the SQL editor (runs as postgres):
---   UPDATE public.profiles SET role = 'lecturer' WHERE id = '<user-uuid>';
-
--- ============================================
--- 1. TABLES
--- ============================================
-
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name TEXT,
-  role TEXT DEFAULT 'student' CHECK (role IN ('student', 'lecturer')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE folders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  lecturer_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE documents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  file_url TEXT NOT NULL,
-  file_name TEXT,
-  file_type TEXT,
-  file_size INTEGER,
-  folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
-  lecturer_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE quizzes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  description TEXT,
-  passing_score INTEGER DEFAULT 70 CHECK (passing_score BETWEEN 0 AND 100),
-  question_count INTEGER NOT NULL DEFAULT 0,
-  folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
-  lecturer_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE quiz_questions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  quiz_id UUID REFERENCES quizzes(id) ON DELETE CASCADE,
-  question TEXT NOT NULL,
-  options JSONB NOT NULL,
-  correct_answer TEXT NOT NULL,
-  order_index INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE classes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  lecturer_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE class_students (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  class_id UUID REFERENCES classes(id) ON DELETE CASCADE,
-  student_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE (class_id, student_id)
-);
-
-CREATE TABLE quiz_assignments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  quiz_id UUID REFERENCES quizzes(id) ON DELETE CASCADE,
-  class_id UUID REFERENCES classes(id) ON DELETE CASCADE,
-  assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE (quiz_id, class_id)
-);
-
-CREATE TABLE quiz_attempts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  quiz_id UUID REFERENCES quizzes(id) ON DELETE CASCADE,
-  score INTEGER NOT NULL CHECK (score BETWEEN 0 AND 100),
-  completed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE material_views (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT material_views_user_document_unique UNIQUE (user_id, document_id)
-);
-
-CREATE TABLE windows_simulation_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  session_start TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  session_end TIMESTAMP WITH TIME ZONE,
-  duration_seconds INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- ============================================
--- 2. INDEXES
--- ============================================
-
-CREATE INDEX idx_folders_lecturer ON folders(lecturer_id);
-CREATE INDEX idx_documents_folder ON documents(folder_id);
-CREATE INDEX idx_documents_lecturer ON documents(lecturer_id);
-CREATE INDEX idx_quizzes_folder ON quizzes(folder_id);
-CREATE INDEX idx_quizzes_lecturer ON quizzes(lecturer_id);
-CREATE INDEX idx_quiz_questions_quiz ON quiz_questions(quiz_id);
-CREATE INDEX idx_classes_lecturer ON classes(lecturer_id);
-CREATE INDEX idx_class_students_class ON class_students(class_id);
-CREATE INDEX idx_class_students_student ON class_students(student_id);
-CREATE INDEX idx_quiz_assignments_quiz ON quiz_assignments(quiz_id);
-CREATE INDEX idx_quiz_assignments_class ON quiz_assignments(class_id);
-CREATE INDEX idx_quiz_attempts_user ON quiz_attempts(user_id);
-CREATE INDEX idx_quiz_attempts_quiz ON quiz_attempts(quiz_id);
-CREATE INDEX idx_material_views_user ON material_views(user_id);
-CREATE INDEX idx_material_views_document ON material_views(document_id);
-CREATE INDEX idx_windows_sessions_user ON windows_simulation_sessions(user_id);
-
--- ============================================
--- 3. ROW LEVEL SECURITY
--- ============================================
-
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE folders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quiz_questions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE class_students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quiz_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE material_views ENABLE ROW LEVEL SECURITY;
-ALTER TABLE windows_simulation_sessions ENABLE ROW LEVEL SECURITY;
-
--- The statements below match supabase/migrations/20261006140000_security_hardening.sql
--- from the helper functions onward, so a fresh project and a migrated project
--- end on the same rules.
--- Idempotent security hardening for an EXISTING CompuClass project.
--- Run this once in the Supabase SQL Editor (or `supabase db query`).
--- Do not re-run supabase-setup.sql on a database that already has tables.
+-- No git branch contains the live gradebook, offline-quiz, maze, runner, or
+-- gamification RPC source. Those functions stay on the live project only.
+-- A new project will not have them until that code is committed.
 --
--- After this script:
---   * New signups are always students. Promote a lecturer from the SQL editor:
---       UPDATE public.profiles SET role = 'lecturer' WHERE id = '<user-uuid>';
---   * Quiz answers are not readable by students. Grading goes through
---     public.submit_quiz_attempt.
---   * The documents bucket is private (20 MB, limited MIME types).
+-- After this file, run the security migration in the SQL editor.
 
--- ============================================
--- 1. SCHEMA ADDITIONS
--- ============================================
+CREATE SCHEMA IF NOT EXISTS gamification;
 
-ALTER TABLE public.quizzes
-  ADD COLUMN IF NOT EXISTS question_count integer NOT NULL DEFAULT 0;
-
-UPDATE public.quiz_attempts
-SET score = LEAST(100, GREATEST(0, score))
-WHERE score < 0 OR score > 100;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'quiz_attempts_score_range'
-  ) THEN
-    ALTER TABLE public.quiz_attempts
-      ADD CONSTRAINT quiz_attempts_score_range CHECK (score BETWEEN 0 AND 100);
-  END IF;
-END $$;
-
-DELETE FROM public.material_views a
-USING public.material_views b
-WHERE a.user_id = b.user_id
-  AND a.document_id = b.document_id
-  AND a.ctid > b.ctid;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'material_views_user_document_unique'
-  ) THEN
-    ALTER TABLE public.material_views
-      ADD CONSTRAINT material_views_user_document_unique UNIQUE (user_id, document_id);
-  END IF;
-END $$;
-
-CREATE TABLE IF NOT EXISTS public.windows_simulation_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-  session_start TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  session_end TIMESTAMP WITH TIME ZONE,
-  duration_seconds INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  full_name text,
+  role text DEFAULT 'student'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT profiles_role_check CHECK ((role = ANY (ARRAY['student'::text, 'lecturer'::text])))
 );
 
-ALTER TABLE public.windows_simulation_sessions ENABLE ROW LEVEL SECURITY;
-
-CREATE INDEX IF NOT EXISTS idx_windows_sessions_user ON public.windows_simulation_sessions(user_id);
-
--- ============================================
--- 2. HELPER / TRIGGER FUNCTIONS
--- ============================================
-
-CREATE OR REPLACE FUNCTION public.is_lecturer()
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'lecturer'
-  );
-$$;
-
-CREATE OR REPLACE FUNCTION public.prevent_profile_privilege_change()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-BEGIN
-  IF NEW.id IS DISTINCT FROM OLD.id
-     OR NEW.role IS DISTINCT FROM OLD.role THEN
-    IF current_user NOT IN ('postgres', 'supabase_admin', 'supabase_auth_admin')
-       AND coalesce(auth.jwt() ->> 'role', '') <> 'service_role' THEN
-      RAISE EXCEPTION 'profile id and role cannot be changed';
-    END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS prevent_profile_privilege_change ON public.profiles;
-CREATE TRIGGER prevent_profile_privilege_change
-  BEFORE UPDATE ON public.profiles
-  FOR EACH ROW EXECUTE FUNCTION public.prevent_profile_privilege_change();
-
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, full_name, role)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''),
-    'student'
-  )
-  ON CONFLICT (id) DO NOTHING;
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
-CREATE OR REPLACE FUNCTION public.sync_quiz_question_count()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_quiz uuid;
-BEGIN
-  v_quiz := COALESCE(NEW.quiz_id, OLD.quiz_id);
-  UPDATE public.quizzes
-  SET question_count = (
-    SELECT count(*) FROM public.quiz_questions WHERE quiz_id = v_quiz
-  )
-  WHERE id = v_quiz;
-  RETURN NULL;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS sync_quiz_question_count ON public.quiz_questions;
-CREATE TRIGGER sync_quiz_question_count
-  AFTER INSERT OR DELETE ON public.quiz_questions
-  FOR EACH ROW EXECUTE FUNCTION public.sync_quiz_question_count();
-
-UPDATE public.quizzes q
-SET question_count = (
-  SELECT count(*) FROM public.quiz_questions qq WHERE qq.quiz_id = q.id
+CREATE TABLE public.folders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  lecturer_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT folders_pkey PRIMARY KEY (id),
+  CONSTRAINT folders_lecturer_id_fkey FOREIGN KEY (lecturer_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
--- ============================================
--- 3. QUIZ + STUDENT RPCS
--- ============================================
+CREATE TABLE public.classes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  lecturer_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT classes_pkey PRIMARY KEY (id),
+  CONSTRAINT classes_lecturer_id_fkey FOREIGN KEY (lecturer_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
 
-CREATE OR REPLACE FUNCTION public.get_students_with_emails()
-RETURNS TABLE (
-  id UUID,
-  full_name TEXT,
-  email VARCHAR(255),
-  role TEXT,
-  created_at TIMESTAMP WITH TIME ZONE
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF NOT public.is_lecturer() THEN
-    RAISE EXCEPTION 'not authorized';
-  END IF;
+CREATE TABLE public.announcements (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text,
+  body text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT announcements_pkey PRIMARY KEY (id)
+);
 
-  RETURN QUERY
-  SELECT
-    p.id,
-    p.full_name,
-    u.email::VARCHAR(255),
-    p.role,
-    p.created_at
-  FROM public.profiles p
-  JOIN auth.users u ON p.id = u.id
-  WHERE p.role = 'student'
-  ORDER BY p.created_at DESC;
-END;
-$$;
+CREATE TABLE public.game_scores (
+  user_id uuid NOT NULL,
+  score integer,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT game_scores_pkey PRIMARY KEY (user_id),
+  CONSTRAINT game_scores_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
 
-CREATE OR REPLACE FUNCTION public.get_quiz_for_student(p_quiz_id uuid)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_user uuid := auth.uid();
-  v_quiz public.quizzes%ROWTYPE;
-  v_questions jsonb;
-BEGIN
-  IF v_user IS NULL THEN
-    RAISE EXCEPTION 'not authenticated';
-  END IF;
+CREATE TABLE public.circuit_maze_rooms (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  code text NOT NULL,
+  host_id uuid,
+  status text NOT NULL DEFAULT 'waiting'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT circuit_maze_rooms_code_key UNIQUE (code),
+  CONSTRAINT circuit_maze_rooms_pkey PRIMARY KEY (id),
+  CONSTRAINT circuit_maze_rooms_host_id_fkey FOREIGN KEY (host_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT circuit_maze_rooms_status_check CHECK ((status = ANY (ARRAY['waiting'::text, 'playing'::text, 'finished'::text])))
+);
 
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.quiz_assignments qa
-    JOIN public.class_students cs ON cs.class_id = qa.class_id
-    WHERE qa.quiz_id = p_quiz_id AND cs.student_id = v_user
-  ) THEN
-    RAISE EXCEPTION 'quiz is not assigned to you';
-  END IF;
+CREATE TABLE public.game_runner_rooms (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  code text NOT NULL,
+  host_id uuid,
+  status text NOT NULL DEFAULT 'waiting'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT game_runner_rooms_code_key UNIQUE (code),
+  CONSTRAINT game_runner_rooms_pkey PRIMARY KEY (id),
+  CONSTRAINT game_runner_rooms_host_id_fkey FOREIGN KEY (host_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT game_runner_rooms_status_check CHECK ((status = ANY (ARRAY['waiting'::text, 'playing'::text, 'finished'::text])))
+);
 
-  SELECT * INTO v_quiz FROM public.quizzes WHERE id = p_quiz_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'quiz not found';
-  END IF;
+CREATE TABLE public.documents (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  file_url text NOT NULL,
+  file_name text,
+  file_type text,
+  file_size integer,
+  folder_id uuid,
+  lecturer_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT documents_pkey PRIMARY KEY (id),
+  CONSTRAINT documents_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE,
+  CONSTRAINT documents_lecturer_id_fkey FOREIGN KEY (lecturer_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
 
-  SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'id', qq.id,
-    'question', qq.question,
-    'options', qq.options,
-    'order_index', qq.order_index
-  ) ORDER BY qq.order_index), '[]'::jsonb)
-  INTO v_questions
-  FROM public.quiz_questions qq
-  WHERE qq.quiz_id = p_quiz_id;
+CREATE TABLE public.quizzes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  description text,
+  passing_score integer DEFAULT 70,
+  folder_id uuid,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  type text NOT NULL DEFAULT 'class'::text,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT quizzes_pkey PRIMARY KEY (id),
+  CONSTRAINT quizzes_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE,
+  CONSTRAINT quizzes_lecturer_id_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT quizzes_type_check CHECK ((type = ANY (ARRAY['class'::text, 'practice'::text])))
+);
 
-  RETURN jsonb_build_object(
-    'id', v_quiz.id,
-    'title', v_quiz.title,
-    'description', v_quiz.description,
-    'passing_score', v_quiz.passing_score,
-    'question_count', v_quiz.question_count,
-    'questions', v_questions
-  );
-END;
-$$;
+CREATE TABLE public.class_students (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  class_id uuid,
+  student_id uuid,
+  joined_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT class_students_class_id_student_id_key UNIQUE (class_id, student_id),
+  CONSTRAINT class_students_pkey PRIMARY KEY (id),
+  CONSTRAINT class_students_class_id_fkey FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+  CONSTRAINT class_students_student_id_fkey FOREIGN KEY (student_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
 
-CREATE OR REPLACE FUNCTION public.submit_quiz_attempt(p_quiz_id uuid, p_answers jsonb)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_user uuid := auth.uid();
-  v_total integer;
-  v_correct integer := 0;
-  v_score integer;
-  v_passing integer;
-  v_review jsonb := '[]'::jsonb;
-  r record;
-  v_selected text;
-BEGIN
-  IF v_user IS NULL THEN
-    RAISE EXCEPTION 'not authenticated';
-  END IF;
+CREATE TABLE public.quiz_questions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  quiz_id uuid,
+  question text NOT NULL,
+  options jsonb NOT NULL,
+  correct_answer text NOT NULL,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  type text NOT NULL DEFAULT 'mcq'::text,
+  points numeric(6,2) NOT NULL DEFAULT 1,
+  image_url text,
+  CONSTRAINT quiz_questions_pkey PRIMARY KEY (id),
+  CONSTRAINT quiz_questions_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_questions_image_required CHECK (((type <> 'image_based'::text) OR (image_url IS NOT NULL))),
+  CONSTRAINT quiz_questions_points_check CHECK (((points > (0)::numeric) AND (points <= (1000)::numeric))),
+  CONSTRAINT quiz_questions_type_check CHECK ((type = ANY (ARRAY['mcq'::text, 'true_false'::text, 'short_answer'::text, 'image_based'::text])))
+);
 
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.quiz_assignments qa
-    JOIN public.class_students cs ON cs.class_id = qa.class_id
-    WHERE qa.quiz_id = p_quiz_id AND cs.student_id = v_user
-  ) THEN
-    RAISE EXCEPTION 'quiz is not assigned to you';
-  END IF;
+CREATE TABLE public.quiz_assignments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  quiz_id uuid,
+  class_id uuid,
+  assigned_at timestamp with time zone DEFAULT now(),
+  due_at timestamp with time zone,
+  closes_at timestamp with time zone,
+  attempt_limit integer NOT NULL DEFAULT 3,
+  late_penalty_percent numeric(5,2) NOT NULL DEFAULT 10,
+  time_limit_seconds integer,
+  is_published boolean NOT NULL DEFAULT false,
+  published_at timestamp with time zone,
+  created_by uuid,
+  CONSTRAINT quiz_assignments_quiz_id_class_id_key UNIQUE (quiz_id, class_id),
+  CONSTRAINT quiz_assignments_pkey PRIMARY KEY (id),
+  CONSTRAINT quiz_assignments_class_id_fkey FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_assignments_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id),
+  CONSTRAINT quiz_assignments_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_assignments_attempt_limit_check CHECK (((attempt_limit >= 1) AND (attempt_limit <= 100))),
+  CONSTRAINT quiz_assignments_closes_after_due CHECK (((closes_at IS NULL) OR (due_at IS NULL) OR (closes_at >= due_at))),
+  CONSTRAINT quiz_assignments_late_penalty_check CHECK (((late_penalty_percent >= (0)::numeric) AND (late_penalty_percent <= (100)::numeric))),
+  CONSTRAINT quiz_assignments_time_limit_check CHECK (((time_limit_seconds IS NULL) OR ((time_limit_seconds >= 10) AND (time_limit_seconds <= 86400))))
+);
 
-  SELECT passing_score INTO v_passing FROM public.quizzes WHERE id = p_quiz_id;
-  IF v_passing IS NULL THEN
-    RAISE EXCEPTION 'quiz not found';
-  END IF;
+CREATE TABLE public.quiz_options (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  question_id uuid NOT NULL,
+  option_text text NOT NULL,
+  is_correct boolean NOT NULL DEFAULT false,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT quiz_options_pkey PRIMARY KEY (id),
+  CONSTRAINT quiz_options_question_id_fkey FOREIGN KEY (question_id) REFERENCES quiz_questions(id) ON DELETE CASCADE
+);
 
-  SELECT count(*) INTO v_total FROM public.quiz_questions WHERE quiz_id = p_quiz_id;
-  IF v_total = 0 THEN
-    RAISE EXCEPTION 'quiz has no questions';
-  END IF;
+CREATE TABLE public.quiz_attempts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  quiz_id uuid,
+  score integer,
+  completed_at timestamp with time zone DEFAULT now(),
+  client_attempt_id uuid,
+  assignment_id uuid,
+  class_id uuid,
+  attempt_number integer NOT NULL DEFAULT 1,
+  question_order jsonb,
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  raw_points numeric(8,2),
+  max_points numeric(8,2),
+  score_percent numeric(5,2),
+  time_taken_seconds integer,
+  is_late boolean NOT NULL DEFAULT false,
+  status text NOT NULL DEFAULT 'graded'::text,
+  synced_at timestamp with time zone,
+  graded_at timestamp with time zone,
+  rejected_reason text,
+  CONSTRAINT quiz_attempts_pkey PRIMARY KEY (id),
+  CONSTRAINT quiz_attempts_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES quiz_assignments(id),
+  CONSTRAINT quiz_attempts_class_id_fkey FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
+  CONSTRAINT quiz_attempts_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_attempts_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_attempts_status_check CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text, 'pending_manual_grade'::text, 'graded'::text, 'rejected'::text])))
+);
 
-  FOR r IN
-    SELECT id, question, options, correct_answer, order_index
-    FROM public.quiz_questions
-    WHERE quiz_id = p_quiz_id
-    ORDER BY order_index
-  LOOP
-    SELECT a.value ->> 'selected' INTO v_selected
-    FROM jsonb_array_elements(COALESCE(p_answers, '[]'::jsonb)) AS a(value)
-    WHERE a.value ->> 'questionId' = r.id::text
-    LIMIT 1;
+CREATE TABLE public.quiz_answers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  attempt_id uuid NOT NULL,
+  question_id uuid NOT NULL,
+  selected_option_id uuid,
+  short_answer_text text,
+  is_correct boolean,
+  points_awarded numeric(6,2),
+  time_remaining_seconds integer,
+  manual_grade_note text,
+  graded_by uuid,
+  graded_at timestamp with time zone,
+  answered_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT quiz_answers_attempt_id_question_id_key UNIQUE (attempt_id, question_id),
+  CONSTRAINT quiz_answers_pkey PRIMARY KEY (id),
+  CONSTRAINT quiz_answers_attempt_id_fkey FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_answers_graded_by_fkey FOREIGN KEY (graded_by) REFERENCES profiles(id),
+  CONSTRAINT quiz_answers_question_id_fkey FOREIGN KEY (question_id) REFERENCES quiz_questions(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_answers_selected_option_id_fkey FOREIGN KEY (selected_option_id) REFERENCES quiz_options(id) ON DELETE SET NULL
+);
 
-    IF v_selected IS NOT NULL AND v_selected = r.correct_answer THEN
-      v_correct := v_correct + 1;
-    END IF;
+CREATE TABLE public.grades (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid NOT NULL,
+  class_id uuid NOT NULL,
+  quiz_id uuid NOT NULL,
+  assignment_id uuid,
+  best_attempt_id uuid,
+  score numeric(5,2),
+  recorded_at timestamp with time zone DEFAULT now(),
+  is_overridden boolean NOT NULL DEFAULT false,
+  override_score numeric(5,2),
+  override_note text,
+  overridden_by uuid,
+  overridden_at timestamp with time zone,
+  effective_score numeric(5,2) GENERATED ALWAYS AS (CASE WHEN is_overridden THEN override_score ELSE score END) STORED,
+  CONSTRAINT grades_student_id_class_id_quiz_id_key UNIQUE (student_id, class_id, quiz_id),
+  CONSTRAINT grades_pkey PRIMARY KEY (id),
+  CONSTRAINT grades_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES quiz_assignments(id) ON DELETE SET NULL,
+  CONSTRAINT grades_best_attempt_id_fkey FOREIGN KEY (best_attempt_id) REFERENCES quiz_attempts(id) ON DELETE SET NULL,
+  CONSTRAINT grades_class_id_fkey FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+  CONSTRAINT grades_overridden_by_fkey FOREIGN KEY (overridden_by) REFERENCES profiles(id),
+  CONSTRAINT grades_quiz_id_fkey FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+  CONSTRAINT grades_student_id_fkey FOREIGN KEY (student_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT grades_override_requires_note CHECK (((NOT is_overridden) OR ((override_score IS NOT NULL) AND (btrim(COALESCE(override_note, ''::text)) <> ''::text)))),
+  CONSTRAINT grades_override_score_range CHECK (((override_score IS NULL) OR ((override_score >= (0)::numeric) AND (override_score <= (100)::numeric)))),
+  CONSTRAINT grades_score_range CHECK (((score IS NULL) OR ((score >= (0)::numeric) AND (score <= (100)::numeric))))
+);
 
-    v_review := v_review || jsonb_build_array(jsonb_build_object(
-      'questionId', r.id,
-      'question', r.question,
-      'selected', v_selected,
-      'correctAnswer', r.correct_answer,
-      'isCorrect', v_selected IS NOT NULL AND v_selected = r.correct_answer
-    ));
-  END LOOP;
+CREATE TABLE public.material_views (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  document_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT material_views_pkey PRIMARY KEY (id),
+  CONSTRAINT material_views_document_id_fkey FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+  CONSTRAINT material_views_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
 
-  v_score := round((v_correct::numeric / v_total) * 100);
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  type text NOT NULL,
+  title text NOT NULL,
+  body text NOT NULL,
+  data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  status text NOT NULL DEFAULT 'pending'::text,
+  error text,
+  read_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  sent_at timestamp with time zone,
+  dedupe_key text,
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT notifications_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text]))),
+  CONSTRAINT notifications_type_check CHECK ((type = ANY (ARRAY['quiz_published'::text, 'quiz_due_soon'::text, 'attempt_graded'::text])))
+);
 
-  INSERT INTO public.quiz_attempts (user_id, quiz_id, score)
-  VALUES (v_user, p_quiz_id, v_score);
+CREATE TABLE public.push_tokens (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  token text NOT NULL,
+  platform text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT push_tokens_token_key UNIQUE (token),
+  CONSTRAINT push_tokens_pkey PRIMARY KEY (id),
+  CONSTRAINT push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  CONSTRAINT push_tokens_platform_check CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])))
+);
 
-  RETURN jsonb_build_object(
-    'score', v_score,
-    'passed', v_score >= v_passing,
-    'passingScore', v_passing,
-    'correct', v_correct,
-    'total', v_total,
-    'review', v_review
-  );
-END;
-$$;
+CREATE TABLE public.windows_simulation_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  session_start timestamp with time zone DEFAULT now(),
+  session_end timestamp with time zone,
+  duration_seconds integer,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT windows_simulation_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT windows_simulation_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
 
-CREATE OR REPLACE FUNCTION public.promote_to_lecturer(target uuid)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF coalesce(auth.jwt() ->> 'role', '') <> 'service_role' THEN
-    RAISE EXCEPTION 'not authorized';
-  END IF;
-  UPDATE public.profiles SET role = 'lecturer' WHERE id = target;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'profile not found';
-  END IF;
-END;
-$$;
+CREATE TABLE public.circuit_maze_players (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  room_id uuid,
+  user_id uuid,
+  full_name text,
+  position integer NOT NULL DEFAULT 0,
+  hearts integer NOT NULL DEFAULT 5,
+  xp integer NOT NULL DEFAULT 0,
+  finished boolean NOT NULL DEFAULT false,
+  finish_rank integer,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT circuit_maze_players_room_id_user_id_key UNIQUE (room_id, user_id),
+  CONSTRAINT circuit_maze_players_pkey PRIMARY KEY (id),
+  CONSTRAINT circuit_maze_players_room_id_fkey FOREIGN KEY (room_id) REFERENCES circuit_maze_rooms(id) ON DELETE CASCADE,
+  CONSTRAINT circuit_maze_players_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
 
--- ============================================
--- 4. REPLACE RLS POLICIES
--- ============================================
+CREATE TABLE public.circuit_maze_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  xp_earned integer NOT NULL DEFAULT 0,
+  finished boolean NOT NULL DEFAULT false,
+  finish_bonus integer NOT NULL DEFAULT 0,
+  completed_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT circuit_maze_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT circuit_maze_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.game_runner_players (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  room_id uuid,
+  user_id uuid,
+  full_name text,
+  lane integer NOT NULL DEFAULT 1,
+  score integer NOT NULL DEFAULT 0,
+  lives integer NOT NULL DEFAULT 3,
+  finished boolean NOT NULL DEFAULT false,
+  finish_rank integer,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT game_runner_players_room_id_user_id_key UNIQUE (room_id, user_id),
+  CONSTRAINT game_runner_players_pkey PRIMARY KEY (id),
+  CONSTRAINT game_runner_players_room_id_fkey FOREIGN KEY (room_id) REFERENCES game_runner_rooms(id) ON DELETE CASCADE,
+  CONSTRAINT game_runner_players_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE gamification.badges (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  code text NOT NULL,
+  name text NOT NULL,
+  description text,
+  icon text DEFAULT 'trophy'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT badges_code_key UNIQUE (code),
+  CONSTRAINT badges_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE gamification.user_stats (
+  user_id uuid NOT NULL,
+  xp integer NOT NULL DEFAULT 0,
+  level integer NOT NULL DEFAULT 1,
+  current_streak integer NOT NULL DEFAULT 0,
+  longest_streak integer NOT NULL DEFAULT 0,
+  last_activity_date date,
+  updated_at timestamp with time zone DEFAULT now(),
+  legacy_xp_adjustment integer NOT NULL DEFAULT 0,
+  xp_recomputed_at timestamp with time zone,
+  CONSTRAINT user_stats_pkey PRIMARY KEY (user_id),
+  CONSTRAINT user_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE gamification.user_badges (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  badge_id uuid,
+  earned_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_badges_user_id_badge_id_key UNIQUE (user_id, badge_id),
+  CONSTRAINT user_badges_pkey PRIMARY KEY (id),
+  CONSTRAINT user_badges_badge_id_fkey FOREIGN KEY (badge_id) REFERENCES gamification.badges(id) ON DELETE CASCADE,
+  CONSTRAINT user_badges_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE gamification.quiz_attempt_stats (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  attempt_id uuid,
+  xp_earned integer NOT NULL DEFAULT 0,
+  max_combo integer NOT NULL DEFAULT 0,
+  correct_count integer,
+  total_questions integer,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT quiz_attempt_stats_attempt_id_key UNIQUE (attempt_id),
+  CONSTRAINT quiz_attempt_stats_pkey PRIMARY KEY (id),
+  CONSTRAINT quiz_attempt_stats_attempt_id_fkey FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(id) ON DELETE CASCADE
+);
+
+CREATE TABLE gamification.quiz_question_settings (
+  question_id uuid NOT NULL,
+  time_limit_seconds integer,
+  difficulty text DEFAULT 'medium'::text,
+  CONSTRAINT quiz_question_settings_pkey PRIMARY KEY (question_id),
+  CONSTRAINT quiz_question_settings_question_id_fkey FOREIGN KEY (question_id) REFERENCES quiz_questions(id) ON DELETE CASCADE,
+  CONSTRAINT quiz_question_settings_difficulty_check CHECK ((difficulty = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text])))
+);
+
+CREATE TABLE gamification.snapshot_quiz_attempts_pre_v2 (
+  id uuid,
+  user_id uuid,
+  quiz_id uuid,
+  score integer,
+  completed_at timestamp with time zone,
+  snapshot_at timestamp with time zone
+);
+
+CREATE TABLE gamification.snapshot_quiz_questions_pre_v2 (
+  id uuid,
+  quiz_id uuid,
+  options jsonb,
+  correct_answer text,
+  order_index integer,
+  snapshot_at timestamp with time zone
+);
+
+CREATE TABLE gamification.snapshot_quizzes_pre_v2 (
+  id uuid,
+  title text,
+  description text,
+  passing_score integer,
+  folder_id uuid,
+  lecturer_id uuid,
+  created_at timestamp with time zone,
+  snapshot_at timestamp with time zone
+);
+
+CREATE TABLE gamification.snapshot_user_stats_pre_v2 (
+  user_id uuid,
+  xp integer,
+  level integer,
+  current_streak integer,
+  longest_streak integer,
+  last_activity_date date,
+  updated_at timestamp with time zone,
+  snapshot_at timestamp with time zone
+);
+
 
 DO $$
 DECLARE
-  pol record;
+  t text;
 BEGIN
-  FOR pol IN
-    SELECT policyname, tablename
-    FROM pg_policies
-    WHERE schemaname = 'public'
-      AND tablename IN (
-        'profiles', 'folders', 'documents', 'quizzes', 'quiz_questions',
-        'classes', 'class_students', 'quiz_assignments', 'quiz_attempts',
-        'material_views', 'windows_simulation_sessions'
-      )
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, pol.tablename);
-  END LOOP;
-END $$;
-
-CREATE POLICY "Users can view own profile" ON public.profiles
-  FOR SELECT TO authenticated
-  USING (auth.uid() = id);
-
-CREATE POLICY "Lecturers can view all profiles" ON public.profiles
-  FOR SELECT TO authenticated
-  USING (public.is_lecturer());
-
-CREATE POLICY "Users can insert own student profile" ON public.profiles
-  FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = id AND role = 'student');
-
-CREATE POLICY "Users can update own profile" ON public.profiles
-  FOR UPDATE TO authenticated
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Lecturers manage own folders" ON public.folders
-  FOR ALL TO authenticated
-  USING (lecturer_id = auth.uid() AND public.is_lecturer())
-  WITH CHECK (lecturer_id = auth.uid() AND public.is_lecturer());
-
-CREATE POLICY "Students read folders of their lecturers" ON public.folders
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.classes c
-      JOIN public.class_students cs ON cs.class_id = c.id
-      WHERE c.lecturer_id = folders.lecturer_id
-        AND cs.student_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Lecturers manage own documents" ON public.documents
-  FOR ALL TO authenticated
-  USING (lecturer_id = auth.uid() AND public.is_lecturer())
-  WITH CHECK (lecturer_id = auth.uid() AND public.is_lecturer());
-
-CREATE POLICY "Students read documents of their lecturers" ON public.documents
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.classes c
-      JOIN public.class_students cs ON cs.class_id = c.id
-      WHERE c.lecturer_id = documents.lecturer_id
-        AND cs.student_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Lecturers manage own quizzes" ON public.quizzes
-  FOR ALL TO authenticated
-  USING (lecturer_id = auth.uid() AND public.is_lecturer())
-  WITH CHECK (lecturer_id = auth.uid() AND public.is_lecturer());
-
-CREATE POLICY "Students read assigned quizzes" ON public.quizzes
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.quiz_assignments qa
-      JOIN public.class_students cs ON cs.class_id = qa.class_id
-      WHERE qa.quiz_id = quizzes.id AND cs.student_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Lecturers read own quiz questions" ON public.quiz_questions
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.quizzes q
-      WHERE q.id = quiz_questions.quiz_id AND q.lecturer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Lecturers insert own quiz questions" ON public.quiz_questions
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.quizzes q
-      WHERE q.id = quiz_questions.quiz_id AND q.lecturer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Lecturers update own quiz questions" ON public.quiz_questions
-  FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.quizzes q
-      WHERE q.id = quiz_questions.quiz_id AND q.lecturer_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.quizzes q
-      WHERE q.id = quiz_questions.quiz_id AND q.lecturer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Lecturers delete own quiz questions" ON public.quiz_questions
-  FOR DELETE TO authenticated
-  USING (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.quizzes q
-      WHERE q.id = quiz_questions.quiz_id AND q.lecturer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Lecturers manage own classes" ON public.classes
-  FOR ALL TO authenticated
-  USING (lecturer_id = auth.uid() AND public.is_lecturer())
-  WITH CHECK (lecturer_id = auth.uid() AND public.is_lecturer());
-
-CREATE POLICY "Students read enrolled classes" ON public.classes
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.class_students cs
-      WHERE cs.class_id = classes.id AND cs.student_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Lecturers manage own class rosters" ON public.class_students
-  FOR ALL TO authenticated
-  USING (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.classes c
-      WHERE c.id = class_students.class_id AND c.lecturer_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.classes c
-      WHERE c.id = class_students.class_id AND c.lecturer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Students read own memberships" ON public.class_students
-  FOR SELECT TO authenticated
-  USING (student_id = auth.uid());
-
-CREATE POLICY "Lecturers manage own quiz assignments" ON public.quiz_assignments
-  FOR ALL TO authenticated
-  USING (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.classes c
-      WHERE c.id = quiz_assignments.class_id AND c.lecturer_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.classes c
-      WHERE c.id = quiz_assignments.class_id AND c.lecturer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Students read own quiz assignments" ON public.quiz_assignments
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.class_students cs
-      WHERE cs.class_id = quiz_assignments.class_id AND cs.student_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Students read own attempts" ON public.quiz_attempts
-  FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Lecturers read attempts of their students" ON public.quiz_attempts
-  FOR SELECT TO authenticated
-  USING (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.class_students cs
-      JOIN public.classes c ON c.id = cs.class_id
-      WHERE cs.student_id = quiz_attempts.user_id AND c.lecturer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Students read own material views" ON public.material_views
-  FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Students insert own material views" ON public.material_views
-  FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Students update own material views" ON public.material_views
-  FOR UPDATE TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Lecturers read material views of their students" ON public.material_views
-  FOR SELECT TO authenticated
-  USING (
-    public.is_lecturer() AND EXISTS (
-      SELECT 1 FROM public.class_students cs
-      JOIN public.classes c ON c.id = cs.class_id
-      WHERE cs.student_id = material_views.user_id AND c.lecturer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Users manage own windows sessions" ON public.windows_simulation_sessions
-  FOR ALL TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- ============================================
--- 5. GRANTS (anon gets nothing)
--- ============================================
-
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated;
-
-GRANT USAGE ON SCHEMA public TO authenticated;
-
-GRANT SELECT, INSERT, UPDATE ON public.profiles TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.folders TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.documents TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.quizzes TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.quiz_questions TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.classes TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.class_students TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.quiz_assignments TO authenticated;
-GRANT SELECT ON public.quiz_attempts TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.material_views TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.windows_simulation_sessions TO authenticated;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-
-GRANT EXECUTE ON FUNCTION public.is_lecturer() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_students_with_emails() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_quiz_for_student(uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.submit_quiz_attempt(uuid, jsonb) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.promote_to_lecturer(uuid) TO service_role;
-
--- ============================================
--- 6. PRIVATE STORAGE BUCKET
--- ============================================
-
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('documents', 'documents', false)
-ON CONFLICT (id) DO NOTHING;
-
-UPDATE storage.buckets
-SET
-  public = false,
-  file_size_limit = 20971520,
-  allowed_mime_types = ARRAY[
-    'application/pdf',
-    'image/png',
-    'image/jpeg',
-    'image/gif',
-    'image/webp',
-    'text/plain',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  FOREACH t IN ARRAY ARRAY[
+    'public.profiles','public.folders','public.classes','public.announcements','public.game_scores',
+    'public.circuit_maze_rooms','public.game_runner_rooms','public.documents','public.quizzes',
+    'public.class_students','public.quiz_questions','public.quiz_assignments','public.quiz_options',
+    'public.quiz_attempts','public.quiz_answers','public.grades','public.material_views',
+    'public.notifications','public.push_tokens','public.windows_simulation_sessions',
+    'public.circuit_maze_players','public.circuit_maze_sessions','public.game_runner_players',
+    'gamification.badges','gamification.user_stats','gamification.user_badges',
+    'gamification.quiz_attempt_stats','gamification.quiz_question_settings',
+    'gamification.snapshot_quiz_attempts_pre_v2','gamification.snapshot_quiz_questions_pre_v2',
+    'gamification.snapshot_quizzes_pre_v2','gamification.snapshot_user_stats_pre_v2'
   ]
-WHERE id = 'documents';
-
-DO $$
-DECLARE
-  pol record;
-BEGIN
-  FOR pol IN
-    SELECT policyname FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects'
-      AND policyname IN (
-        'Anyone can upload documents',
-        'Anyone can view documents',
-        'Lecturers can delete own documents',
-        'Lecturers can update own documents',
-        'Lecturers upload own documents',
-        'Lecturers update own documents',
-        'Lecturers delete own documents',
-        'Enrolled users read class documents'
-      )
   LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', pol.policyname);
+    EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
   END LOOP;
 END $$;
 
-CREATE POLICY "Lecturers upload own documents" ON storage.objects
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    bucket_id = 'documents'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-    AND (
-      public.is_lecturer()
-      OR name LIKE (auth.uid()::text || '/avatar_%')
-    )
-  );
+CREATE UNIQUE INDEX badges_code_key ON gamification.badges USING btree (code);
+CREATE UNIQUE INDEX quiz_attempt_stats_attempt_id_key ON gamification.quiz_attempt_stats USING btree (attempt_id);
+CREATE INDEX idx_user_badges_user ON gamification.user_badges USING btree (user_id);
+CREATE UNIQUE INDEX user_badges_user_id_badge_id_key ON gamification.user_badges USING btree (user_id, badge_id);
+CREATE UNIQUE INDEX circuit_maze_players_room_id_user_id_key ON public.circuit_maze_players USING btree (room_id, user_id);
+CREATE UNIQUE INDEX circuit_maze_rooms_code_key ON public.circuit_maze_rooms USING btree (code);
+CREATE UNIQUE INDEX class_students_class_id_student_id_key ON public.class_students USING btree (class_id, student_id);
+CREATE INDEX idx_class_students_class ON public.class_students USING btree (class_id);
+CREATE INDEX idx_class_students_student ON public.class_students USING btree (student_id);
+CREATE INDEX idx_classes_lecturer ON public.classes USING btree (lecturer_id);
+CREATE INDEX idx_documents_folder ON public.documents USING btree (folder_id);
+CREATE INDEX idx_documents_lecturer ON public.documents USING btree (lecturer_id);
+CREATE INDEX idx_folders_lecturer ON public.folders USING btree (lecturer_id);
+CREATE UNIQUE INDEX game_runner_players_room_id_user_id_key ON public.game_runner_players USING btree (room_id, user_id);
+CREATE UNIQUE INDEX game_runner_rooms_code_key ON public.game_runner_rooms USING btree (code);
+CREATE UNIQUE INDEX grades_student_id_class_id_quiz_id_key ON public.grades USING btree (student_id, class_id, quiz_id);
+CREATE INDEX idx_grades_class_quiz ON public.grades USING btree (class_id, quiz_id);
+CREATE INDEX idx_grades_student ON public.grades USING btree (student_id);
+CREATE INDEX idx_material_views_document ON public.material_views USING btree (document_id);
+CREATE INDEX idx_material_views_user ON public.material_views USING btree (user_id);
+CREATE INDEX idx_notifications_pending ON public.notifications USING btree (created_at) WHERE (status = 'pending'::text);
+CREATE INDEX idx_notifications_user ON public.notifications USING btree (user_id, created_at DESC);
+CREATE UNIQUE INDEX notifications_dedupe_key_uniq ON public.notifications USING btree (dedupe_key);
+CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_id);
+CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token);
+CREATE INDEX idx_quiz_answers_attempt ON public.quiz_answers USING btree (attempt_id);
+CREATE INDEX idx_quiz_answers_question ON public.quiz_answers USING btree (question_id);
+CREATE UNIQUE INDEX quiz_answers_attempt_id_question_id_key ON public.quiz_answers USING btree (attempt_id, question_id);
+CREATE INDEX idx_quiz_assignments_class ON public.quiz_assignments USING btree (class_id);
+CREATE INDEX idx_quiz_assignments_published ON public.quiz_assignments USING btree (class_id, is_published);
+CREATE INDEX idx_quiz_assignments_quiz ON public.quiz_assignments USING btree (quiz_id);
+CREATE UNIQUE INDEX quiz_assignments_quiz_id_class_id_key ON public.quiz_assignments USING btree (quiz_id, class_id);
+CREATE INDEX idx_quiz_attempts_assignment ON public.quiz_attempts USING btree (assignment_id);
+CREATE INDEX idx_quiz_attempts_class ON public.quiz_attempts USING btree (class_id);
+CREATE INDEX idx_quiz_attempts_pending_manual ON public.quiz_attempts USING btree (assignment_id, completed_at) WHERE (status = 'pending_manual_grade'::text);
+CREATE INDEX idx_quiz_attempts_quiz ON public.quiz_attempts USING btree (quiz_id);
+CREATE INDEX idx_quiz_attempts_status ON public.quiz_attempts USING btree (status);
+CREATE INDEX idx_quiz_attempts_user ON public.quiz_attempts USING btree (user_id);
+CREATE INDEX idx_quiz_attempts_user_quiz ON public.quiz_attempts USING btree (user_id, quiz_id);
+CREATE UNIQUE INDEX quiz_attempts_assignment_attempt_no_key ON public.quiz_attempts USING btree (assignment_id, user_id, attempt_number) WHERE ((assignment_id IS NOT NULL) AND (status <> 'rejected'::text));
+CREATE UNIQUE INDEX quiz_attempts_client_attempt_id_key ON public.quiz_attempts USING btree (client_attempt_id) WHERE (client_attempt_id IS NOT NULL);
+CREATE INDEX idx_quiz_options_question ON public.quiz_options USING btree (question_id);
+CREATE INDEX idx_quiz_questions_quiz ON public.quiz_questions USING btree (quiz_id);
+CREATE INDEX idx_quizzes_created_by ON public.quizzes USING btree (created_by);
+CREATE INDEX idx_quizzes_folder ON public.quizzes USING btree (folder_id);
+CREATE INDEX idx_quizzes_lecturer ON public.quizzes USING btree (created_by);
+CREATE INDEX idx_quizzes_type ON public.quizzes USING btree (type);
 
-CREATE POLICY "Lecturers update own documents" ON storage.objects
-  FOR UPDATE TO authenticated
-  USING (
-    bucket_id = 'documents'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-    AND (
-      public.is_lecturer()
-      OR name LIKE (auth.uid()::text || '/avatar_%')
-    )
-  )
-  WITH CHECK (
-    bucket_id = 'documents'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-    AND (
-      public.is_lecturer()
-      OR name LIKE (auth.uid()::text || '/avatar_%')
-    )
-  );
-
-CREATE POLICY "Lecturers delete own documents" ON storage.objects
-  FOR DELETE TO authenticated
-  USING (
-    bucket_id = 'documents'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-    AND (
-      public.is_lecturer()
-      OR name LIKE (auth.uid()::text || '/avatar_%')
-    )
-  );
-
-CREATE POLICY "Enrolled users read class documents" ON storage.objects
-  FOR SELECT TO authenticated
-  USING (
-    bucket_id = 'documents'
-    AND (
-      (storage.foldername(name))[1] = auth.uid()::text
-      OR EXISTS (
-        SELECT 1
-        FROM public.class_students cs
-        JOIN public.classes c ON c.id = cs.class_id
-        WHERE cs.student_id = auth.uid()
-          AND (storage.foldername(name))[1] = c.lecturer_id::text
-      )
-    )
-  );

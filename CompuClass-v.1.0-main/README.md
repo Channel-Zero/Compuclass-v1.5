@@ -67,8 +67,8 @@ Do not put a Gemini API key in `.env`. The app calls the `gemini` Edge Function,
 
 ## Database Setup
 
-- **New Supabase project:** run `supabase-setup.sql` once in the SQL editor.
-- **Existing project:** do not re-run the setup script. Run `supabase/migrations/20261006140000_security_hardening.sql` instead.
+- **Existing project (Compu-ClassV1):** run `supabase/migrations/20261006140000_security_hardening.sql` only. Do not re-run `supabase-setup.sql`.
+- **New Supabase project:** run `supabase-setup.sql` once, then run that same migration. The live gradebook and maze RPCs are not in git, so a new project will not have them. See `DEPLOYMENT.md` Part 7, including leaked-password protection.
 
 Every signup is a student. Promote a lecturer from the SQL editor:
 

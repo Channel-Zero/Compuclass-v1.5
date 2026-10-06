@@ -119,7 +119,8 @@ export const lecturerService = {
           description: '',
           passing_score: 70,
           folder_id: folderId,
-          lecturer_id: user.id
+          created_by: user.id,
+          type: 'class'
         })
         .select()
         .single();

@@ -167,33 +167,55 @@ store review.
 
 ## Part 7: Supabase schema and Gemini (required before the app works)
 
+Do these in order. Nothing in this pull request has been applied to the database.
+
 `EXPO_PUBLIC_*` variables are compiled into the client bundle. That is expected for
 the Supabase **anon** key, which is limited by Row Level Security. A Gemini key must
 never be one of those variables.
 
-### Existing Supabase project
+The live project is **Compu-ClassV1**. Its gradebook, offline quiz, maze, runner,
+and gamification functions were applied from the SQL editor. They are not on
+`main`, `kamo_branch`, `lutho_branch`, `lindo_branch`, `mila_branch`,
+`test_branch`, or `thabo_branch`. `kamo_branch` has `docs/erd/database-schema.sql`,
+and that file is a different design (lessons, achievements, support tickets). Do
+not replace the live functions with that file.
 
-Do **not** re-run `supabase-setup.sql` on a database that already has data. In the
-SQL editor, run the whole file:
+### 1. Existing project (Compu-ClassV1)
+
+In the SQL editor, run only:
 
 `CompuClass-v.1.0-main/supabase/migrations/20261006140000_security_hardening.sql`
 
-### Brand-new project
+Do **not** run `supabase-setup.sql` on this database. That file creates an empty
+copy of the live tables for a brand-new project. Re-running it here does not
+reload data, and it is not a substitute for the migration.
 
-Run `CompuClass-v.1.0-main/supabase-setup.sql` once. It creates the tables and then
-applies the same policies as the migration.
+After the migration:
 
-### Promote a lecturer
+1. **Authentication → Providers → Email → Password security**: enable leaked-password protection (HaveIBeenPwned). The security advisor reports it as off. This is a dashboard setting, not SQL.
+2. **Authentication → Hooks**: if the Custom Access Token hook is enabled, leave it pointed at `public.custom_access_token_hook`. The function now writes `user_role` and no longer overwrites the reserved `role` claim. If the hook was off because it could not read `profiles`, it can be enabled after this migration (the script grants `supabase_auth_admin` SELECT on `profiles`).
+3. Existing public document URLs stop working. The `documents` bucket becomes private. The app reads files through signed URLs.
+4. Promote lecturers (step 3 below). Signups no longer become lecturers from metadata or from `lecturer@compuclass.com`.
 
-Signups are always students. In the SQL editor (which runs as `postgres`):
+### 2. Brand-new project
+
+1. Run `CompuClass-v.1.0-main/supabase-setup.sql` once. It creates the live table shape and turns RLS on.
+2. Run the security migration above. It adds policies, grants, and the functions this repository owns.
+3. The gradebook / offline / maze RPCs will still be missing, because their source is not in git. Do not expect a new project to match Compu-ClassV1 until that code is committed.
+
+### 3. Promote a lecturer
+
+Signups are students. Invite codes are not built yet. In the SQL editor (this runs as `postgres`, which the role trigger allows):
 
 ```sql
 UPDATE public.profiles SET role = 'lecturer' WHERE id = '<user-uuid>';
 ```
 
-### Edge Function
+A later invite-code check belongs inside `handle_new_user`, reading a hashed code from a table only `service_role` can read, with expiry and a use limit. Do not trust `raw_user_meta_data.role`.
 
-From `CompuClass-v.1.0-main/`:
+### 4. Edge Function
+
+No Edge Functions are deployed on the live project yet. From `CompuClass-v.1.0-main/`:
 
 ```bash
 supabase link --project-ref <project-ref>
@@ -201,12 +223,9 @@ supabase secrets set GEMINI_API_KEY=<rotated key>
 supabase functions deploy gemini
 ```
 
-Create a new key in Google AI Studio, put that value in the Supabase secret, deploy
-the function, then delete the old key. Remove `EXPO_PUBLIC_GEMINI_API_KEY` from
-GitHub Actions secrets and from Vercel. The app calls `supabase.functions.invoke('gemini')`.
+Create a new key in Google AI Studio, store it as `GEMINI_API_KEY`, deploy `gemini`, then delete the old Google key. Remove `EXPO_PUBLIC_GEMINI_API_KEY` from GitHub Actions and from Vercel. The app calls `supabase.functions.invoke('gemini')`.
 
-Node.js 22 or newer is required for local installs. `@supabase/supabase-js` 2.112 and
-current `eas-cli` both declare that engine. CI and the EAS workflows use Node 22.
+Node.js 22 or newer is required for local installs. `@supabase/supabase-js` 2.112 and current `eas-cli` both declare that engine. CI and the EAS workflows use Node 22.
 
 ---
 
