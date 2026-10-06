@@ -4,7 +4,6 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
-process.env.EXPO_PUBLIC_GEMINI_API_KEY = 'test-gemini-key';
 
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(),

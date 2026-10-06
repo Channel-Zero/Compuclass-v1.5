@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase';
 import { aiService } from './aiService';
+import { assertUploadAllowed, storagePathFromStoredValue } from './fileAccess';
 
 export const lecturerService = {
   async createFolder(name, description = '') {
@@ -43,8 +44,10 @@ export const lecturerService = {
 
   async uploadDocument(folderId, file, title) {
     try {
+      assertUploadAllowed(file);
       const { data: { user } } = await supabase.auth.getUser();
-      const fileName = `${user.id}/${Date.now()}_${file.name}`;
+      const safeName = String(file.name || 'document').replace(/[^\w.\-]+/g, '_');
+      const fileName = `${user.id}/${Date.now()}_${safeName}`;
       
       // Read file using fetch and arrayBuffer
       const response = await fetch(file.uri);
@@ -64,17 +67,12 @@ export const lecturerService = {
         throw uploadError;
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
-
-      // Insert document record
+      // Store the object path. The bucket is private; readers request a signed URL.
       const { data, error } = await supabase
         .from('documents')
         .insert({
           title,
-          file_url: urlData.publicUrl,
+          file_url: fileName,
           file_name: file.name,
           file_type: file.mimeType,
           file_size: file.size,
@@ -121,7 +119,8 @@ export const lecturerService = {
           description: '',
           passing_score: 70,
           folder_id: folderId,
-          lecturer_id: user.id
+          created_by: user.id,
+          type: 'class'
         })
         .select()
         .single();
@@ -215,12 +214,8 @@ export const lecturerService = {
       }
       
       if (doc?.file_url) {
-        // Extract file path from URL
-        const urlParts = doc.file_url.split('/documents/');
-        if (urlParts[1]) {
-          const filePath = urlParts[1].split('?')[0];
-          
-          // Delete from storage
+        try {
+          const filePath = storagePathFromStoredValue(doc.file_url);
           const { error: storageError } = await supabase.storage
             .from('documents')
             .remove([filePath]);
@@ -228,6 +223,8 @@ export const lecturerService = {
           if (storageError) {
             console.error('❌ Delete from storage error:', storageError.message);
           }
+        } catch (pathError) {
+          console.error('❌ Delete from storage error:', pathError.message);
         }
       }
       
@@ -339,17 +336,19 @@ export const lecturerService = {
     return data || [];
   },
 
-  async addStudent(email) {
+  async addStudent(email, classId) {
     try {
-      // Look up the user by email via the RPC function
+      if (!classId) throw new Error('Choose a class before adding a student');
       const { data: students, error } = await supabase.rpc('get_students_with_emails');
       if (error) {
         console.error('❌ Add student lookup error:', error.message);
         throw error;
       }
-      const found = (students || []).find(s => s.email === email);
-      if (!found) throw new Error(`No registered user found with email: ${email}`);
-      console.log('✅ Student found:', email);
+      const needle = email.trim().toLowerCase();
+      const found = (students || []).find((s) => (s.email || '').toLowerCase() === needle);
+      if (!found) throw new Error(`No registered student found with email: ${email}`);
+      await this.assignStudentsToClass(classId, [found.id]);
+      console.log('✅ Student enrolled:', email);
       return found;
     } catch (error) {
       console.error('❌ Add student exception:', error);
@@ -366,48 +365,43 @@ export const lecturerService = {
         return {};
       }
       
+      const ids = students.map((student) => student.id).filter(Boolean);
+      if (ids.length === 0) return {};
+      const [{ data: attempts, error: attemptsError }, { data: materialViews, error: viewsError }] = await Promise.all([
+        supabase.from('quiz_attempts').select('user_id, quiz_id, score, completed_at').in('user_id', ids),
+        supabase.from('material_views').select('user_id, created_at').in('user_id', ids),
+      ]);
+      if (attemptsError) console.error('❌ Quiz attempts error:', attemptsError.message);
+      if (viewsError) console.error('❌ Material views error:', viewsError.message);
+
       const progressData = {};
       
       for (const student of students) {
         if (!student || !student.id) continue;
-        
-        console.log('🔍 Fetching progress for:', student.email, student.id);
-        
-        // Get quiz attempts
-        const { data: quizAttempts, error: attemptsError } = await supabase
-          .from('quiz_attempts')
-          .select('score, completed_at')
-          .eq('user_id', student.id);
-        
-        if (attemptsError) {
-          console.error('❌ Quiz attempts error for', student.email, ':', attemptsError.message);
-        }
-        
-        console.log('📊 Quiz attempts for', student.email, ':', quizAttempts?.length || 0, quizAttempts);
-        
-        // Get material views
-        const { data: materialViews } = await supabase
-          .from('material_views')
-          .select('created_at')
-          .eq('user_id', student.id);
-        
-        const scores = quizAttempts?.map(a => a.score) || [];
-        const averageScore = scores.length > 0 
-          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) 
+
+        const mine = (attempts || []).filter((attempt) => attempt.user_id === student.id);
+        const bestByQuiz = new Map();
+        mine.forEach((attempt) => {
+          const previous = bestByQuiz.get(attempt.quiz_id);
+          if (previous == null || attempt.score > previous) bestByQuiz.set(attempt.quiz_id, attempt.score);
+        });
+        const bestScores = [...bestByQuiz.values()];
+        const averageScore = bestScores.length
+          ? Math.round(bestScores.reduce((sum, score) => sum + score, 0) / bestScores.length)
           : 0;
-        
-        const lastActivity = quizAttempts?.length > 0 
-          ? new Date(Math.max(...quizAttempts.map(a => new Date(a.completed_at)))).toLocaleDateString()
-          : 'Never';
+
+        const views = (materialViews || []).filter((view) => view.user_id === student.id);
+        const times = [
+          ...mine.map((attempt) => new Date(attempt.completed_at).getTime()),
+          ...views.map((view) => new Date(view.created_at).getTime()),
+        ].filter((time) => !Number.isNaN(time));
         
         progressData[student.id] = {
-          quizzesCompleted: quizAttempts?.length || 0,
+          quizzesCompleted: bestByQuiz.size,
           averageScore,
-          materialsViewed: materialViews?.length || 0,
-          lastActivity
+          materialsViewed: views.length,
+          lastActivity: times.length ? new Date(Math.max(...times)).toLocaleDateString() : 'Never',
         };
-        
-        console.log('✅ Progress for', student.email, ':', progressData[student.id]);
       }
       
       return progressData;
@@ -640,35 +634,4 @@ export const lecturerService = {
   async generateAIQuiz(file, title, questionCount = 5) {
     return await aiService.generateQuizFromFile(file, title, questionCount);
   },
-
-  // Real AI implementation would look like this:
-  /*
-  async generateAIQuizReal(file, title) {
-    try {
-      // Extract text from document
-      const text = await this.extractTextFromFile(file);
-      
-      // Call AI API (OpenAI, Claude, etc.)
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: [{
-            role: 'user',
-            content: `Generate 5 multiple choice questions based on this content: ${text}`
-          }]
-        })
-      });
-      
-      const aiResponse = await response.json();
-      return this.parseAIQuestions(aiResponse.choices[0].message.content);
-    } catch (error) {
-      throw new Error('AI generation failed: ' + error.message);
-    }
-  }
-  */
 };

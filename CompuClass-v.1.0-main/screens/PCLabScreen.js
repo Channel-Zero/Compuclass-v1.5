@@ -51,28 +51,33 @@ export default function PCLabScreen({ navigation }) {
     ]).start(onDone);
   };
 
+  const openViewer = (id) => {
+    if (id === 'motherboard') setShowMotherboardFullscreen(true);
+    else if (id === 'cpu') setShowCPUFullscreen(true);
+    else if (id === 'ram') setShowRAMFullscreen(true);
+    else if (id === 'gpu') setShowGPUFullscreen(true);
+    else if (id === 'storage') setShowStorageFullscreen(true);
+    else if (id === 'psu') setShowPSUFullscreen(true);
+  };
+
   const handleComponentPress = (id, index) => {
     animateCard(index, () => {
-      if (id === 'motherboard') { setShowMotherboardFullscreen(true); return; }
-      if (id === 'cpu')         { setShowCPUFullscreen(true);         return; }
-      if (id === 'ram')         { setShowRAMFullscreen(true);         return; }
-      if (id === 'gpu')         { setShowGPUFullscreen(true);         return; }
-      if (id === 'storage')     { setShowStorageFullscreen(true);     return; }
-      if (id === 'psu')         { setShowPSUFullscreen(true);         return; }
-      if (currentStep < steps.length) {
-        if (id === components[currentStep].id) {
-          setSelectedComponents([...selectedComponents, id]);
-          setCurrentStep(currentStep + 1);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          if (currentStep === steps.length - 1) {
-            Alert.alert('Congratulations! 🎉', 'You have successfully assembled your PC!', [
-              { text: 'Start New Build', onPress: () => { setSelectedComponents([]); setCurrentStep(0); } },
-            ]);
-          }
-        } else {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert('Wrong Component', `Next step: ${steps[currentStep]}`);
-        }
+      if (selectedComponents.includes(id) || currentStep >= steps.length) return;
+      if (id !== components[currentStep].id) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('Wrong Component', `Next step: ${steps[currentStep]}`);
+        return;
+      }
+      const nextSelected = [...selectedComponents, id];
+      const nextStep = currentStep + 1;
+      setSelectedComponents(nextSelected);
+      setCurrentStep(nextStep);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      openViewer(id);
+      if (nextStep === steps.length) {
+        Alert.alert('Congratulations! 🎉', 'You have successfully assembled your PC!', [
+          { text: 'Start New Build', onPress: () => { setSelectedComponents([]); setCurrentStep(0); } },
+        ]);
       }
     });
   };
@@ -182,22 +187,23 @@ export default function PCLabScreen({ navigation }) {
             const installed = selectedComponents.includes(component.id);
             return (
               <Animated.View key={component.id} style={{ transform: [{ scale: cardScales[index] }], width: CARD_W }}>
-                <TouchableOpacity
-                  style={[styles.componentCard, installed && styles.componentInstalled]}
-                  onPress={() => handleComponentPress(component.id, index)}
-                  disabled={installed}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.componentIconWrap, { backgroundColor: installed ? '#E5E7EB' : component.color }]}>
-                    <Ionicons name={component.icon} size={26} color={installed ? MUTED : WHITE} />
-                  </View>
-                  <Text style={[styles.componentName, installed && styles.componentNameInstalled]}>{component.name}</Text>
+                <View style={[styles.componentCard, installed && styles.componentInstalled]}>
+                  <TouchableOpacity onPress={() => handleComponentPress(component.id, index)} disabled={installed} activeOpacity={0.75}>
+                    <View style={[styles.componentIconWrap, { backgroundColor: installed ? '#E5E7EB' : component.color }]}>
+                      <Ionicons name={component.icon} size={26} color={installed ? MUTED : WHITE} />
+                    </View>
+                    <Text style={[styles.componentName, installed && styles.componentNameInstalled]}>{component.name}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => openViewer(component.id)} style={styles.viewPartBtn} activeOpacity={0.75}>
+                    <Ionicons name="eye-outline" size={14} color={GREEN} />
+                    <Text style={styles.viewPartText}>View</Text>
+                  </TouchableOpacity>
                   {installed && (
                     <View style={styles.installedBadge}>
                       <Ionicons name="checkmark" size={12} color={WHITE} />
                     </View>
                   )}
-                </TouchableOpacity>
+                </View>
               </Animated.View>
             );
           })}
@@ -233,6 +239,8 @@ const styles = StyleSheet.create({
   componentIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   componentName: { fontSize: 13, fontWeight: '700', color: TEXT, textAlign: 'center' },
   componentNameInstalled: { color: MUTED },
+  viewPartBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
+  viewPartText: { fontSize: 12, fontWeight: '700', color: GREEN },
   installedBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: GREEN, borderRadius: 10, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },
   fullscreenBackBtn: { position: 'absolute', left: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 10 },

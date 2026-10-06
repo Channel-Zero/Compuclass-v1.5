@@ -1,0 +1,6 @@
+# Local project id used by the Supabase CLI. Link the hosted project with
+# `supabase link --project-ref <ref>` before deploying functions.
+project_id = "compuclass"
+
+[functions.gemini]
+verify_jwt = true

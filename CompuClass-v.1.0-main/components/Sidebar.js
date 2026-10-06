@@ -17,6 +17,7 @@ const menuItems = [
   { icon: 'laptop',      title: 'Windows 11',         screen: 'Windows 11',   color: BLUE   },
   { icon: 'help-circle', title: 'Quiz',               screen: 'Quiz',         color: YELLOW },
   { icon: 'bug',         title: 'Troubleshooting',    screen: 'Troubleshoot', color: RED    },
+  { icon: 'chatbubble-ellipses', title: 'AI Assistant', screen: 'Chatbot',   color: PURPLE },
   { icon: 'settings',    title: 'Settings',           screen: 'Settings',     color: MUTED  },
 ];
 

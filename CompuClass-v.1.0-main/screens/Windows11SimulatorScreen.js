@@ -7,17 +7,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
-import { useNavigation } from '@react-navigation/native';
+import WebFrame from '../components/WebFrame';
 
 const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
 
+const SIMULATOR_URL = 'https://win11.blueedge.me/';
+
 export default function Windows11SimulatorScreen() {
-  const navigation = useNavigation();
   const webViewRef = useRef(null);
+  const sessionRef = useRef({ id: null, start: null });
   const [loading, setLoading] = useState(true);
-  const [sessionId, setSessionId] = useState(null);
-  const [sessionStart, setSessionStart] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -31,19 +31,20 @@ export default function Windows11SimulatorScreen() {
       if (user) {
         const { data, error } = await supabase.from('windows_simulation_sessions')
           .insert({ user_id: user.id, session_start: new Date().toISOString() }).select().single();
-        if (!error && data) { setSessionId(data.id); setSessionStart(new Date()); }
+        if (!error && data) sessionRef.current = { id: data.id, start: new Date() };
       }
-    } catch {}
+    } catch { /* session tracking is optional if the table is not migrated yet */ }
   };
 
   const endSession = async () => {
-    if (sessionId && sessionStart) {
-      try {
-        const duration = Math.floor((new Date() - sessionStart) / 1000);
-        await supabase.from('windows_simulation_sessions')
-          .update({ session_end: new Date().toISOString(), duration_seconds: duration }).eq('id', sessionId);
-      } catch {}
-    }
+    const { id, start } = sessionRef.current;
+    if (!id || !start) return;
+    sessionRef.current = { id: null, start: null };
+    try {
+      const duration = Math.floor((Date.now() - start.getTime()) / 1000);
+      await supabase.from('windows_simulation_sessions')
+        .update({ session_end: new Date().toISOString(), duration_seconds: duration }).eq('id', id);
+    } catch { /* ignore */ }
   };
 
   const handleRefresh = () => { setLoading(true); webViewRef.current?.reload(); };
@@ -90,7 +91,7 @@ export default function Windows11SimulatorScreen() {
             <Text style={styles.loadingText}>Loading Windows 11...</Text>
           </View>
         )}
-        <iframe src="https://win11.blueedge.me/" style={{ width: '100%', height: '100%', border: 'none' }} onLoad={() => setLoading(false)} />
+        <WebFrame src={SIMULATOR_URL} onLoad={() => setLoading(false)} style={{ flex: 1 }} />
       </View>
       {!isFullscreen && (
         <View style={styles.footer}>
@@ -110,7 +111,7 @@ export default function Windows11SimulatorScreen() {
             <Ionicons name="close" size={22} color={WHITE} />
           </TouchableOpacity>
           <WebView
-            source={{ uri: 'https://win11.blueedge.me/' }}
+            source={{ uri: SIMULATOR_URL }}
             style={styles.webview}
             javaScriptEnabled domStorageEnabled scalesPageToFit scrollEnabled bounces
             showsVerticalScrollIndicator showsHorizontalScrollIndicator
@@ -151,7 +152,7 @@ export default function Windows11SimulatorScreen() {
           )}
           <WebView
             ref={webViewRef}
-            source={{ uri: 'https://win11.blueedge.me/' }}
+            source={{ uri: SIMULATOR_URL }}
             style={styles.webview}
             onLoadStart={() => setLoading(true)}
             onLoadEnd={() => setLoading(false)}

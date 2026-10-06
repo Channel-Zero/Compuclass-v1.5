@@ -65,7 +65,18 @@ export default function ContentUploadScreen({ navigation, route }) {
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: [
+          'application/pdf',
+          'image/png',
+          'image/jpeg',
+          'image/gif',
+          'image/webp',
+          'text/plain',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-powerpoint',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        ],
         copyToCacheDirectory: true,
       });
 

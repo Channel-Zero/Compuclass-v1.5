@@ -34,8 +34,8 @@ Computer Learning Platform
    - Tap "Login"
 
 ### Account Types
-- **Student Account**: Default for all users
-- **Lecturer Account**: Use email `lecturer@compuclass.com`
+- **Student Account**: Every new signup is a student.
+- **Lecturer Account**: The project owner promotes an existing account in the Supabase SQL editor. Signing up with a particular email does not make someone a lecturer.
 
 ---
 

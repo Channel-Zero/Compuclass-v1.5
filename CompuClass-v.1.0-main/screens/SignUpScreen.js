@@ -12,7 +12,6 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('student');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,7 +22,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
     if (password.length < 6) { Alert.alert('Error', 'Password must be at least 6 characters'); return; }
     setLoading(true);
     try {
-      const { session } = await authService.signUp(email, password, fullName, role);
+      const { session } = await authService.signUp(email, password, fullName);
       if (session) {
         Alert.alert('Success', 'Account created!', [{ text: 'OK', onPress: onSignUp }]);
       } else {
@@ -49,15 +48,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
         </LinearGradient>
 
         <View style={styles.card}>
-          {/* Role selector */}
-          <View style={styles.roleRow}>
-            {['student', 'lecturer'].map((r) => (
-              <TouchableOpacity key={r} style={[styles.roleBtn, role === r && styles.roleBtnActive]} onPress={() => setRole(r)} activeOpacity={0.8}>
-                <Ionicons name={r === 'student' ? 'school' : 'person'} size={20} color={role === r ? WHITE : MUTED} />
-                <Text style={[styles.roleText, role === r && styles.roleTextActive]}>{r.charAt(0).toUpperCase() + r.slice(1)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text style={styles.termsText}>Accounts are created as students. A lecturer is promoted by the project owner.</Text>
 
           {[
             { icon: 'person-outline', placeholder: 'Full Name', value: fullName, onChange: setFullName },

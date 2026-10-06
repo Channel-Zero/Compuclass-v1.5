@@ -1,8 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../config/supabase';
+import { assertUploadAllowed, createSignedFileUrl } from './fileAccess';
+
+const SESSION_LIMIT_MS = 30 * 60 * 1000;
 
 export const authService = {
-  async signUp(email, password, fullName, role = 'student') {
+  async signUp(email, password, fullName) {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -10,7 +13,6 @@ export const authService = {
         options: {
           data: {
             full_name: fullName,
-            role: role,
           },
         },
       });
@@ -78,7 +80,18 @@ export const authService = {
         if (error) {
           console.error('❌ Get profile error:', error.message);
         }
-        return { ...user, profile };
+        const avatarPath = user.user_metadata?.avatar_path;
+        let avatarUrl = user.user_metadata?.avatar_url;
+        if (avatarPath) {
+          try { avatarUrl = await createSignedFileUrl(avatarPath); } catch (signError) {
+            console.error('❌ Avatar URL error:', signError.message);
+          }
+        }
+        return {
+          ...user,
+          profile,
+          user_metadata: { ...user.user_metadata, avatar_url: avatarUrl },
+        };
       }
       return user;
     } catch (error) {
@@ -97,15 +110,17 @@ export const authService = {
     }
   },
 
+  async touchSession() {
+    await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
+  },
+
   async isSessionValid() {
     const timestamp = await AsyncStorage.getItem('loginTimestamp');
     if (!timestamp) return false;
-    
-    const loginTime = parseInt(timestamp);
-    const currentTime = Date.now();
-    const thirtyMinutes = 30 * 60 * 1000;
-    
-    return (currentTime - loginTime) < thirtyMinutes;
+
+    const loginTime = parseInt(timestamp, 10);
+    if (Number.isNaN(loginTime)) return false;
+    return (Date.now() - loginTime) < SESSION_LIMIT_MS;
   },
 
   async resetPassword(email) {
@@ -128,7 +143,8 @@ export const authService = {
       let avatarUrl = null;
 
       if (avatarFile) {
-        const fileName = `${user.id}/avatar_${Date.now()}`;
+        assertUploadAllowed({ ...avatarFile, name: avatarFile.fileName || avatarFile.uri || 'avatar.jpg' });
+        const fileName = `${user.id}/avatar_${Date.now()}.jpg`;
         const response = await fetch(avatarFile.uri);
         const arrayBuffer = await response.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
@@ -139,14 +155,11 @@ export const authService = {
           console.error('❌ Avatar upload error:', uploadError.message);
           throw uploadError;
         }
-        const { data: urlData } = supabase.storage
-          .from('documents')
-          .getPublicUrl(fileName);
-        avatarUrl = urlData.publicUrl;
+        avatarUrl = fileName;
       }
 
       const updateData = { full_name: fullName };
-      if (avatarUrl) updateData.avatar_url = avatarUrl;
+      if (avatarUrl) updateData.avatar_path = avatarUrl;
 
       const { data, error } = await supabase.auth.updateUser({
         data: updateData
@@ -159,9 +172,14 @@ export const authService = {
       // Also update the profiles table so other screens see the new name
       await supabase.from('profiles').update({ full_name: fullName }).eq('id', user.id);
 
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      const signedAvatar = avatarUrl ? await createSignedFileUrl(avatarUrl) : data.user?.user_metadata?.avatar_url;
+      const storedUser = {
+        ...data.user,
+        user_metadata: { ...data.user?.user_metadata, avatar_url: signedAvatar },
+      };
+      await AsyncStorage.setItem('user', JSON.stringify(storedUser));
       console.log('✅ Profile updated successfully');
-      return data;
+      return { ...data, user: storedUser };
     } catch (error) {
       console.error('❌ Update profile exception:', error);
       throw error;
@@ -170,6 +188,14 @@ export const authService = {
 
   async updatePassword(currentPassword, newPassword) {
     try {
+      if (!currentPassword) throw new Error('Current password is required');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) throw new Error('Not signed in');
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (reauthError) throw new Error('Current password is incorrect');
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       });
@@ -177,6 +203,7 @@ export const authService = {
         console.error('❌ Update password error:', error.message);
         throw error;
       }
+      await this.touchSession();
       console.log('✅ Password updated successfully');
     } catch (error) {
       console.error('❌ Update password exception:', error);

@@ -11,11 +11,10 @@ CompuClass is a React Native mobile application built with Expo for managing edu
 ### Tech Stack
 - **Frontend**: React Native with Expo SDK 54
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
-- **AI**: Google Gemini API for quiz generation
-- **3D Rendering**: Three.js with expo-gl and expo-three
+- **AI**: Google Gemini through the `gemini` Supabase Edge Function
+- **3D Rendering**: local GLB shown in `<model-viewer>` (web URI, native data URI)
 - **Navigation**: React Navigation (Stack + Bottom Tabs)
 - **State Management**: React Context API
-- **Offline Support**: SQLite with expo-sqlite
 
 ---
 
@@ -44,20 +43,13 @@ CompuClass is a React Native mobile application built with Expo for managing edu
 ```
 
 ### 3D Visualization
-```json
-{
-  "expo-gl": "~13.6.0",
-  "expo-three": "~7.0.0",
-  "three": "0.158.0"
-}
-```
+The PC viewer loads `assets/models/personal_computer.glb` with `expo-asset`. It does not depend on `three`, `expo-gl`, or `expo-three`.
 
-### Storage & Offline
+### Storage
 ```json
 {
   "@react-native-async-storage/async-storage": "^2.2.0",
-  "@react-native-community/netinfo": "11.4.1",
-  "expo-sqlite": "~16.0.8"
+  "@react-native-community/netinfo": "11.4.1"
 }
 ```
 
@@ -118,8 +110,8 @@ CompuClass is a React Native mobile application built with Expo for managing edu
 ├── services/                 # API services
 │   ├── authService.js       # Authentication
 │   ├── lecturerService.js   # Lecturer features
-│   ├── aiService.js         # AI quiz generation
-│   └── offlineService.js    # Offline sync
+│   ├── aiService.js         # Calls the gemini Edge Function
+│   └── fileAccess.js        # Upload checks and signed URLs
 ├── .env                      # Environment variables
 ├── App.js                    # Main app component
 ├── app.json                  # Expo configuration
@@ -136,7 +128,6 @@ CompuClass is a React Native mobile application built with Expo for managing edu
 ```env
 EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ---
@@ -357,7 +348,7 @@ Use Expo Go app on your mobile device
     "slug": "CompuClass",
     "version": "1.0.0",
     "orientation": "portrait",
-    "plugins": ["expo-sqlite"]
+    "android": { "package": "com.lint123.compuclass", "versionCode": 1 }
   }
 }
 ```
@@ -385,11 +376,11 @@ module.exports = function(api) {
 ## 🎯 User Roles
 
 ### Student
-- Email: Any email (not lecturer@compuclass.com)
+- Every new signup
 - Access: Dashboard, Materials, Quizzes, PC Lab, Profile
 
 ### Lecturer
-- Email: lecturer@compuclass.com
+- An existing account promoted in the SQL editor (`profiles.role = 'lecturer'`)
 - Access: Lecturer Dashboard, Content Management, Quiz Creation, Class Management, Student Progress
 
 ---
