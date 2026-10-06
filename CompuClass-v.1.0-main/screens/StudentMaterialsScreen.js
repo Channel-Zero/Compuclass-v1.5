@@ -4,9 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { supabase } from '../config/supabase';
+import { createSignedFileUrl, recordMaterialView } from '../services/fileAccess';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
@@ -34,7 +35,7 @@ export default function StudentMaterialsScreen({ navigation }) {
     try {
       const [docsRes, quizzesRes] = await Promise.all([
         supabase.from('documents').select('*').eq('folder_id', folderId),
-        supabase.from('quizzes').select('*, quiz_questions(*)').eq('folder_id', folderId),
+        supabase.from('quizzes').select('id, title, description, passing_score, question_count').eq('folder_id', folderId),
       ]);
       if (docsRes.error) throw docsRes.error;
       if (quizzesRes.error) throw quizzesRes.error;
@@ -46,9 +47,11 @@ export default function StudentMaterialsScreen({ navigation }) {
   const openDocument = async (doc) => {
     try {
       if (!doc.file_url) { Alert.alert('Error', 'No file URL available'); return; }
+      await recordMaterialView(doc.id);
       const fileName = doc.file_name || `${doc.title}.pdf`;
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-      const result = await FileSystem.downloadAsync(doc.file_url, fileUri);
+      const signedUrl = await createSignedFileUrl(doc.file_url);
+      const result = await FileSystem.downloadAsync(signedUrl, fileUri);
       if (result.status === 200) {
         if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
         else Alert.alert('Success', 'File downloaded');
@@ -94,7 +97,7 @@ export default function StudentMaterialsScreen({ navigation }) {
               </View>
               <Text style={styles.itemTitle}>{quiz.title}</Text>
               <View style={styles.questionBadge}>
-                <Text style={styles.questionBadgeText}>{quiz.quiz_questions?.length || 0} Q</Text>
+                <Text style={styles.questionBadgeText}>{quiz.question_count || 0} Q</Text>
               </View>
             </TouchableOpacity>
           ))}

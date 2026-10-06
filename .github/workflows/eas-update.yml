@@ -8,7 +8,8 @@
 #   1. cd CompuClass-v.1.0-main && eas update:configure
 #      (installs expo-updates, adds runtimeVersion + updates.url to app.json)
 #   2. Commit the resulting changes.
-#   3. Add `push: branches: [main]` back to the triggers below.
+#   3. Add `push: branches: [main]` back to the triggers below only if you
+#      accept an OTA publish on every merge. Leaving workflow_dispatch is safer.
 #
 # Until then it only runs when triggered by hand, so it never reports red.
 name: EAS Update (OTA)
@@ -31,7 +32,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: CompuClass-v.1.0-main/package-lock.json
 
@@ -41,7 +42,7 @@ jobs:
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:
-          eas-version: latest
+          eas-version: 24.11.0
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Publish update
@@ -49,4 +50,3 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-          EXPO_PUBLIC_GEMINI_API_KEY: ${{ secrets.EXPO_PUBLIC_GEMINI_API_KEY }}

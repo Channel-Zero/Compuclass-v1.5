@@ -5,7 +5,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+import { useNavigation } from '@react-navigation/native';
 import { authService } from '../services/authService';
+import { supabase } from '../config/supabase';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
 const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const WHITE = '#FFFFFF';
@@ -13,11 +15,14 @@ const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563'; const BOR
 
 export default function ProfileScreen({ onLogout }) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const [user, setUser] = useState(null);
+  const [stats, setStats] = useState({ quizzes: 0, average: 0, materials: 0 });
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [fullName, setFullName] = useState('');
   const [avatarFile, setAvatarFile] = useState(null);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,6 +34,23 @@ export default function ProfileScreen({ onLogout }) {
       const u = await authService.getCurrentUser();
       setUser(u);
       setFullName(u?.user_metadata?.full_name || u?.profile?.full_name || '');
+      if (u?.id) {
+        const [{ data: attempts }, { count }] = await Promise.all([
+          supabase.from('quiz_attempts').select('quiz_id, score').eq('user_id', u.id),
+          supabase.from('material_views').select('id', { count: 'exact', head: true }).eq('user_id', u.id),
+        ]);
+        const best = new Map();
+        (attempts || []).forEach((attempt) => {
+          const previous = best.get(attempt.quiz_id);
+          if (previous == null || attempt.score > previous) best.set(attempt.quiz_id, attempt.score);
+        });
+        const scores = [...best.values()];
+        setStats({
+          quizzes: best.size,
+          average: scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0,
+          materials: count || 0,
+        });
+      }
     } catch {}
   };
 
@@ -49,14 +71,14 @@ export default function ProfileScreen({ onLogout }) {
   };
 
   const handleChangePassword = async () => {
-    if (!newPassword || !confirmPassword) { Alert.alert('Error', 'All fields are required'); return; }
+    if (!currentPassword || !newPassword || !confirmPassword) { Alert.alert('Error', 'All fields are required'); return; }
     if (newPassword.length < 6) { Alert.alert('Error', 'Password must be at least 6 characters'); return; }
     if (newPassword !== confirmPassword) { Alert.alert('Error', 'Passwords do not match'); return; }
     setLoading(true);
     try {
-      await authService.updatePassword(null, newPassword);
+      await authService.updatePassword(currentPassword, newPassword);
       Alert.alert('Success', 'Password changed successfully');
-      setShowPasswordModal(false); setNewPassword(''); setConfirmPassword('');
+      setShowPasswordModal(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
     } catch (error) { Alert.alert('Error', error.message); }
     finally { setLoading(false); }
   };
@@ -78,7 +100,7 @@ export default function ProfileScreen({ onLogout }) {
   const actionItems = [
     { icon: 'person-outline',    label: 'Edit Profile',     color: BLUE,   onPress: () => setShowEditModal(true) },
     { icon: 'lock-closed-outline', label: 'Change Password', color: PURPLE, onPress: () => setShowPasswordModal(true) },
-    { icon: 'settings-outline',  label: 'Settings',         color: MUTED,  screen: 'Settings' },
+    { icon: 'settings-outline',  label: 'Settings',         color: MUTED,  onPress: () => navigation.navigate('Settings') },
   ];
 
   return (
@@ -101,30 +123,19 @@ export default function ProfileScreen({ onLogout }) {
         {/* XP + Streak row */}
         <View style={styles.gamifyRow}>
           <View style={styles.gamifyCard}>
-            <Text style={styles.gamifyEmoji}>⚡</Text>
-            <Text style={styles.gamifyValue}>240</Text>
-            <Text style={styles.gamifyLabel}>XP</Text>
+            <Text style={styles.gamifyValue}>{stats.quizzes}</Text>
+            <Text style={styles.gamifyLabel}>Quizzes</Text>
           </View>
           <View style={styles.gamifyDivider} />
           <View style={styles.gamifyCard}>
-            <Text style={styles.gamifyEmoji}>🔥</Text>
-            <Text style={styles.gamifyValue}>5</Text>
-            <Text style={styles.gamifyLabel}>Day Streak</Text>
+            <Text style={styles.gamifyValue}>{stats.average}%</Text>
+            <Text style={styles.gamifyLabel}>Best average</Text>
           </View>
           <View style={styles.gamifyDivider} />
           <View style={styles.gamifyCard}>
-            <Text style={styles.gamifyEmoji}>🏆</Text>
-            <Text style={styles.gamifyValue}>Lv 3</Text>
-            <Text style={styles.gamifyLabel}>Level</Text>
+            <Text style={styles.gamifyValue}>{stats.materials}</Text>
+            <Text style={styles.gamifyLabel}>Materials</Text>
           </View>
-        </View>
-
-        {/* XP progress bar */}
-        <View style={styles.xpBarWrap}>
-          <View style={styles.xpBarBg}>
-            <View style={[styles.xpBarFill, { width: '48%' }]} />
-          </View>
-          <Text style={styles.xpBarLabel}>240 / 500 XP to Level 4</Text>
         </View>
       </LinearGradient>
 
@@ -183,6 +194,7 @@ export default function ProfileScreen({ onLogout }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Change Password 🔒</Text>
+            <TextInput style={styles.input} placeholder="Current Password" placeholderTextColor={MUTED} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
             <TextInput style={styles.input} placeholder="New Password" placeholderTextColor={MUTED} value={newPassword} onChangeText={setNewPassword} secureTextEntry />
             <TextInput style={styles.input} placeholder="Confirm New Password" placeholderTextColor={MUTED} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
             <View style={styles.modalBtns}>

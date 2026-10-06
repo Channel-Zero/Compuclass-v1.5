@@ -1,12 +1,13 @@
-import React, { useRef, useState } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, Text, ActivityIndicator, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 
-export default function RealAR() {
+const modelModule = require('../assets/models/personal_computer.glb');
 
-
-  const htmlContent = `
-    <!DOCTYPE html>
+function viewerHtml(src) {
+  return `<!DOCTYPE html>
     <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,21 +19,63 @@ export default function RealAR() {
       </head>
       <body>
         <model-viewer
-          src="https://raw.githubusercontent.com/Tkumalo-dev/-CompuClass/thabo-and-kamo/ARfeature/assets/models/personal_computer.glb"
+          src="${src}"
           alt="Personal Computer 3D Model"
           auto-rotate
           camera-controls
           shadow-intensity="1"
         ></model-viewer>
       </body>
-    </html>
-  `;
-  
+    </html>`;
+}
+
+export default function RealAR() {
+  const [html, setHtml] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const asset = Asset.fromModule(modelModule);
+        if (!asset.localUri && !asset.uri) await asset.downloadAsync();
+        const uri = asset.localUri || asset.uri;
+        let src = uri;
+        if (Platform.OS !== 'web' && uri && !/^https?:/i.test(uri)) {
+          const base64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          src = `data:model/gltf-binary;base64,${base64}`;
+        }
+        if (!cancelled) setHtml(viewerHtml(src));
+      } catch (loadError) {
+        if (!cancelled) setError(loadError.message || 'Could not load the 3D model');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.modelInfo}>3D model unavailable</Text>
+      </View>
+    );
+  }
+
+  if (!html) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <WebView
         originWhitelist={['*']}
-        source={{ html: htmlContent }}
+        source={{ html }}
         style={styles.glView}
       />
       <View style={styles.overlay}>
@@ -45,9 +88,13 @@ export default function RealAR() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f0f0',
   },
   glView: {
     flex: 1,
+    width: '100%',
   },
   overlay: {
     position: 'absolute',
@@ -60,8 +107,7 @@ const styles = StyleSheet.create({
   },
   modelInfo: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     textAlign: 'center',
   },
 });

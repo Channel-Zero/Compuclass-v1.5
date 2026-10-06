@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -19,6 +19,8 @@ import { lecturerService } from '../services/lecturerService';
 export default function StudentProgressScreen({ navigation }) {
   const { theme } = useTheme();
   const [students, setStudents] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [studentEmail, setStudentEmail] = useState('');
@@ -29,6 +31,7 @@ export default function StudentProgressScreen({ navigation }) {
   const loadData = async () => {
     await loadStudents();
     await loadProgressData();
+    await loadClasses();
   };
 
   useFocusEffect(
@@ -55,18 +58,32 @@ export default function StudentProgressScreen({ navigation }) {
     }
   };
 
+  const loadClasses = async () => {
+    try {
+      const data = await lecturerService.getClasses();
+      setClasses(data || []);
+      setSelectedClassId((current) => current || data?.[0]?.id || null);
+    } catch (error) {
+      console.error('Classes error:', error);
+    }
+  };
+
   const handleAddStudent = async () => {
     if (!studentEmail.trim()) {
       Alert.alert('Error', 'Please enter student email');
       return;
     }
+    if (!selectedClassId) {
+      Alert.alert('Error', 'Create a class before adding a student');
+      return;
+    }
     setLoading(true);
     try {
-      await lecturerService.addStudent(studentEmail);
+      await lecturerService.addStudent(studentEmail, selectedClassId);
       setShowAddStudent(false);
       setStudentEmail('');
-      loadStudents();
-      Alert.alert('Success', 'Student added successfully');
+      loadData();
+      Alert.alert('Success', 'Student enrolled in the selected class');
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {
@@ -203,7 +220,28 @@ export default function StudentProgressScreen({ navigation }) {
       <Modal visible={showAddStudent} animationType="slide" transparent>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Add Student</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Enrol student</Text>
+            <Text style={[styles.classHint, { color: theme.textSecondary }]}>
+              The student must already have a CompuClass account. Pick the class they should join.
+            </Text>
+            <ScrollView style={styles.classList} nestedScrollEnabled>
+              {classes.length === 0 ? (
+                <Text style={[styles.classHint, { color: theme.textSecondary }]}>
+                  No classes yet. Create one from Class Management first.
+                </Text>
+              ) : classes.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.classOption,
+                    { backgroundColor: theme.borderLight, borderColor: selectedClassId === item.id ? theme.primary : 'transparent' },
+                  ]}
+                  onPress={() => setSelectedClassId(item.id)}
+                >
+                  <Text style={[styles.classOptionText, { color: theme.text }]}>{item.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
             <TextInput
               style={[styles.input, { backgroundColor: theme.borderLight, color: theme.text }]}
               placeholder="Student Email"
@@ -382,7 +420,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
   },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
+  classHint: { fontSize: 13, marginBottom: 12 },
+  classList: { maxHeight: 140, marginBottom: 8 },
+  classOption: { padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 2 },
+  classOptionText: { fontSize: 15, fontWeight: '600' },
   input: {
     borderRadius: 8,
     padding: 12,

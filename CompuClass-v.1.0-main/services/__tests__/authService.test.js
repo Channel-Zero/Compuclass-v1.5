@@ -12,6 +12,44 @@ jest.mock('../../config/supabase', () => ({
   },
 }));
 
+describe('authService.signUp', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  it('persists the user and a login timestamp when Supabase returns a session', async () => {
+    const user = { id: 'user-new', email: 'new@compuclass.test' };
+    supabase.auth.signUp.mockResolvedValue({
+      data: { user, session: { access_token: 'token' } },
+      error: null,
+    });
+
+    await authService.signUp('new@compuclass.test', 'password123', 'New Student');
+
+    expect(supabase.auth.signUp).toHaveBeenCalledWith({
+      email: 'new@compuclass.test',
+      password: 'password123',
+      options: { data: { full_name: 'New Student' } },
+    });
+    expect(JSON.parse(await AsyncStorage.getItem('user'))).toEqual(user);
+    expect(await AsyncStorage.getItem('loginTimestamp')).not.toBeNull();
+  });
+
+  it('does not persist a user when email confirmation leaves no session', async () => {
+    supabase.auth.signUp.mockResolvedValue({
+      data: { user: { id: 'user-pending', email: 'pending@compuclass.test' }, session: null },
+      error: null,
+    });
+
+    const result = await authService.signUp('pending@compuclass.test', 'password123', 'Pending');
+
+    expect(result.session).toBeNull();
+    expect(await AsyncStorage.getItem('user')).toBeNull();
+    expect(await AsyncStorage.getItem('loginTimestamp')).toBeNull();
+  });
+});
+
 describe('authService.signIn', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();

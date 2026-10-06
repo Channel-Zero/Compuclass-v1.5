@@ -13,8 +13,8 @@ working — these steps switch on the parts that need credentials.
 
 | Piece | State |
 |---|---|
-| CI (lint, tests, expo-doctor) | ✅ Working — runs on PRs to `main` and pushes to `test_branch` |
-| Android EAS Build | ⚙️ Workflow ready — needs `EXPO_TOKEN` (Part 2) |
+| CI (lint, tests, expo-doctor) | ✅ Working — runs on PRs to `main` and pushes to `main` and `test_branch` |
+| Android EAS Build | ⚙️ Manual only (`workflow_dispatch`) — needs `EXPO_TOKEN` (Part 2) |
 | Web deploy (Vercel) | ⚙️ Config committed — needs the project importing (Part 3) |
 | iOS builds | ⛔ Not enabled — needs a paid Apple Developer account ($99/yr) |
 | EAS Update (OTA) | ⛔ Disabled — needs `eas update:configure` (Part 6) |
@@ -30,8 +30,9 @@ working — these steps switch on the parts that need credentials.
 |---|---|
 | `EXPO_PUBLIC_SUPABASE_URL` | `CompuClass-v.1.0-main/.env` |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | `CompuClass-v.1.0-main/.env` |
-| `EXPO_PUBLIC_GEMINI_API_KEY` | `CompuClass-v.1.0-main/.env` |
 | `EXPO_TOKEN` | Part 2 below |
+
+Delete the old `EXPO_PUBLIC_GEMINI_API_KEY` secret from GitHub Actions and from Vercel if it is still there. Gemini now runs in a Supabase Edge Function (Part 7). The client must not receive that key.
 
 `.env` is gitignored and never committed — ask a teammate for the values.
 
@@ -45,28 +46,32 @@ working — these steps switch on the parts that need credentials.
    account, run `eas init` from `CompuClass-v.1.0-main/` to relink it.
 3. **Validate locally before trusting CI** — the feedback loop is far faster:
    ```bash
-   npm install -g eas-cli
+   npm install -g eas-cli@24.11.0
    eas login
    cd CompuClass-v.1.0-main
    eas build --platform android --profile preview
    ```
-   This queues a real cloud build and returns a downloadable `.apk`.
+   This queues a real cloud build and returns a downloadable `.apk` (preview profile).
    Expo generates and stores the Android keystore automatically — nothing to configure.
+   Use Node.js 22 or newer. `eas-cli` 24.x pulls `@oclif/plugin-autocomplete`, which
+   refuses to install on Node 20.
 4. Once that works: **expo.dev → Account Settings → Access Tokens → Create token**,
-   then add it as the `EXPO_TOKEN` GitHub secret.
+   then add it as the `EXPO_TOKEN` GitHub secret. The token's Expo account must own
+   project `de58943b-ff1e-4471-85dd-37198408d602`. If it does not, run `eas init`
+   while logged into the account that should own the app, then commit the new
+   `projectId`. Do not invent an `owner` field.
+5. **Google Play**: the Android package is `com.lint123.compuclass` (all lowercase).
+   Play Console rejects an application id that contains uppercase letters. This is a
+   new application id, so an existing Play listing created under
+   `CompuClasscom.lint123.compuclass` cannot be updated in place. Create a new app
+   in Play Console for `com.lint123.compuclass`, or keep the old listing only if you
+   revert the package name before the first upload.
 
-After that, builds trigger automatically:
+Builds do **not** run on push. Open **Actions → EAS Build (Android) → Run workflow**
+and choose the platform and profile (`preview` for an APK, `production` for an AAB).
 
-| Trigger | Profile |
-|---|---|
-| Push to `test_branch` | `preview` |
-| Push to `main` | `production` |
-| Actions → EAS Build → Run workflow | your choice (incl. iOS) |
-
-> ⚠️ **The EAS free tier allows a limited number of builds per month, and every
-> push to `test_branch` or `main` consumes one.** If the team pushes frequently,
-> remove `test_branch` from the triggers in `.github/workflows/eas-build.yml` and
-> use the manual "Run workflow" button instead.
+> The EAS free tier allows a limited number of builds per month. A production build
+> on every push to `main` was removed for that reason.
 
 ### iOS
 `eas-build.yml` defaults to Android only, because iOS device builds require a paid
@@ -93,9 +98,9 @@ tested locally, including client-side routing. Vercel just needs to be pointed a
    "buildCommand": "npx expo export --platform web",
    "outputDirectory": "dist"
    ```
-5. Add the three `EXPO_PUBLIC_*` environment variables from Part 1, and tick
+5. Add the two `EXPO_PUBLIC_SUPABASE_*` environment variables from Part 1, and tick
    **Production, Preview, and Development** for each. Preview is what powers pull
-   request preview URLs.
+   request preview URLs. Do not add a Gemini key.
 6. **Deploy.** First build takes roughly 2–4 minutes.
 
 You get a live URL, automatic redeploys on every push to `main`, and a preview URL
@@ -160,20 +165,48 @@ store review.
 
 ---
 
-## Known issue: exposed Gemini API key
+## Part 7: Supabase schema and Gemini (required before the app works)
 
-`EXPO_PUBLIC_*` variables are compiled into the client bundle by design — they are
-readable by anyone who inspects the app. This is expected and safe for the Supabase
-**anon** key, which is protected by the Row Level Security policies in
-`supabase-setup.sql`.
+`EXPO_PUBLIC_*` variables are compiled into the client bundle. That is expected for
+the Supabase **anon** key, which is limited by Row Level Security. A Gemini key must
+never be one of those variables.
 
-It is **not** safe for `EXPO_PUBLIC_GEMINI_API_KEY`. Anyone can extract it from the
-public web bundle and spend the project's Gemini quota. It is currently used directly
-from the client in `services/aiService.js`.
+### Existing Supabase project
 
-The fix is to move Gemini calls behind a Supabase Edge Function that holds the key
-server-side, so the client calls the function instead of Google. Worth doing before
-the web app is shared publicly. Rotate the key when you do.
+Do **not** re-run `supabase-setup.sql` on a database that already has data. In the
+SQL editor, run the whole file:
+
+`CompuClass-v.1.0-main/supabase/migrations/20261006140000_security_hardening.sql`
+
+### Brand-new project
+
+Run `CompuClass-v.1.0-main/supabase-setup.sql` once. It creates the tables and then
+applies the same policies as the migration.
+
+### Promote a lecturer
+
+Signups are always students. In the SQL editor (which runs as `postgres`):
+
+```sql
+UPDATE public.profiles SET role = 'lecturer' WHERE id = '<user-uuid>';
+```
+
+### Edge Function
+
+From `CompuClass-v.1.0-main/`:
+
+```bash
+supabase link --project-ref <project-ref>
+supabase secrets set GEMINI_API_KEY=<rotated key>
+supabase functions deploy gemini
+```
+
+Create a new key in Google AI Studio, put that value in the Supabase secret, deploy
+the function, then delete the old key. Remove `EXPO_PUBLIC_GEMINI_API_KEY` from
+GitHub Actions secrets and from Vercel. The app calls `supabase.functions.invoke('gemini')`.
+
+Node.js 22 or newer is required for local installs. `@supabase/supabase-js` 2.112 and
+current `eas-cli` both declare that engine. CI and the EAS workflows use Node 22.
 
 ---
 
@@ -181,7 +214,7 @@ the web app is shared publicly. Rotate the key when you do.
 
 **Vercel build fails instantly** — Root Directory isn't set to `CompuClass-v.1.0-main`.
 
-**Deployed site loads but login fails** — the three `EXPO_PUBLIC_*` variables are
+**Deployed site loads but login fails** — the two `EXPO_PUBLIC_SUPABASE_*` variables are
 missing from Vercel, or weren't enabled for that environment. Check the browser
 console for `Missing Supabase environment variables`.
 

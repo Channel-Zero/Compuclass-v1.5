@@ -5,8 +5,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { createSignedFileUrl, recordMaterialView } from '../services/fileAccess';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
@@ -41,30 +42,40 @@ export default function SearchScreen({ navigation }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
+  const requestRef = useRef(0);
 
   useEffect(() => {
-    if (searchQuery.length > 0) searchContent();
-    else { setQuizzes([]); setDocuments([]); }
+    if (!searchQuery.trim()) {
+      setQuizzes([]);
+      setDocuments([]);
+      setLoading(false);
+      return undefined;
+    }
+    const requestId = ++requestRef.current;
+    const handle = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const term = searchQuery.trim().replace(/[%_]/g, '');
+        const [quizzesRes, docsRes] = await Promise.all([
+          supabase.from('quizzes').select('id, title, description, question_count').ilike('title', `%${term}%`),
+          supabase.from('documents').select('id, title, file_name, file_type, file_url').ilike('title', `%${term}%`),
+        ]);
+        if (requestId !== requestRef.current) return;
+        setQuizzes(quizzesRes.data || []);
+        setDocuments(docsRes.data || []);
+      } catch (error) { console.error('Search error:', error); }
+      finally { if (requestId === requestRef.current) setLoading(false); }
+    }, 300);
+    return () => clearTimeout(handle);
   }, [searchQuery]);
-
-  const searchContent = async () => {
-    setLoading(true);
-    try {
-      const [quizzesRes, docsRes] = await Promise.all([
-        supabase.from('quizzes').select('*, quiz_questions(*)').ilike('title', `%${searchQuery}%`),
-        supabase.from('documents').select('*').ilike('title', `%${searchQuery}%`),
-      ]);
-      setQuizzes(quizzesRes.data || []);
-      setDocuments(docsRes.data || []);
-    } catch (error) { console.error('Search error:', error); }
-    setLoading(false);
-  };
 
   const openDocument = async (doc) => {
     try {
+      await recordMaterialView(doc.id);
       const fileName = doc.file_name || `${doc.title}.pdf`;
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-      const result = await FileSystem.downloadAsync(doc.file_url, fileUri);
+      const signedUrl = await createSignedFileUrl(doc.file_url);
+      const result = await FileSystem.downloadAsync(signedUrl, fileUri);
       if (result.status === 200 && await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
     } catch (error) { console.error('Download error:', error); }
   };
@@ -140,7 +151,7 @@ export default function SearchScreen({ navigation }) {
                     </View>
                     <View style={styles.resultInfo}>
                       <Text style={styles.resultTitle}>{quiz.title}</Text>
-                      <Text style={styles.resultSubtitle}>{quiz.quiz_questions?.length || 0} questions</Text>
+                      <Text style={styles.resultSubtitle}>{quiz.question_count || 0} questions</Text>
                     </View>
                     <View style={styles.resultBadge}>
                       <Text style={styles.resultBadgeText}>Quiz</Text>

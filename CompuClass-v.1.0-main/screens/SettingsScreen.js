@@ -39,7 +39,7 @@ export default function SettingsScreen({ navigation }) {
     try {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       const exportData = JSON.stringify({ user: { email: user.email, name: user.user_metadata?.full_name }, profile, exportDate: new Date().toISOString() }, null, 2);
-      const FileSystem = await import('expo-file-system');
+      const FileSystem = await import('expo-file-system/legacy');
       const Sharing = await import('expo-sharing');
       const fileUri = FileSystem.documentDirectory + `compuclass_data_${Date.now()}.json`;
       await FileSystem.writeAsStringAsync(fileUri, exportData);

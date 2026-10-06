@@ -23,6 +23,8 @@ export default function QuizScreen({ route, navigation }) {
   const [score, setScore] = useState(0);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [answers, setAnswers] = useState([]);
+  const [result, setResult] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => { quizId ? loadQuiz() : loadAvailableQuizzes(); }, [quizId]);
 
@@ -35,46 +37,53 @@ export default function QuizScreen({ route, navigation }) {
       const { data: assignments } = await supabase.from('quiz_assignments').select('quiz_id').in('class_id', classIds);
       const quizIds = assignments?.map((a) => a.quiz_id) || [];
       if (quizIds.length === 0) { setAvailableQuizzes([]); setLoading(false); return; }
-      const { data: quizzes } = await supabase.from('quizzes').select('*').in('id', quizIds);
+      const { data: quizzes, error } = await supabase.from('quizzes').select('id, title, description, passing_score, question_count').in('id', quizIds);
+      if (error) throw error;
       setAvailableQuizzes(quizzes || []);
-    } catch {}
+    } catch (error) { Alert.alert('Error', error.message || 'Failed to load quizzes'); }
     finally { setLoading(false); }
   };
 
   const loadQuiz = async () => {
     try {
-      const { data: quizData, error: quizError } = await supabase.from('quizzes').select('*').eq('id', quizId).single();
-      if (quizError) throw quizError;
-      const { data: questionsData, error: questionsError } = await supabase.from('quiz_questions').select('*').eq('quiz_id', quizId).order('order_index');
-      if (questionsError) throw questionsError;
-      setQuiz(quizData); setQuestions(questionsData);
-    } catch { Alert.alert('Error', 'Failed to load quiz'); navigation.goBack(); }
+      const { data, error } = await supabase.rpc('get_quiz_for_student', { p_quiz_id: quizId });
+      if (error) throw error;
+      setQuiz(data);
+      setQuestions(data?.questions || []);
+    } catch (error) { Alert.alert('Error', error.message || 'Failed to load quiz'); navigation.goBack(); }
     finally { setLoading(false); }
   };
 
   const handleNextQuestion = () => {
-    if (selectedAnswer === null) { Alert.alert('Please select an answer'); return; }
-    const isCorrect = selectedAnswer === questions[currentQuestion].correct_answer;
-    const newAnswers = [...answers, { questionId: questions[currentQuestion].id, selected: selectedAnswer, correct: questions[currentQuestion].correct_answer, isCorrect }];
+    if (submitting || selectedAnswer === null) { Alert.alert('Please select an answer'); return; }
+    const newAnswers = [...answers, { questionId: questions[currentQuestion].id, selected: selectedAnswer }];
     setAnswers(newAnswers);
-    if (isCorrect) setScore(score + 1);
     if (currentQuestion + 1 < questions.length) { setCurrentQuestion(currentQuestion + 1); setSelectedAnswer(null); }
-    else submitQuizAttempt(score + (isCorrect ? 1 : 0));
+    else submitQuizAttempt(newAnswers);
   };
 
-  const submitQuizAttempt = async (finalScore) => {
+  const submitQuizAttempt = async (answerPayload) => {
+    setSubmitting(true);
     try {
-      const user = await authService.getCurrentUser();
-      const percentage = Math.round((finalScore / questions.length) * 100);
-      await supabase.from('quiz_attempts').insert({ user_id: user.id, quiz_id: quizId, score: percentage });
-    } catch {}
-    setQuizCompleted(true);
+      const { data, error } = await supabase.rpc('submit_quiz_attempt', {
+        p_quiz_id: quizId,
+        p_answers: answerPayload,
+      });
+      if (error) throw error;
+      setResult(data);
+      setScore(data?.correct || 0);
+      setQuizCompleted(true);
+    } catch (error) {
+      Alert.alert('Could not save quiz', error.message || 'Check your connection and try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const resetQuiz = () => { setCurrentQuestion(0); setSelectedAnswer(null); setScore(0); setQuizCompleted(false); setAnswers([]); };
+  const resetQuiz = () => { setCurrentQuestion(0); setSelectedAnswer(null); setScore(0); setQuizCompleted(false); setAnswers([]); setResult(null); };
 
-  const pct = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
-  const scoreColor = pct >= 80 ? GREEN : pct >= 60 ? YELLOW : RED;
+  const pct = result?.score ?? 0;
+  const scoreColor = result?.passed ? GREEN : RED;
 
   if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={BLUE} /><Text style={styles.loadingText}>Loading...</Text></View>;
 
@@ -115,7 +124,8 @@ export default function QuizScreen({ route, navigation }) {
         <Text style={styles.resultTitle}>Quiz Completed! 🎉</Text>
         <Text style={styles.resultQuizTitle}>{quiz.title}</Text>
         <Text style={styles.resultScore}>{pct}%</Text>
-        <Text style={styles.resultFraction}>{score} / {questions.length} correct</Text>
+        <Text style={styles.resultFraction}>{result?.correct ?? 0} / {result?.total ?? questions.length} correct</Text>
+        <Text style={styles.resultFraction}>{result?.passed ? 'Passed' : 'Not passed'} · pass mark {result?.passingScore ?? quiz?.passing_score}%</Text>
         <View style={styles.resultBtns}>
           <TouchableOpacity style={styles.resultBtn} onPress={resetQuiz} activeOpacity={0.85}><Ionicons name="refresh" size={16} color={scoreColor} /><Text style={[styles.resultBtnText, { color: scoreColor }]}>Try Again</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.resultBtn, { backgroundColor: 'rgba(255,255,255,0.2)', borderWidth: 0 }]} onPress={() => navigation.goBack()} activeOpacity={0.85}><Ionicons name="home" size={16} color={WHITE} /><Text style={[styles.resultBtnText, { color: WHITE }]}>Home</Text></TouchableOpacity>
@@ -123,11 +133,11 @@ export default function QuizScreen({ route, navigation }) {
       </LinearGradient>
       <View style={styles.reviewSection}>
         <Text style={styles.reviewTitle}>Review Answers</Text>
-        {questions.map((question, index) => (
-          <View key={question.id} style={styles.reviewCard}>
-            <Text style={styles.reviewQ}>{index + 1}. {question.question}</Text>
-            <Text style={[styles.reviewA, { color: answers[index]?.isCorrect ? GREEN : RED }]}>Your answer: {answers[index]?.selected} {answers[index]?.isCorrect ? '✓' : '✗'}</Text>
-            {!answers[index]?.isCorrect && <Text style={styles.correctA}>✓ Correct: {question.correct_answer}</Text>}
+        {(result?.review || []).map((item, index) => (
+          <View key={item.questionId || index} style={styles.reviewCard}>
+            <Text style={styles.reviewQ}>{index + 1}. {item.question}</Text>
+            <Text style={[styles.reviewA, { color: item.isCorrect ? GREEN : RED }]}>Your answer: {item.selected || '—'} {item.isCorrect ? '✓' : '✗'}</Text>
+            {!item.isCorrect && <Text style={styles.correctA}>✓ Correct: {item.correctAnswer}</Text>}
           </View>
         ))}
       </View>
@@ -159,8 +169,8 @@ export default function QuizScreen({ route, navigation }) {
           ))}
         </View>
       </ScrollView>
-      <TouchableOpacity style={[styles.nextBtn, selectedAnswer === null && styles.nextBtnDisabled]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleNextQuestion(); }} disabled={selectedAnswer === null} activeOpacity={0.85}>
-        <Text style={styles.nextBtnText}>{currentQuestion + 1 === questions.length ? 'Finish Quiz 🎉' : 'Next Question'}</Text>
+      <TouchableOpacity style={[styles.nextBtn, (selectedAnswer === null || submitting) && styles.nextBtnDisabled]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleNextQuestion(); }} disabled={selectedAnswer === null || submitting} activeOpacity={0.85}>
+        <Text style={styles.nextBtnText}>{submitting ? 'Saving...' : currentQuestion + 1 === questions.length ? 'Finish Quiz 🎉' : 'Next Question'}</Text>
         <Ionicons name="arrow-forward" size={18} color={WHITE} />
       </TouchableOpacity>
     </View>

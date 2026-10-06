@@ -4,7 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, PanResponder, Animated, Dimensions, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, PanResponder, Animated, Dimensions, StyleSheet, AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -35,15 +36,15 @@ import Sidebar from './components/Sidebar';
 
 import { authService } from './services/authService';
 import { supabase } from './config/supabase';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { useOffline } from './hooks/useOffline';
+import { ThemeProvider } from './context/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 const { width } = Dimensions.get('window');
 
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const WHITE = '#FFFFFF';
-const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563';
+const BLUE = '#2563EB'; const WHITE = '#FFFFFF';
+const TEXT = '#111827'; const MUTED = '#4B5563';
+const ONBOARDING_KEY = 'hasCompletedOnboarding';
 
 function LecturerStack() {
   return (
@@ -138,8 +139,6 @@ function CustomHeader({ onMenuPress }) {
 }
 
 function AppContent() {
-  const { theme } = useTheme();
-  const { isOnline } = useOffline();
   const [isFirstLaunch, setIsFirstLaunch] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
@@ -171,23 +170,41 @@ function AppContent() {
     })
   ).current;
 
-  useEffect(() => { checkUser(); }, []);
+  useEffect(() => {
+    checkUser();
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') checkUser();
+    });
+    const interval = setInterval(checkUser, 60 * 1000);
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
+  }, []);
 
   const checkUser = async () => {
     try {
+      const seen = await AsyncStorage.getItem(ONBOARDING_KEY);
+      if (seen === 'true') setIsFirstLaunch(false);
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+      if (session && await authService.isSessionValid()) {
+        await authService.touchSession();
         const user = await authService.getCurrentUser();
         if (user) {
           setUserRole(user.profile?.role || 'student');
           setIsLoggedIn(true);
           setIsFirstLaunch(false);
+          await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
         }
       } else {
-        await authService.signOut();
+        if (session) await authService.signOut();
+        setIsLoggedIn(false);
+        setUserRole(null);
       }
     } catch (error) {
       await authService.signOut();
+      setIsLoggedIn(false);
+      setUserRole(null);
     } finally {
       setLoading(false);
     }
@@ -227,7 +244,10 @@ function AppContent() {
   if (isFirstLaunch) return (
     <>
       <StatusBar style="light" />
-      <OnboardingScreen onComplete={() => setIsFirstLaunch(false)} />
+      <OnboardingScreen onComplete={async () => {
+        await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+        setIsFirstLaunch(false);
+      }} />
     </>
   );
 
@@ -277,16 +297,16 @@ function AppContent() {
               ) : (
                 <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: 'Home' }} />
               )}
-              <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarLabel: 'Search' }} />
+              <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarLabel: 'Search', headerShown: false }} />
               <Tab.Screen name="Profile" options={{ tabBarLabel: 'Profile' }}>
                 {() => <ProfileScreen onLogout={handleLogout} />}
               </Tab.Screen>
               <Tab.Screen name="PC Lab" component={PCLabScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="Windows 11" component={Windows11SimulatorScreen} options={{ tabBarButton: () => null, headerShown: false }} />
-              <Tab.Screen name="Quiz" component={QuizScreen} options={{ tabBarButton: () => null }} />
-              <Tab.Screen name="Troubleshoot" component={TroubleshootingScreen} options={{ tabBarButton: () => null }} />
-              <Tab.Screen name="Materials" component={StudentMaterialsScreen} options={{ tabBarButton: () => null }} />
-              <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarButton: () => null }} />
+              <Tab.Screen name="Quiz" component={QuizScreen} options={{ tabBarButton: () => null, headerShown: false }} />
+              <Tab.Screen name="Troubleshoot" component={TroubleshootingScreen} options={{ tabBarButton: () => null, headerShown: false }} />
+              <Tab.Screen name="Materials" component={StudentMaterialsScreen} options={{ tabBarButton: () => null, headerShown: false }} />
+              <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="Chatbot" component={ChatbotScreen} options={{ tabBarButton: () => null, headerShown: false }} />
             </Tab.Navigator>
           </View>

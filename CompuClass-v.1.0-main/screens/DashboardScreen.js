@@ -1,9 +1,11 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '../config/supabase';
+import { authService } from '../services/authService';
 
 const { width } = Dimensions.get('window');
 
@@ -31,13 +33,45 @@ function AnimatedCard({ onPress, style, children, activeOpacity = 0.85 }) {
 
 export default function DashboardScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const [stats, setStats] = useState([
+    { label: 'Folders', value: '—', icon: 'library', bg: BLUE, text: WHITE },
+    { label: 'Documents', value: '—', icon: 'document-text', bg: GREEN, text: WHITE },
+    { label: 'Quizzes', value: '—', icon: 'help-circle', bg: PURPLE, text: WHITE },
+    { label: 'Best avg', value: '—', icon: 'trophy', bg: YELLOW, text: TEXT },
+  ]);
 
-  const stats = [
-    { label: 'Modules',  value: '25+', icon: 'library',       bg: BLUE,   text: WHITE },
-    { label: 'Parts',    value: '50+', icon: 'hardware-chip',  bg: GREEN,  text: WHITE },
-    { label: 'Students', value: '1K+', icon: 'people',         bg: PURPLE, text: WHITE },
-    { label: 'Success',  value: '95%', icon: 'trophy',         bg: YELLOW, text: TEXT  },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        const [{ count: folders }, { count: documents }, { count: quizzes }, { data: attempts }] = await Promise.all([
+          supabase.from('folders').select('id', { count: 'exact', head: true }),
+          supabase.from('documents').select('id', { count: 'exact', head: true }),
+          supabase.from('quizzes').select('id', { count: 'exact', head: true }),
+          user?.id
+            ? supabase.from('quiz_attempts').select('quiz_id, score').eq('user_id', user.id)
+            : Promise.resolve({ data: [] }),
+        ]);
+        const best = new Map();
+        (attempts || []).forEach((attempt) => {
+          const previous = best.get(attempt.quiz_id);
+          if (previous == null || attempt.score > previous) best.set(attempt.quiz_id, attempt.score);
+        });
+        const scores = [...best.values()];
+        const average = scores.length ? `${Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)}%` : '0%';
+        if (!cancelled) {
+          setStats([
+            { label: 'Folders', value: String(folders || 0), icon: 'library', bg: BLUE, text: WHITE },
+            { label: 'Documents', value: String(documents || 0), icon: 'document-text', bg: GREEN, text: WHITE },
+            { label: 'Quizzes', value: String(quizzes || 0), icon: 'help-circle', bg: PURPLE, text: WHITE },
+            { label: 'Best avg', value: average, icon: 'trophy', bg: YELLOW, text: TEXT },
+          ]);
+        }
+      } catch { /* counts stay as placeholders until the next visit */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const features = [
     { title: 'Component Learning',   icon: 'hardware-chip', bg: BLUE,   screen: 'PC Lab'       },
@@ -58,15 +92,6 @@ export default function DashboardScreen({ navigation }) {
       contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Streak banner */}
-      <View style={styles.streakBanner}>
-        <Text style={styles.streakEmoji}>🔥</Text>
-        <Text style={styles.streakText}>5 day streak! Keep it up!</Text>
-        <View style={styles.xpBadge}>
-          <Text style={styles.xpText}>⚡ 240 XP</Text>
-        </View>
-      </View>
-
       {/* Hero */}
       <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={styles.heroIcon}>
@@ -115,8 +140,8 @@ export default function DashboardScreen({ navigation }) {
             <Text style={styles.simBadge}>⭐ FEATURED</Text>
           </View>
         </View>
-        <Text style={styles.simTitle}>🚀 Interactive Drag & Drop{'\n'}PC Building!</Text>
-        <Text style={styles.simDesc}>Experience the most realistic PC building simulator with true drag-and-drop interaction.</Text>
+        <Text style={styles.simTitle}>🚀 Step-by-step{'\n'}PC Building!</Text>
+        <Text style={styles.simDesc}>Install each part in order, and open a 3D view of the component you just fitted.</Text>
 
         <View style={styles.highlightsRow}>
           {highlights.map((h, i) => (

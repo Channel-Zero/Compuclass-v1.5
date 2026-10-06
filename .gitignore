@@ -1,0 +1,15 @@
+# Secrets and local env (app-level .gitignore also covers CompuClass-v.1.0-main/)
+.env
+.env.*
+*.pem
+*.jks
+*.p8
+*.p12
+*.key
+
+# Dependencies and build output
+node_modules/
+dist/
+web-build/
+coverage/
+.expo/
