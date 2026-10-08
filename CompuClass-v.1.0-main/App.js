@@ -47,7 +47,7 @@ import { setPageMeta } from './utils/pageMeta';
 
 import { authService } from './services/authService';
 import { supabase } from './config/supabase';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { useOffline } from './hooks/useOffline';
 
 installWebAlert();
@@ -85,7 +85,7 @@ const FULLSCREEN_ROUTES = [...MAZE_ROUTES, 'Chatbot', 'Game', 'GameRunnerLobby',
 // Floating pill tab bar
 function CustomTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
-  const visibleTabs = ['Dashboard', 'Lecturer', 'Quiz', 'Profile'];
+  const visibleTabs = ['Dashboard', 'Lecturer', 'Search', 'Profile'];
   // Hooks must run before the early return below; previously useRef came after
   // it, so entering a Circuit Maze screen changed the hook order and crashed.
   const scaleAnims = useRef(visibleTabs.map(() => new Animated.Value(1))).current;
@@ -93,17 +93,17 @@ function CustomTabBar({ state, descriptors, navigation }) {
   if (FULLSCREEN_ROUTES.includes(currentRouteName)) return null;
 
   const tabConfig = {
-    Dashboard: { icon: 'home',        iconOff: 'home-outline',   label: 'Home'    },
-    Lecturer:  { icon: 'home',        iconOff: 'home-outline',   label: 'Lecturer'},
-    Quiz:      { icon: 'help-circle', iconOff: 'help-circle-outline', label: 'Quiz'},
-    Profile:   { icon: 'person',      iconOff: 'person-outline', label: 'Profile' },
+    Dashboard: { icon: 'home',           iconOff: 'home-outline',          label: 'Home'    },
+    Lecturer:  { icon: 'home',           iconOff: 'home-outline',          label: 'Lecturer'},
+    Search:    { icon: 'search',         iconOff: 'search-outline',        label: 'Search'  },
+    Profile:   { icon: 'person',         iconOff: 'person-outline',        label: 'Profile' },
   };
 
   const visibleRoutes = state.routes.filter(r => visibleTabs.includes(r.name));
 
   return (
     <View style={[styles.tabBarWrapper, { paddingBottom: insets.bottom + 8 }]}>
-      <View style={styles.tabBarPill}>
+      <View style={[styles.tabBarPill, { backgroundColor: WHITE }]}>
         {visibleRoutes.map((route, index) => {
           const isFocused = state.index === state.routes.indexOf(route);
           const cfg = tabConfig[route.name] || { icon: 'ellipse', iconOff: 'ellipse-outline', label: route.name };
@@ -154,8 +154,8 @@ function CustomHeader({ onMenuPress, onLogoPress }) {
           <Ionicons name="desktop" size={18} color={WHITE} />
         </LinearGradient>
         <View>
-          <Text style={styles.headerAppName}>CompuClass</Text>
-          <Text style={styles.headerTagline}>Computer Learning Platform</Text>
+          <Text style={[styles.headerAppName, { color: TEXT }]}>CompuClass</Text>
+          <Text style={[styles.headerTagline, { color: MUTED }]}>Computer Learning Platform</Text>
         </View>
       </TouchableOpacity>
       <TouchableOpacity
@@ -172,7 +172,6 @@ function CustomHeader({ onMenuPress, onLogoPress }) {
 }
 
 function AppContent() {
-  const { theme } = useTheme();
   const { isOnline } = useOffline();
   const [isFirstLaunch, setIsFirstLaunch] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -343,8 +342,8 @@ function AppContent() {
               ) : (
                 <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: 'Home' }} />
               )}
-              <Tab.Screen name="Quiz" component={QuizScreen} options={{ tabBarLabel: 'Quiz' }} />
-              <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarButton: () => null }} />
+              <Tab.Screen name="Quiz" component={QuizScreen} options={{ tabBarButton: () => null }} />
+              <Tab.Screen name="Search" component={SearchScreen} />
               <Tab.Screen name="Profile" options={{ tabBarLabel: 'Profile' }}>
                 {() => <ProfileScreen onLogout={handleLogout} />}
               </Tab.Screen>
@@ -370,6 +369,7 @@ function AppContent() {
           onNavigate={handleNavigate}
           onHomePress={goHome}
           translateX={sidebarTranslateX}
+          currentScreen={currentRouteRef.current}
         />
       </SafeAreaView>
       </View>

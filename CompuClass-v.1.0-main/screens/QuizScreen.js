@@ -6,13 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
-
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
 const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
-const PURPLE = '#8B5CF6';
-// Darker than YELLOW so it stays readable as text on a white card
-const AMBER = '#CA8A04';
+const CARD = '#FFFFFF'; const PURPLE = '#8B5CF6'; const AMBER = '#CA8A04';
 
 // Base XP mirrors the CASE in submit_quiz_attempt — keep the two in sync.
 const DIFFICULTY = {
@@ -170,29 +167,29 @@ export default function QuizScreen({ route, navigation }) {
     setQuizCompleted(false); setResult(null); setTimeLeft(null);
   };
 
-  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={BLUE} /><Text style={styles.loadingText}>Loading...</Text></View>;
+  if (loading) return <View style={[styles.centered, { backgroundColor: BG }]}><ActivityIndicator size="large" color={BLUE} /><Text style={[styles.loadingText, { color: MUTED }]}>Loading...</Text></View>;
 
   if (submitting) return (
-    <View style={styles.centered}>
+    <View style={[styles.centered, { backgroundColor: BG }]}>
       <ActivityIndicator size="large" color={BLUE} />
-      <Text style={styles.loadingText}>Grading your quiz...</Text>
+      <Text style={[styles.loadingText, { color: MUTED }]}>Grading your quiz...</Text>
     </View>
   );
 
   if (!quizId) return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: BG }]}>
       <LinearGradient colors={[YELLOW, '#EAB308']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={20} color={TEXT} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: TEXT }]}>Available Quizzes</Text>
       </LinearGradient>
-      <ScrollView style={styles.listScroll} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+      <ScrollView style={[styles.listScroll, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
         {listError ? (
           <View style={styles.emptyState} accessibilityRole="alert">
             <Ionicons name="cloud-offline-outline" size={64} color={BORDER} />
-            <Text style={styles.emptyText}>{"Couldn't load your quizzes"}</Text>
-            <Text style={styles.emptySubtext}>Check your internet connection and try again.</Text>
+            <Text style={[styles.emptyText, { color: TEXT }]}>{"Couldn't load your quizzes"}</Text>
+            <Text style={[styles.emptySubtext, { color: MUTED }]}>Check your internet connection and try again.</Text>
             <TouchableOpacity onPress={() => { setLoading(true); loadAvailableQuizzes(); }} style={styles.retryBtn} activeOpacity={0.8}>
               <Text style={styles.retryText}>Try Again</Text>
             </TouchableOpacity>
@@ -200,16 +197,16 @@ export default function QuizScreen({ route, navigation }) {
         ) : availableQuizzes.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={64} color={BORDER} />
-            <Text style={styles.emptyText}>No quizzes assigned yet</Text>
-            <Text style={styles.emptySubtext}>Your lecturer will assign quizzes to your class</Text>
+            <Text style={[styles.emptyText, { color: TEXT }]}>No quizzes assigned yet</Text>
+            <Text style={[styles.emptySubtext, { color: MUTED }]}>Your lecturer will assign quizzes to your class</Text>
           </View>
         ) : availableQuizzes.map((q) => (
-          <TouchableOpacity key={q.id} style={styles.quizCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: q.id }); }} activeOpacity={0.75}>
+          <TouchableOpacity key={q.id} style={[styles.quizCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: q.id }); }} activeOpacity={0.75}>
             <View style={styles.quizIconWrap}><Ionicons name="document-text" size={26} color={WHITE} /></View>
             <View style={styles.quizInfo}>
-              <Text style={styles.quizTitle}>{q.title}</Text>
-              {q.description && <Text style={styles.quizDesc}>{q.description}</Text>}
-              <Text style={styles.passingScore}>Passing: {q.passing_score}%</Text>
+              <Text style={[styles.quizTitle, { color: TEXT }]}>{q.title}</Text>
+              {q.description && <Text style={[styles.quizDesc, { color: MUTED }]}>{q.description}</Text>}
+              <Text style={[styles.passingScore, { color: MUTED }]}>Passing: {q.passing_score}%</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={MUTED} />
           </TouchableOpacity>
@@ -234,7 +231,7 @@ export default function QuizScreen({ route, navigation }) {
     }
 
     return (
-      <ScrollView style={styles.container}>
+      <ScrollView style={[styles.container, { backgroundColor: BG }]}>
         <LinearGradient colors={[scoreColor, scoreColor + 'CC']} style={styles.resultBanner}>
           <Ionicons name={result.passed ? 'trophy' : 'ribbon'} size={60} color={WHITE} />
           <Text style={styles.resultTitle}>Quiz Completed! 🎉</Text>
@@ -281,10 +278,10 @@ export default function QuizScreen({ route, navigation }) {
 
         {result.review?.length > 0 && (
           <View style={styles.reviewSection}>
-            <Text style={styles.reviewTitle}>Review Answers</Text>
+            <Text style={[styles.reviewTitle, { color: TEXT }]}>Review Answers</Text>
             {result.review.map((r, index) => (
-              <View key={r.question_id} style={styles.reviewCard}>
-                <Text style={styles.reviewQ}>{index + 1}. {r.question}</Text>
+              <View key={r.question_id} style={[styles.reviewCard, { backgroundColor: CARD }]}>
+                <Text style={[styles.reviewQ, { color: TEXT }]}>{index + 1}. {r.question}</Text>
                 <Text style={[styles.reviewA, { color: r.is_correct ? GREEN : RED }]}>
                   Your answer: {r.selected_answer ?? '(no answer)'} {r.is_correct ? '✓' : '✗'}
                 </Text>
@@ -304,7 +301,7 @@ export default function QuizScreen({ route, navigation }) {
   const difficultyMeta = DIFFICULTY[currentQ.difficulty] || DIFFICULTY.medium;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: BG }]}>
       <LinearGradient colors={[BLUE, '#1D4ED8']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}><Ionicons name="arrow-back" size={20} color={WHITE} /></TouchableOpacity>
         <Text style={styles.headerTitle}>Question {currentQuestion + 1} of {questions.length}</Text>
@@ -323,14 +320,14 @@ export default function QuizScreen({ route, navigation }) {
             {difficultyMeta.label} · {difficultyMeta.xp} XP
           </Text>
         </View>
-        <Text style={styles.questionText}>{currentQ.question}</Text>
+        <Text style={[styles.questionText, { color: TEXT }]}>{currentQ.question}</Text>
         <View style={styles.optionsWrap}>
           {Array.isArray(options) && options.map((option, index) => (
-            <TouchableOpacity key={index} style={[styles.optionBtn, selectedAnswer === option && styles.optionBtnSelected]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedAnswer(option); }} activeOpacity={0.75}>
-              <View style={[styles.optionLetter, selectedAnswer === option && { backgroundColor: BLUE }]}>
-                <Text style={[styles.optionLetterText, selectedAnswer === option && { color: WHITE }]}>{String.fromCharCode(65 + index)}</Text>
+            <TouchableOpacity key={index} style={[styles.optionBtn, { backgroundColor: CARD, borderColor: BORDER }, selectedAnswer === option && styles.optionBtnSelected]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedAnswer(option); }} activeOpacity={0.75}>
+              <View style={[styles.optionLetter, { backgroundColor: BG }, selectedAnswer === option && { backgroundColor: BLUE }]}>
+                <Text style={[styles.optionLetterText, { color: TEXT }, selectedAnswer === option && { color: WHITE }]}>{String.fromCharCode(65 + index)}</Text>
               </View>
-              <Text style={[styles.optionText, selectedAnswer === option && { color: BLUE, fontWeight: '700' }]}>{option}</Text>
+              <Text style={[styles.optionText, { color: TEXT }, selectedAnswer === option && { color: BLUE, fontWeight: '700' }]}>{option}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -348,9 +345,9 @@ export default function QuizScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  centered: { flex: 1, backgroundColor: BG, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: MUTED, marginTop: 12, fontSize: 14 },
+  container: { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 14 },
   header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16, paddingHorizontal: 16, gap: 12 },
   backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: WHITE },

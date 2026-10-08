@@ -12,6 +12,7 @@ import { getErrorMessage } from '../utils/errorMessages';
 
 const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const CARD = '#FFFFFF';
 
 export default function SettingsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   section: { marginBottom: 20 },
   sectionLabel: { fontSize: 12, fontWeight: '800', color: MUTED, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8, marginLeft: 4 },
-  sectionCard: { backgroundColor: WHITE, borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  sectionCard: { backgroundColor: CARD, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 16 },
   row: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
   rowIconWrap: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

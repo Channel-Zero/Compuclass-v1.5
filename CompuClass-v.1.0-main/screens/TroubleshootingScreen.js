@@ -4,10 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
 const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
-const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB'; const CARD = '#FFFFFF';
 
 const scenarios = [
   {
@@ -77,10 +76,9 @@ const scenarios = [
   },
 ];
 
-const likelihoodColor = (l) => l === 'High' ? RED : l === 'Medium' ? YELLOW : GREEN;
-
 export default function TroubleshootingScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const likelihoodColor = (l) => l === 'High' ? RED : l === 'Medium' ? YELLOW : GREEN;
   const [selectedScenario, setSelectedScenario] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [showSolution, setShowSolution] = useState(false);
@@ -99,7 +97,7 @@ export default function TroubleshootingScreen({ navigation }) {
   };
 
   if (!selectedScenario) return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+    <ScrollView style={[styles.container, { backgroundColor: BG }]} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
       <LinearGradient colors={[RED, '#DC2626']} style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerIconWrap}>
           <Ionicons name="bug" size={32} color={WHITE} />
@@ -114,34 +112,25 @@ export default function TroubleshootingScreen({ navigation }) {
           { label: 'Total', value: scenarios.length, color: BLUE },
           { label: 'Progress', value: `${Math.round((completedScenarios.length / scenarios.length) * 100)}%`, color: RED },
         ].map((s, i) => (
-          <View key={i} style={styles.statCard}>
+          <View key={i} style={[styles.statCard, { backgroundColor: CARD }]}>
             <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-            <Text style={styles.statLabel}>{s.label}</Text>
+            <Text style={[styles.statLabel, { color: MUTED }]}>{s.label}</Text>
           </View>
         ))}
       </View>
-
-      <Text style={styles.sectionTitle}>Choose a Scenario</Text>
-
+      <Text style={[styles.sectionTitle, { color: MUTED }]}>Choose a Scenario</Text>
       {scenarios.map((scenario) => (
-        <TouchableOpacity
-          key={scenario.id}
-          style={[styles.scenarioCard, completedScenarios.includes(scenario.id) && styles.scenarioCardDone]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); selectScenario(scenario); }}
-          activeOpacity={0.75}
-        >
+        <TouchableOpacity key={scenario.id} style={[styles.scenarioCard, { backgroundColor: CARD }, completedScenarios.includes(scenario.id) && styles.scenarioCardDone]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); selectScenario(scenario); }} activeOpacity={0.75}>
           <View style={styles.scenarioTop}>
-            <View style={styles.scenarioIconWrap}>
-              <Ionicons name="warning" size={20} color={WHITE} />
-            </View>
-            <Text style={styles.scenarioTitle}>{scenario.title}</Text>
+            <View style={styles.scenarioIconWrap}><Ionicons name="warning" size={20} color={WHITE} /></View>
+            <Text style={[styles.scenarioTitle, { color: TEXT }]}>{scenario.title}</Text>
             {completedScenarios.includes(scenario.id) && <Ionicons name="checkmark-circle" size={22} color={GREEN} />}
           </View>
-          <Text style={styles.scenarioDesc}>{scenario.description}</Text>
-          <View style={styles.symptomsBox}>
-            <Text style={styles.symptomsLabel}>Symptoms:</Text>
-            {scenario.symptoms.slice(0, 2).map((s, i) => <Text key={i} style={styles.symptomItem}>• {s}</Text>)}
-            {scenario.symptoms.length > 2 && <Text style={styles.symptomsMore}>+{scenario.symptoms.length - 2} more</Text>}
+          <Text style={[styles.scenarioDesc, { color: MUTED }]}>{scenario.description}</Text>
+          <View style={[styles.symptomsBox, { backgroundColor: RED + '10', borderColor: RED + '30' }]}>
+            <Text style={[styles.symptomsLabel, { color: RED }]}>Symptoms:</Text>
+            {scenario.symptoms.slice(0, 2).map((s, i) => <Text key={i} style={[styles.symptomItem, { color: MUTED }]}>• {s}</Text>)}
+            {scenario.symptoms.length > 2 && <Text style={[styles.symptomsMore, { color: RED }]}>+{scenario.symptoms.length - 2} more</Text>}
           </View>
         </TouchableOpacity>
       ))}
@@ -150,62 +139,52 @@ export default function TroubleshootingScreen({ navigation }) {
   );
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+    <ScrollView style={[styles.container, { backgroundColor: BG }]} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
       <LinearGradient colors={[RED, '#DC2626']} style={[styles.detailHeader, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => setSelectedScenario(null)} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color={WHITE} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setSelectedScenario(null)} style={styles.backBtn}><Ionicons name="arrow-back" size={20} color={WHITE} /></TouchableOpacity>
         <Text style={styles.detailTitle}>{selectedScenario.title}</Text>
       </LinearGradient>
-
       <View style={styles.progressWrap}>
-        <Text style={styles.progressText}>Step {currentStep + 1} of {selectedScenario.steps.length}</Text>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${((currentStep + 1) / selectedScenario.steps.length) * 100}%` }]} />
-        </View>
+        <Text style={[styles.progressText, { color: MUTED }]}>Step {currentStep + 1} of {selectedScenario.steps.length}</Text>
+        <View style={[styles.progressBar, { backgroundColor: BORDER }]}><View style={[styles.progressFill, { width: `${((currentStep + 1) / selectedScenario.steps.length) * 100}%` }]} /></View>
       </View>
-
-      <View style={styles.block}>
-        <Text style={styles.blockTitle}>Problem Description</Text>
-        <Text style={styles.blockText}>{selectedScenario.description}</Text>
+      <View style={[styles.block, { backgroundColor: CARD }]}>
+        <Text style={[styles.blockTitle, { color: TEXT }]}>Problem Description</Text>
+        <Text style={[styles.blockText, { color: MUTED }]}>{selectedScenario.description}</Text>
       </View>
-
-      <Text style={styles.sectionTitle}>Observed Symptoms</Text>
+      <Text style={[styles.sectionTitle, { color: MUTED }]}>Observed Symptoms</Text>
       {selectedScenario.symptoms.map((s, i) => (
-        <View key={i} style={styles.symptomRow}>
+        <View key={i} style={[styles.symptomRow, { backgroundColor: CARD }]}>
           <View style={styles.symptomDot}><Ionicons name="warning" size={12} color={WHITE} /></View>
-          <Text style={styles.symptomRowText}>{s}</Text>
+          <Text style={[styles.symptomRowText, { color: TEXT }]}>{s}</Text>
         </View>
       ))}
-
-      <Text style={styles.sectionTitle}>Current Step</Text>
+      <Text style={[styles.sectionTitle, { color: MUTED }]}>Current Step</Text>
       <View style={styles.stepCard}>
         <View style={styles.stepNum}><Text style={styles.stepNumText}>{currentStep + 1}</Text></View>
         <Text style={styles.stepText}>{selectedScenario.steps[currentStep]}</Text>
       </View>
-
-      <Text style={styles.sectionTitle}>Possible Causes</Text>
+      <Text style={[styles.sectionTitle, { color: MUTED }]}>Possible Causes</Text>
       {selectedScenario.possibleCauses.map((c, i) => (
-        <View key={i} style={styles.causeCard}>
+        <View key={i} style={[styles.causeCard, { backgroundColor: CARD }]}>
           <View style={styles.causeTop}>
-            <Text style={styles.causeText}>{c.cause}</Text>
+            <Text style={[styles.causeText, { color: TEXT }]}>{c.cause}</Text>
             <View style={[styles.likelihoodBadge, { backgroundColor: likelihoodColor(c.likelihood) + '20', borderColor: likelihoodColor(c.likelihood) }]}>
               <Text style={[styles.likelihoodText, { color: likelihoodColor(c.likelihood) }]}>{c.likelihood}</Text>
             </View>
           </View>
-          <Text style={styles.causeSolution}>→ {c.solution}</Text>
+          <Text style={[styles.causeSolution, { color: MUTED }]}>→ {c.solution}</Text>
         </View>
       ))}
-
       {showSolution ? (
-        <View style={styles.solutionCard}>
+        <View style={[styles.solutionCard, { backgroundColor: CARD }]}>
           <View style={styles.solutionIconWrap}><Ionicons name="bulb" size={28} color={WHITE} /></View>
-          <Text style={styles.solutionTitle}>Recommended Solution</Text>
-          <Text style={styles.solutionText}>{selectedScenario.correctSolution}</Text>
+          <Text style={[styles.solutionTitle, { color: TEXT }]}>Recommended Solution</Text>
+          <Text style={[styles.solutionText, { color: MUTED }]}>{selectedScenario.correctSolution}</Text>
           <View style={styles.solutionBtns}>
-            <TouchableOpacity style={styles.resetBtn} onPress={() => { setCurrentStep(0); setShowSolution(false); }} activeOpacity={0.75}>
+            <TouchableOpacity style={[styles.resetBtn, { borderColor: BLUE }]} onPress={() => { setCurrentStep(0); setShowSolution(false); }} activeOpacity={0.75}>
               <Ionicons name="refresh" size={16} color={BLUE} />
-              <Text style={styles.resetBtnText}>Try Again</Text>
+              <Text style={[styles.resetBtnText, { color: BLUE }]}>Try Again</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.completeBtn} onPress={completeScenario} activeOpacity={0.75}>
               <Ionicons name="checkmark" size={16} color={WHITE} />
@@ -219,9 +198,9 @@ export default function TroubleshootingScreen({ navigation }) {
           <Ionicons name="arrow-forward" size={18} color={WHITE} />
         </TouchableOpacity>
       )}
-      <TouchableOpacity style={styles.chatbotBtn} onPress={() => navigation.navigate('Chatbot', { context: `Help me troubleshoot: ${selectedScenario.title}` })} activeOpacity={0.85}>
+      <TouchableOpacity style={[styles.chatbotBtn, { backgroundColor: RED + '12', borderColor: RED + '30' }]} onPress={() => navigation.navigate('Chatbot', { context: `Help me troubleshoot: ${selectedScenario.title}` })} activeOpacity={0.85}>
         <Ionicons name="chatbubbles" size={16} color={RED} />
-        <Text style={styles.chatbotBtnText}>Ask CompuBot</Text>
+        <Text style={[styles.chatbotBtnText, { color: RED }]}>Ask CompuBot</Text>
       </TouchableOpacity>
       <View style={{ height: 32 }} />
     </ScrollView>
@@ -229,7 +208,7 @@ export default function TroubleshootingScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1 },
   header: { alignItems: 'center', paddingBottom: 32, paddingHorizontal: 20 },
   headerIconWrap: { width: 68, height: 68, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   headerTitle: { fontSize: 24, fontWeight: '900', color: WHITE, marginBottom: 6 },

@@ -12,13 +12,14 @@ export const getSidebarWidth = (windowWidth) => Math.min(windowWidth * 0.78, SID
 export const getSidebarHiddenX = (windowWidth) => -(getSidebarWidth(windowWidth) + 24);
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
-const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const WHITE = '#FFFFFF';
+const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const ORANGE = '#F97316';
+const WHITE = '#FFFFFF';
 const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563';
 
 const menuItems = [
   { icon: 'book',        title: 'Learning Materials', screen: 'Materials',    color: PURPLE },
   { icon: 'desktop',     title: 'PC Lab',             screen: 'PC Lab',       color: GREEN  },
-  { icon: 'construct',   title: 'PC Assembly',        screen: 'PC Assembly',  color: BLUE   },
+  { icon: 'construct',   title: 'PC Assembly',        screen: 'PC Assembly',  color: ORANGE },
   { icon: 'laptop',      title: 'Windows 11',         screen: 'Windows 11',   color: BLUE   },
   { icon: 'help-circle', title: 'Quiz',               screen: 'Quiz',         color: YELLOW },
   { icon: 'podium',      title: 'Leaderboard',        screen: 'Leaderboard',  color: PURPLE },
@@ -26,7 +27,7 @@ const menuItems = [
   { icon: 'settings',    title: 'Settings',           screen: 'Settings',     color: MUTED  },
 ];
 
-export default function Sidebar({ visible, onClose, onNavigate, onHomePress, translateX: externalTranslateX }) {
+export default function Sidebar({ visible, onClose, onNavigate, onHomePress, translateX: externalTranslateX, currentScreen }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const sidebarWidth = getSidebarWidth(windowWidth);
@@ -86,19 +87,23 @@ export default function Sidebar({ visible, onClose, onNavigate, onHomePress, tra
           </LinearGradient>
 
           <ScrollView style={styles.menuScroll} contentContainerStyle={styles.menuContent} showsVerticalScrollIndicator={false}>
-            {menuItems.map((item, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.menuItem}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onNavigate(item.screen); onClose(); }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.menuIconWrap, { backgroundColor: item.color }]}>
-                  <Ionicons name={item.icon} size={20} color={item.color === YELLOW ? TEXT : WHITE} />
-                </View>
-                <Text style={styles.menuTitle}>{item.title}</Text>
-              </TouchableOpacity>
-            ))}
+            {menuItems.map((item, index) => {
+              const isActive = currentScreen === item.screen;
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.menuItem, isActive && styles.menuItemActive]}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onNavigate(item.screen); onClose(); }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.menuIconWrap, { backgroundColor: item.color }]}>
+                    <Ionicons name={item.icon} size={20} color={item.color === YELLOW ? TEXT : WHITE} />
+                  </View>
+                  <Text style={[styles.menuTitle, isActive && styles.menuTitleActive]}>{item.title}</Text>
+                  {isActive && <View style={styles.activeIndicator} />}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
 
           <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
@@ -121,8 +126,11 @@ const styles = StyleSheet.create({
   menuScroll: { flex: 1 },
   menuContent: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 12 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, marginBottom: 4, gap: 14 },
+  menuItemActive: { backgroundColor: BLUE + '12' },
   menuIconWrap: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  menuTitle: { fontSize: 15, fontWeight: '700', color: TEXT },
+  menuTitle: { fontSize: 15, fontWeight: '700', color: TEXT, flex: 1 },
+  menuTitleActive: { color: BLUE },
+  activeIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: BLUE },
   footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
   footerText: { fontSize: 12, color: MUTED, textAlign: 'center' },
 });
