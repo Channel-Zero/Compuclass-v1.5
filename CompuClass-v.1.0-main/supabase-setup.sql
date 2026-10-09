@@ -36,6 +36,10 @@ CREATE TABLE documents (
 );
 
 -- Quizzes table
+-- The live project uses created_by (not lecturer_id) and has no class_id.
+-- The app calls save_quiz(p_quiz_id, p_title, p_type, p_questions, p_folder_id)
+-- and does not insert lecturer_id. This CREATE TABLE is the original setup
+-- script and is not rewritten.
 CREATE TABLE quizzes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,

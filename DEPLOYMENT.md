@@ -181,8 +181,16 @@ itself and read the result. Then run the whole file:
 
 The migration accepts either `quizzes.created_by` (the live project) or
 `quizzes.lecturer_id` (a database built from `supabase-setup.sql`). If a column
-or table it needs is missing, or a policy is not the shape it knows how to
-replace, the transaction stops and rolls back.
+or table it needs is missing, the transaction stops and rolls back. A policy
+it does not recognise is left in place so a stricter rule is not widened.
+
+The live `announcements` and `game_scores` tables have row level security
+turned off and grants for the anon key. The migration turns row level security
+on for both. It does not replace `custom_access_token_hook`, because live
+policies read `auth.jwt()->>'role'`. After it runs, a human still has to
+check Authentication > Hooks to see whether that hook is enabled. SQL cannot
+see that setting. `game_scores.user_id` is not given a new unique key; if it
+is not unique, the runner screen's upsert on that column can fail.
 
 ### Brand-new project
 

@@ -68,7 +68,7 @@ Do not put a Gemini API key in `.env`. The app calls the `gemini-proxy` Edge Fun
 ## Database Setup
 
 - **New Supabase project:** run `supabase-setup.sql` once in the SQL editor.
-- **Existing project:** do not re-run the setup script. Run the preflight `SELECT` block at the top of `supabase/migrations/20261006140000_security_hardening.sql`, then run the whole file. It accepts `quizzes.created_by` or `quizzes.lecturer_id` and rolls back if a required column is missing.
+- **Existing project:** do not re-run the setup script. Run the preflight `SELECT` block at the top of `supabase/migrations/20261006140000_security_hardening.sql`, then run the whole file. It accepts `quizzes.created_by` or `quizzes.lecturer_id` and rolls back if a required column is missing. On the live project it turns on row level security for `announcements` and `game_scores` (both are currently open to the anon key) and does not rewrite `custom_access_token_hook`. Confirm in Authentication > Hooks whether that hook is enabled.
 
 Every signup is a student. Promote a lecturer from the SQL editor:
 

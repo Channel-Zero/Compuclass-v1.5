@@ -9,22 +9,45 @@
 -- Then run this whole file. Do not wrap the file in another transaction,
 -- because the COMMIT below ends the migration transaction.
 --
--- Confirmed from the live project (read-only) and from the repo SQL:
+-- Confirmed from the live project (read-only, schema and counts only) and
+-- from the repo SQL:
 --   * public.quizzes owner column is created_by on the live project.
+--     Columns there: id, title, description, passing_score, folder_id,
+--     created_by, created_at, type, updated_at. There is no lecturer_id.
 --     supabase-setup.sql creates lecturer_id instead. This script accepts
---     exactly one of those two names and uses that name in every quiz owner
---     policy and function it writes.
+--     exactly one of those two names and uses that name only when it has to
+--     write a quiz owner policy. It does not add a second owner column.
+--   * Live quizzes already have owner and class policies. There is no
+--     USING (true) policy on quizzes, quiz_questions, or quiz_options.
+--     Students already cannot read answer keys on the live project. This
+--     script does not claim to fix that there. A database built from
+--     supabase-setup.sql still has "Everyone can view quiz questions", and
+--     that open read is the only one this script drops.
 --   * public.classes, public.documents, and public.folders use lecturer_id
---     in both the live project and the repo. This script requires that
---     column before it touches those policies.
+--     in both the live project and the repo. documents and folders have no
+--     class_id. This script requires lecturer_id before it touches those
+--     policies.
 --   * quizzes, classes, folders, documents, and announcements have no
 --     class_id on the live project. This script does not read or write
 --     class_id on those tables. Student materials stay a signed-in list,
 --     which is what StudentMaterialsScreen and SearchScreen already do.
---   * announcements is not created by any schema file in the repo. The app
---     reads id, title, body, and created_at (DashboardScreen) and inserts
---     title and body (LecturerDashboardScreen). Any other column is unknown.
---     The live table has none of lecturer_id, created_by, or class_id.
+--   * announcements columns on the live project are id, title, body, and
+--     created_at only. RLS is OFF and anon has every grant. That is a live
+--     hole: anyone with the anon key can read, write, and delete the row.
+--     This script turns RLS on and adds signed-in read plus lecturer
+--     insert, update, and delete. game_scores (user_id, score, updated_at)
+--     has the same hole. Own-row policies are added. user_id is not assumed
+--     to be unique, and no unique key is created.
+--   * A policy this script does not recognise is left in place. It is not
+--     dropped, and a wider policy is not added beside it. The transaction
+--     does not stop for that policy, so the announcements and game_scores
+--     hole can still be closed.
+--   * public.custom_access_token_hook writes the profile role into
+--     claims.role. Live policies on profiles, quiz_attempts, material_views,
+--     and windows_simulation_sessions compare auth.jwt()->>'role' to
+--     'lecturer'. This script does not replace the hook body. A human still
+--     has to confirm whether Authentication > Hooks has it enabled. This
+--     file cannot see that setting.
 --
 -- Not modified, because this script does not know the live rows are the same
 -- shape as the repo and it does not need them to lock the policies below:
@@ -48,7 +71,7 @@ SELECT table_name, column_name, data_type, ordinal_position
 FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name IN (
-    'profiles', 'quizzes', 'quiz_questions', 'quiz_attempts',
+    'profiles', 'quizzes', 'quiz_questions', 'quiz_options', 'quiz_attempts',
     'folders', 'documents', 'classes', 'announcements',
     'quiz_assignments', 'class_students', 'game_scores',
     'circuit_maze_sessions', 'circuit_maze_rooms', 'circuit_maze_players',
@@ -70,8 +93,8 @@ JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_policy pol ON pol.polrelid = c.oid
 WHERE n.nspname = 'public'
   AND c.relname IN (
-    'folders', 'documents', 'quizzes', 'quiz_questions', 'quiz_attempts',
-    'announcements', 'game_scores', 'circuit_maze_sessions',
+    'folders', 'documents', 'quizzes', 'quiz_questions', 'quiz_options',
+    'quiz_attempts', 'announcements', 'game_scores', 'circuit_maze_sessions',
     'circuit_maze_rooms', 'circuit_maze_players',
     'game_runner_rooms', 'game_runner_players',
     'windows_simulation_sessions'
@@ -94,11 +117,74 @@ WHERE (n.nspname, p.proname) IN (
   ('public', 'get_quiz_questions_for_attempt'),
   ('public', 'set_question_gamification_settings'),
   ('public', 'submit_quiz_attempt'),
+  ('public', 'submit_attempt'),
+  ('public', 'start_quiz_attempt'),
+  ('public', 'save_quiz'),
+  ('public', 'replace_quiz_questions'),
+  ('public', 'get_my_class_quizzes'),
+  ('public', 'get_my_practice_quizzes'),
+  ('public', 'assign_quiz_to_classes'),
+  ('public', 'sync_offline_attempts'),
+  ('public', 'get_quiz_for_offline'),
+  ('public', 'grade_attempt_answers'),
+  ('public', 'override_grade'),
+  ('public', 'register_push_token'),
   ('public', 'award_maze_xp'),
   ('public', 'is_lecturer'),
+  ('public', 'is_class_lecturer'),
+  ('public', 'is_enrolled_in_class'),
+  ('public', 'student_can_see_quiz'),
   ('gamification', 'handle_new_profile')
 )
 ORDER BY 1, 2, 3;
+
+-- Names the fixed list above does not cover, including get_gradebook_*.
+SELECT n.nspname AS schema_name,
+       p.proname AS function_name,
+       pg_get_function_identity_arguments(p.oid) AS args,
+       p.prosecdef AS security_definer
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND (
+    p.proname LIKE 'get_gradebook%'
+    OR p.proname IN (
+      'save_quiz', 'replace_quiz_questions', 'submit_attempt',
+      'start_quiz_attempt', 'assign_quiz_to_classes', 'is_lecturer',
+      'handle_new_user', 'custom_access_token_hook', 'get_students_with_emails'
+    )
+  )
+ORDER BY 1, 2, 3;
+
+-- RLS flags for the two live tables that currently have RLS disabled.
+SELECT c.relname AS table_name,
+       c.relrowsecurity AS rls_enabled,
+       c.relforcerowsecurity AS rls_forced
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname IN ('announcements', 'game_scores')
+ORDER BY c.relname;
+
+SELECT pol.polname AS policy_name,
+       pol.polcmd AS command,
+       pg_get_expr(pol.polqual, pol.polrelid) AS using_expr,
+       pg_get_expr(pol.polwithcheck, pol.polrelid) AS check_expr
+FROM pg_policy pol
+JOIN pg_class c ON c.oid = pol.polrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'storage' AND c.relname = 'objects'
+ORDER BY pol.polname;
+
+-- Hook body, left unchanged by the transaction below. Empty means the
+-- function is not installed. Whether Auth settings call it is not visible
+-- from SQL.
+SELECT p.proname,
+       pg_get_function_identity_arguments(p.oid) AS args,
+       pg_get_functiondef(p.oid) AS definition
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public' AND p.proname = 'custom_access_token_hook';
 
 SELECT column_name, data_type
 FROM information_schema.columns
@@ -255,24 +341,10 @@ BEGIN
   CREATE TEMP TABLE sec_facts (k text PRIMARY KEY, v text) ON COMMIT DROP;
   INSERT INTO sec_facts (k, v) VALUES ('quiz_owner', v_owner);
 
-  -- Students lose direct selects on quiz_questions below. These two functions
-  -- are how QuizScreen loads and grades a quiz. Do not replace their bodies:
-  -- the live copies are not in git and may already use created_by.
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_proc p
-    JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname = 'get_quiz_questions_for_attempt'
-  ) THEN
-    RAISE EXCEPTION 'public.get_quiz_questions_for_attempt is missing. Refusing to remove direct reads of quiz_questions.';
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_proc p
-    JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname = 'submit_quiz_attempt'
-  ) THEN
-    RAISE EXCEPTION 'public.submit_quiz_attempt is missing. Refusing to remove client inserts into quiz_attempts.';
-  END IF;
+  -- get_quiz_questions_for_attempt and submit_quiz_attempt are required only
+  -- in the sections that would remove a client read or insert. The live
+  -- project has both. Their bodies are not replaced: they are not in git and
+  -- may already use created_by.
 
   IF to_regclass('auth.users') IS NULL THEN
     RAISE EXCEPTION 'auth.users is missing. This script is for a Supabase project.';
@@ -438,73 +510,71 @@ CREATE TRIGGER prevent_client_profile_role_change
   FOR EACH ROW
   EXECUTE FUNCTION public.prevent_client_profile_role_change();
 
--- The access-token hook must not overwrite the reserved role claim.
--- Writing profiles.role into role makes PostgREST stop treating the user as
--- authenticated. The app never reads that claim. Expected change: none, until
--- the hook is enabled under Authentication > Hooks. The claim written here
--- is user_role.
+-- The live hook writes profiles.role into claims.role ('lecturer' or
+-- 'student'). Policies on profiles, quiz_attempts, material_views, and
+-- windows_simulation_sessions compare auth.jwt()->>'role' to 'lecturer'.
+-- Replacing the body so it writes user_role instead would make those
+-- policies stop matching whenever the hook is enabled. This script does not
+-- create or replace the function.
+--
+-- NEEDS HUMAN: SQL cannot tell whether Authentication > Hooks calls
+-- public.custom_access_token_hook. Confirm that setting separately. The
+-- grants below keep supabase_auth_admin and service_role able to execute
+-- whatever signature is already installed, and take execute away from
+-- anon and authenticated. If the function is missing, nothing is created.
 
 DO $$
+DECLARE
+  r regprocedure;
 BEGIN
-  IF EXISTS (
+  IF NOT EXISTS (
     SELECT 1 FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = 'custom_access_token_hook'
-  ) AND to_regprocedure('public.custom_access_token_hook(jsonb)') IS NULL THEN
-    RAISE EXCEPTION 'public.custom_access_token_hook exists with an unexpected signature. Refusing to replace it.';
+  ) THEN
+    RAISE NOTICE 'public.custom_access_token_hook is missing. No hook body was created. Confirm Authentication > Hooks before relying on jwt role claims.';
+    RETURN;
   END IF;
-END $$;
 
-CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
-RETURNS jsonb
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  claims jsonb;
-  user_role text;
-BEGIN
-  SELECT role INTO user_role
-  FROM public.profiles
-  WHERE id = (event->>'user_id')::uuid;
-
-  claims := COALESCE(event->'claims', '{}'::jsonb);
-  claims := jsonb_set(claims, '{user_role}', to_jsonb(COALESCE(user_role, 'student')));
-  RETURN jsonb_set(event, '{claims}', claims);
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.custom_access_token_hook(jsonb) FROM PUBLIC, anon, authenticated;
-
-DO $$
-BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
     GRANT SELECT ON TABLE public.profiles TO supabase_auth_admin;
-    GRANT EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb) TO supabase_auth_admin;
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
-    GRANT EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb) TO service_role;
-  END IF;
+
+  FOR r IN
+    SELECT p.oid::regprocedure
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'custom_access_token_hook'
+  LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', r);
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO supabase_auth_admin', r);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', r);
+    END IF;
+  END LOOP;
 END $$;
 
 -- -----------------------------------------------------------------------------
 -- (e) quiz_questions.correct_answer
 -- -----------------------------------------------------------------------------
--- Drop public SELECT policies whose expression is true. The owning lecturer
--- still reads every column through the existing FOR ALL policy, so
--- QuizDetailScreen and lecturerService.getQuizDetail keep working for the
--- lecturer who owns the quiz.
+-- The live project has no public SELECT on quiz_questions or quiz_options.
+-- Students already cannot read correct_answer there. This section does not
+-- add a policy in that case, and it does not claim to hide the column.
 --
--- The owner column inside that policy is created_by on the live project and
--- lecturer_id in supabase-setup.sql. If no policy names the detected column,
--- one is created. A policy this script does not recognise stops the run
--- instead of being dropped or widened.
+-- supabase-setup.sql does have "Everyone can view quiz questions" USING
+-- (true). That open read is dropped, and only when it is dropped. The
+-- lecturer FOR ALL policy stays. QuizDetailScreen still reads the answer
+-- through that owner policy. If the open read is the only policy, an owner
+-- policy is created so the lecturer path still works. Any other policy is
+-- left as it is.
 --
--- Students no longer receive question rows from the Data API. QuizScreen calls
--- get_quiz_questions_for_attempt and submit_quiz_attempt, which omit the
--- answer until the attempt is graded.
+-- Dropping the open read requires get_quiz_questions_for_attempt, which is
+-- how QuizScreen loads questions. If that function is missing, the open
+-- read is left in place and this transaction stops, because students would
+-- otherwise lose the only way to take a quiz. The live project has the
+-- function and has no open read, so this branch does not run there.
 --
 -- StudentMaterialsScreen and SearchScreen show a question count. They call
 -- quiz_question_counts and fall back to an id-only embed if this function is
@@ -544,12 +614,23 @@ BEGIN
       CONTINUE;
     END IF;
 
-    RAISE EXCEPTION
-      'public.quiz_questions policy % is not an owner policy and is not USING (true). Expression: %. Refusing to drop or widen it.',
+    RAISE NOTICE
+      'public.quiz_questions policy % is not an owner policy and is not USING (true). Leaving it. Expression: %',
       r.polname, COALESCE(r.qual, r.chk, '(none)');
   END LOOP;
 
-  IF NOT v_has_owner THEN
+  IF cardinality(v_drop) > 0 AND NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'get_quiz_questions_for_attempt'
+  ) THEN
+    RAISE EXCEPTION 'public.get_quiz_questions_for_attempt is missing. Refusing to remove the public read of quiz_questions.';
+  END IF;
+
+  -- An owner policy is added only to replace a public read that was the
+  -- only access path. Adding one beside a helper policy the script does
+  -- not recognise would widen that policy.
+  IF cardinality(v_drop) > 0 AND NOT v_has_owner THEN
     EXECUTE format($pol$
       CREATE POLICY "Lecturers can manage quiz questions"
         ON public.quiz_questions
@@ -570,6 +651,8 @@ BEGIN
           )
         )
     $pol$, v_owner, v_owner);
+  ELSIF cardinality(v_drop) = 0 THEN
+    RAISE NOTICE 'public.quiz_questions has no public USING (true) SELECT. Not adding or replacing policies.';
   END IF;
 
   FOREACH v_name IN ARRAY v_drop LOOP
@@ -601,11 +684,51 @@ $$;
 REVOKE ALL ON FUNCTION public.quiz_question_counts(uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.quiz_question_counts(uuid[]) TO authenticated;
 
+-- quiz_options exists on the live project and has no public read. Drop an
+-- open SELECT if one is present (a fresh database that adds the table with
+-- USING true). Leave every other policy. A missing table is skipped.
+
+DO $$
+DECLARE
+  r record;
+BEGIN
+  IF to_regclass('public.quiz_options') IS NULL THEN
+    RAISE NOTICE 'public.quiz_options is missing; its policies are unchanged';
+    RETURN;
+  END IF;
+
+  FOR r IN
+    SELECT pol.polname,
+           pg_get_expr(pol.polqual, pol.polrelid) AS qual,
+           pg_get_expr(pol.polwithcheck, pol.polrelid) AS chk,
+           pol.polcmd
+    FROM pg_policy pol
+    JOIN pg_class c ON c.oid = pol.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'quiz_options'
+  LOOP
+    IF r.polcmd = 'r'
+       AND pg_temp.expr_is_open(r.qual)
+       AND (r.chk IS NULL OR pg_temp.expr_is_open(r.chk)) THEN
+      EXECUTE format('DROP POLICY %I ON public.quiz_options', r.polname);
+    ELSE
+      RAISE NOTICE 'public.quiz_options policy % left in place.', r.polname;
+    END IF;
+  END LOOP;
+
+  ALTER TABLE public.quiz_options ENABLE ROW LEVEL SECURITY;
+END $$;
+
 -- Students can no longer insert a quiz_attempts row with a score they chose.
--- Every INSERT policy is removed. A FOR ALL policy would also grant insert,
--- and this script does not know how to split one, so it stops instead.
--- submit_quiz_attempt runs as its owner and still inserts the row.
--- DashboardScreen and lecturerService only SELECT attempts.
+-- The app does not insert into quiz_attempts. QuizScreen grades through
+-- submit_attempt / submit_quiz_attempt. DashboardScreen and lecturerService
+-- only SELECT. INSERT policies are dropped only when one of those functions
+-- exists, because a SECURITY DEFINER function inserts as its owner and does
+-- not need the client INSERT grant.
+--
+-- A FOR ALL policy also grants insert, and dropping it would remove SELECT.
+-- It is left in place. The live project has a separate INSERT policy
+-- ("Students can insert own attempts"), which is the one removed.
 
 DO $$
 DECLARE
@@ -623,20 +746,40 @@ BEGIN
     IF r.polcmd = 'a' THEN
       v_drop := v_drop || r.polname;
     ELSIF r.polcmd = '*' THEN
-      RAISE EXCEPTION
-        'public.quiz_attempts policy % is FOR ALL. Refusing to drop it, because that would also remove SELECT.',
+      RAISE NOTICE
+        'public.quiz_attempts policy % is FOR ALL. Leaving it so SELECT is not removed.',
         r.polname;
     END IF;
   END LOOP;
 
-  FOREACH v_name IN ARRAY v_drop LOOP
-    EXECUTE format('DROP POLICY %I ON public.quiz_attempts', v_name);
-  END LOOP;
+  IF cardinality(v_drop) > 0 AND NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname IN ('submit_quiz_attempt', 'submit_attempt')
+  ) THEN
+    RAISE EXCEPTION 'public.submit_quiz_attempt and public.submit_attempt are both missing. Refusing to remove client inserts into quiz_attempts.';
+  END IF;
+
+  IF cardinality(v_drop) > 0 THEN
+    FOREACH v_name IN ARRAY v_drop LOOP
+      EXECUTE format('DROP POLICY %I ON public.quiz_attempts', v_name);
+    END LOOP;
+    INSERT INTO sec_facts (k, v) VALUES ('quiz_attempts_insert_revoked', 'yes')
+    ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v;
+  END IF;
 
   ALTER TABLE public.quiz_attempts ENABLE ROW LEVEL SECURITY;
 END $$;
 
-REVOKE INSERT ON TABLE public.quiz_attempts FROM PUBLIC, anon, authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM sec_facts WHERE k = 'quiz_attempts_insert_revoked' AND v = 'yes') THEN
+    REVOKE INSERT ON TABLE public.quiz_attempts FROM PUBLIC, anon, authenticated;
+  ELSE
+    RAISE NOTICE 'quiz_attempts INSERT policies were not removed, so INSERT grants were left as they are.';
+  END IF;
+END $$;
 
 -- set_question_gamification_settings is called by lecturerService.createQuiz.
 -- The repo body reads quizzes.lecturer_id. On the live project that column
@@ -682,7 +825,8 @@ BEGIN
       RAISE NOTICE 'gamification.quiz_question_settings is absent; quiz timer settings are unchanged';
       RETURN;
     END IF;
-    RAISE EXCEPTION 'set_question_gamification_settings references % but gamification.quiz_question_settings is missing. Refusing to rewrite it.', v_wrong;
+    RAISE NOTICE 'set_question_gamification_settings references % but gamification.quiz_question_settings is missing. The function was not rewritten.', v_wrong;
+    RETURN;
   END IF;
 
   IF NOT EXISTS (
@@ -746,12 +890,20 @@ END $$;
 -- authenticated. Anon stops seeing them. Signed-in students still do.
 --
 -- The lecturer FOR ALL policy is kept. It uses lecturer_id on folders and
--- documents. On quizzes it uses the detected owner column. If that owner
--- policy is missing, one is created so ContentUploadScreen and quiz editing
--- still work. Any other policy stops the run.
+-- documents. On quizzes it uses the detected owner column. An owner policy
+-- is created only when the table has no policies yet. A policy this script
+-- does not recognise is left in place. A signed-in read-all is not added
+-- beside it.
 --
--- If there is no public USING (true) policy, no signed-in read-all policy is
--- added. Adding one would widen a table that is already private.
+-- Live quizzes have "Owners manage own quizzes" and "Students view published
+-- class quizzes". Neither expression is USING (true), so this section does
+-- not add "Signed-in users can view quizzes". That policy would let every
+-- signed-in user read every quiz. supabase-setup.sql does have "Everyone
+-- can view quizzes" USING (true). Only that open read is replaced.
+--
+-- Live documents ("Everyone can view documents") and folders ("Students can
+-- view folders") are USING (true). Those are replaced with the same read
+-- limited to authenticated.
 
 DO $$
 DECLARE
@@ -763,6 +915,7 @@ DECLARE
   v_drop text[];
   v_has_owner boolean;
   v_open integer;
+  v_left integer;
   v_name text;
 BEGIN
   SELECT v INTO v_quiz_owner FROM sec_facts WHERE k = 'quiz_owner';
@@ -777,6 +930,7 @@ BEGIN
     v_drop := ARRAY[]::text[];
     v_has_owner := false;
     v_open := 0;
+    v_left := 0;
 
     FOR r IN
       SELECT pol.polname, pol.polcmd,
@@ -803,12 +957,13 @@ BEGIN
         CONTINUE;
       END IF;
 
-      RAISE EXCEPTION
-        'public.% policy % is not an owner policy and is not a public USING (true) read. Expression: %. Refusing to change policies on this table.',
+      v_left := v_left + 1;
+      RAISE NOTICE
+        'public.% policy % is not an owner policy and is not a public USING (true) read. Leaving it. Expression: %',
         v_table, r.polname, COALESCE(r.qual, r.chk, '(none)');
     END LOOP;
 
-    IF NOT v_has_owner THEN
+    IF NOT v_has_owner AND v_left = 0 AND v_open = 0 THEN
       EXECUTE format(
         'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (auth.uid() = %I) WITH CHECK (auth.uid() = %I)',
         'Owners manage own ' || v_table,
@@ -816,6 +971,8 @@ BEGIN
         v_owner_column,
         v_owner_column
       );
+    ELSIF NOT v_has_owner AND v_left > 0 THEN
+      RAISE NOTICE 'public.% has policies this script does not own. Not adding an owner policy beside them.', v_table;
     END IF;
 
     IF v_open = 0 THEN
@@ -825,12 +982,16 @@ BEGIN
         EXECUTE format('DROP POLICY %I ON public.%I', v_name, v_table);
       END LOOP;
 
-      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', v_new_policy, v_table);
-      EXECUTE format(
-        'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (true)',
-        v_new_policy,
-        v_table
-      );
+      IF v_left = 0 THEN
+        EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', v_new_policy, v_table);
+        EXECUTE format(
+          'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (true)',
+          v_new_policy,
+          v_table
+        );
+      ELSE
+        RAISE NOTICE 'public.% had a public read and another policy. The public read was dropped. A signed-in read-all was not added beside the other policy.', v_table;
+      END IF;
     END IF;
 
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', v_table);
@@ -841,15 +1002,29 @@ END $$;
 -- ContentUploadScreen and fileAccess.js already allow. ProfileScreen avatar
 -- uploads use image/jpeg and stay inside that list.
 --
--- A SELECT policy whose only test is bucket_id = 'documents' is replaced with
--- the same test limited to authenticated, so createSignedUrl works for
--- StudentMaterialsScreen, SearchScreen, and ContentUploadScreen. A public URL
--- copied before this migration stops working. The app falls back to that URL
--- only when signing fails, which is the pre-migration case.
+-- A SELECT policy whose only test is bucket_id = 'documents', and the live
+-- policy "Anyone can view documents", are replaced with the same read limited
+-- to authenticated, so createSignedUrl works for StudentMaterialsScreen,
+-- SearchScreen, and ContentUploadScreen. A public URL copied before this
+-- migration stops working. The app falls back to that URL only when signing
+-- fails, which is the pre-migration case.
 --
--- A SELECT policy that adds any other test is left untouched and stops the
--- run, so a tighter rule is not replaced with a bucket-wide read.
--- Upload, update, and delete policies are not modified.
+-- A SELECT policy this script does not recognise is left in place. The run
+-- does not stop. A bucket-wide signed-in read is not added beside a policy
+-- that already tests auth.uid() or lecturer ownership.
+--
+-- "Lecturers can delete/update own documents" on the live project only checks
+-- auth.role() = 'authenticated', so any signed-in user can update or delete
+-- any object. That policy is replaced. The new UPDATE and DELETE policies
+-- allow a lecturer to remove an object stored under their user-id folder
+-- (lecturerService uploads `${user.id}/...` and deleteDocument calls
+-- storage.remove on documents.file_url) or an object whose path is that
+-- lecturer's documents.file_url. ProfileScreen and authService upload avatars
+-- with INSERT (`${user.id}/avatar_...`). The upload policy is not removed.
+--
+-- FLAGGED, not changed: "Anyone can upload documents" still lets any
+-- signed-in user insert into the documents bucket. Avatars need that INSERT.
+-- Restricting uploads to the caller's folder would be a separate change.
 --
 -- Any signed-in user can still list object names in this bucket. Closing that
 -- would need per-class paths the app does not have. Not applied.
@@ -904,9 +1079,27 @@ DO $$
 DECLARE
   r record;
   v_drop text[] := ARRAY[]::text[];
+  v_write_drop text[] := ARRAY[]::text[];
   v_name text;
   v_norm text;
+  v_blob text;
+  v_mentions_owner boolean;
+  v_tight boolean := false;
+  v_can_tighten boolean;
 BEGIN
+  v_can_tighten := to_regprocedure('storage.foldername(text)') IS NOT NULL
+    AND to_regclass('public.documents') IS NOT NULL
+    AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'documents'
+        AND column_name = 'lecturer_id'
+    )
+    AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'documents'
+        AND column_name = 'file_url'
+    );
+
   FOR r IN
     SELECT pol.polname, pol.polcmd,
            pg_get_expr(pol.polqual, pol.polrelid) AS qual,
@@ -916,44 +1109,158 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'storage' AND c.relname = 'objects'
   LOOP
-    IF r.polcmd <> 'r' THEN
-      CONTINUE;
-    END IF;
-    IF COALESCE(r.qual, '') NOT ILIKE '%documents%' THEN
-      CONTINUE;
-    END IF;
-    IF r.polname = 'Signed-in users can read document files' THEN
-      v_drop := v_drop || r.polname;
+    v_blob := COALESCE(r.qual, '') || ' ' || COALESCE(r.chk, '');
+    v_norm := pg_temp.norm_expr(v_blob);
+    v_mentions_owner := pg_temp.expr_mentions(r.qual, 'lecturer_id')
+      OR pg_temp.expr_mentions(r.chk, 'lecturer_id')
+      OR pg_temp.expr_mentions(r.qual, 'is_lecturer')
+      OR pg_temp.expr_mentions(r.chk, 'is_lecturer');
+
+    IF r.polcmd = 'a' OR r.polname ILIKE '%upload%' THEN
+      RAISE NOTICE 'storage.objects policy % is an upload policy and was left in place. Any signed-in user may still INSERT into the documents bucket. Avatar uploads use that INSERT.', r.polname;
       CONTINUE;
     END IF;
 
-    v_norm := pg_temp.norm_expr(r.qual);
-    IF v_norm IN (
-      '(bucket_id=''documents''::text)',
-      '((bucket_id=''documents''::text))',
-      '(bucket_id=''documents'')',
-      '((bucket_id=''documents''))',
-      'bucket_id=''documents''::text',
-      'bucket_id=''documents'''
-    ) THEN
-      v_drop := v_drop || r.polname;
+    IF r.polcmd = 'r' OR r.polname = 'Anyone can view documents' OR r.polname = 'Signed-in users can read document files' THEN
+      IF r.polcmd <> 'r' AND r.polname NOT IN ('Anyone can view documents', 'Signed-in users can read document files') THEN
+        NULL;
+      ELSIF r.polname = 'Signed-in users can read document files'
+         OR (
+           r.polcmd = 'r'
+           AND NOT v_mentions_owner
+           AND v_norm NOT LIKE '%auth.uid%'
+           AND (
+             r.polname = 'Anyone can view documents'
+             OR v_norm IN (
+               '(bucket_id=''documents''::text)',
+               '((bucket_id=''documents''::text))',
+               '(bucket_id=''documents'')',
+               '((bucket_id=''documents''))',
+               'bucket_id=''documents''::text',
+               'bucket_id=''documents'''
+             )
+             OR (
+               v_norm LIKE '%bucket_id=%'
+               AND v_norm LIKE '%documents%'
+               AND v_norm NOT LIKE '%auth.uid%'
+             )
+           )
+         ) THEN
+        v_drop := v_drop || r.polname;
+        CONTINUE;
+      ELSIF r.polcmd = 'r' AND v_blob ILIKE '%documents%' THEN
+        v_tight := v_tight OR v_mentions_owner OR v_norm LIKE '%auth.uid%';
+        RAISE NOTICE 'storage.objects SELECT policy % was left in place. Expression: %', r.polname, COALESCE(r.qual, '(none)');
+        CONTINUE;
+      END IF;
+    END IF;
+
+    IF r.polcmd IN ('w', 'd', '*')
+       AND NOT v_mentions_owner
+       AND (
+         r.polname IN (
+           'Lecturers can delete/update own documents',
+           'Lecturers can update own document files',
+           'Lecturers can delete own document files'
+         )
+         OR (
+           r.polcmd IN ('w', 'd')
+           AND v_norm LIKE '%documents%'
+           AND v_norm LIKE '%auth.role()=%'
+           AND v_norm LIKE '%authenticated%'
+         )
+       ) THEN
+      v_write_drop := v_write_drop || r.polname;
       CONTINUE;
     END IF;
 
-    RAISE EXCEPTION
-      'storage.objects SELECT policy % is not a bucket-only documents read. Expression: %. Refusing to replace it with a signed-in bucket read.',
-      r.polname, COALESCE(r.qual, '(none)');
+    IF v_mentions_owner AND r.polcmd IN ('w', 'd', '*') THEN
+      RAISE NOTICE 'storage.objects policy % already tests lecturer ownership. Leaving it.', r.polname;
+    END IF;
   END LOOP;
 
   FOREACH v_name IN ARRAY v_drop LOOP
     EXECUTE format('DROP POLICY %I ON storage.objects', v_name);
   END LOOP;
 
-  CREATE POLICY "Signed-in users can read document files"
-    ON storage.objects
-    FOR SELECT
-    TO authenticated
-    USING (bucket_id = 'documents');
+  IF cardinality(v_drop) > 0 AND NOT v_tight THEN
+    CREATE POLICY "Signed-in users can read document files"
+      ON storage.objects
+      FOR SELECT
+      TO authenticated
+      USING (bucket_id = 'documents');
+  ELSIF cardinality(v_drop) = 0 THEN
+    RAISE NOTICE 'No open documents SELECT policy was found. Not adding a bucket-wide signed-in read.';
+  ELSE
+    RAISE NOTICE 'A tighter documents SELECT policy remains. Not adding a bucket-wide signed-in read beside it.';
+  END IF;
+
+  IF cardinality(v_write_drop) = 0 THEN
+    RAISE NOTICE 'No authenticated-only documents UPDATE/DELETE policy was replaced. If "Lecturers can delete/update own documents" still only checks auth.role(), any signed-in user can still update or delete any document object.';
+    RETURN;
+  END IF;
+
+  IF NOT v_can_tighten THEN
+    RAISE NOTICE 'storage.foldername(text) or public.documents.lecturer_id/file_url is missing. The documents update/delete policy was not replaced. Any signed-in user may still update or delete document objects.';
+    RETURN;
+  END IF;
+
+  FOREACH v_name IN ARRAY v_write_drop LOOP
+    EXECUTE format('DROP POLICY %I ON storage.objects', v_name);
+  END LOOP;
+
+  EXECUTE $pol$
+    CREATE POLICY "Lecturers can update own document files"
+      ON storage.objects
+      FOR UPDATE
+      TO authenticated
+      USING (
+        bucket_id = 'documents'
+        AND public.is_lecturer()
+        AND (
+          (storage.foldername(name))[1] = auth.uid()::text
+          OR EXISTS (
+            SELECT 1 FROM public.documents d
+            WHERE d.lecturer_id = auth.uid()
+              AND d.file_url IS NOT NULL
+              AND (d.file_url = name OR name LIKE '%/' || d.file_url OR d.file_url LIKE '%/' || name)
+          )
+        )
+      )
+      WITH CHECK (
+        bucket_id = 'documents'
+        AND public.is_lecturer()
+        AND (
+          (storage.foldername(name))[1] = auth.uid()::text
+          OR EXISTS (
+            SELECT 1 FROM public.documents d
+            WHERE d.lecturer_id = auth.uid()
+              AND d.file_url IS NOT NULL
+              AND (d.file_url = name OR name LIKE '%/' || d.file_url OR d.file_url LIKE '%/' || name)
+          )
+        )
+      )
+  $pol$;
+
+  EXECUTE $pol$
+    CREATE POLICY "Lecturers can delete own document files"
+      ON storage.objects
+      FOR DELETE
+      TO authenticated
+      USING (
+        bucket_id = 'documents'
+        AND public.is_lecturer()
+        AND (
+          (storage.foldername(name))[1] = auth.uid()::text
+          OR EXISTS (
+            SELECT 1 FROM public.documents d
+            WHERE d.lecturer_id = auth.uid()
+              AND d.file_url IS NOT NULL
+              AND (d.file_url = name OR name LIKE '%/' || d.file_url OR d.file_url LIKE '%/' || name)
+          )
+        )
+      )
+  $pol$;
 END $$;
 
 -- Announcements are not in the schema scripts. DashboardScreen reads id,
@@ -963,11 +1270,17 @@ END $$;
 -- Extra columns are left as they are. lecturer_id, created_by, and class_id
 -- are not referenced, because the live table has none of them.
 --
--- A USING (true) policy is replaced. Anon can no longer read or post. A
--- signed-in student still sees announcements. Only a lecturer can insert.
--- The lecturer screen does not edit or delete, so those commands are not granted.
--- A policy that is not USING (true) and is not one of the two policies created
--- here stops the run.
+-- LIVE HOLE: RLS is disabled, there are no policies, and anon has every
+-- grant. Anyone with the anon key can read, change, and delete announcements.
+-- This section enables RLS and adds:
+--   SELECT  for authenticated
+--   INSERT, UPDATE, DELETE for lecturers, via is_lecturer()
+-- Enabling RLS with no policies would hide the row from the dashboard, so
+-- the policies are created in this same transaction.
+--
+-- If RLS is already on and a policy this script does not recognise is
+-- present, that policy is left and a signed-in read-all is not added beside
+-- it. The transaction does not stop.
 
 DO $$
 DECLARE
@@ -975,6 +1288,8 @@ DECLARE
   v_drop text[] := ARRAY[]::text[];
   v_name text;
   v_rls boolean;
+  v_left integer := 0;
+  v_install boolean := false;
 BEGIN
   IF to_regclass('public.announcements') IS NULL THEN
     CREATE TABLE public.announcements (
@@ -1006,7 +1321,9 @@ BEGIN
   LOOP
     IF r.polname IN (
       'Signed-in users can read announcements',
-      'Lecturers can post announcements'
+      'Lecturers can post announcements',
+      'Lecturers can update announcements',
+      'Lecturers can delete announcements'
     ) THEN
       v_drop := v_drop || r.polname;
       CONTINUE;
@@ -1019,36 +1336,60 @@ BEGIN
       CONTINUE;
     END IF;
 
-    RAISE EXCEPTION
-      'public.announcements policy % is not a public USING (true) policy. Expression: %. Refusing to replace it.',
+    v_left := v_left + 1;
+    RAISE NOTICE
+      'public.announcements policy % is not a public USING (true) policy. Leaving it. Expression: %',
       r.polname, COALESCE(r.qual, r.chk, '(none)');
   END LOOP;
 
-  IF v_rls AND cardinality(v_drop) = 0 THEN
-    RAISE EXCEPTION 'public.announcements has RLS and no public read policy. Refusing to add a signed-in read-all policy.';
+  IF NOT COALESCE(v_rls, false) AND v_left = 0 THEN
+    v_install := true;
+  ELSIF cardinality(v_drop) > 0 AND v_left = 0 THEN
+    v_install := true;
+  ELSIF NOT COALESCE(v_rls, false) THEN
+    RAISE NOTICE 'public.announcements has RLS off and a policy this script does not replace. RLS will be enabled so that policy applies. A signed-in read-all was not added.';
+  ELSE
+    RAISE NOTICE 'public.announcements already has RLS. Not adding a signed-in read-all beside an existing policy.';
   END IF;
 
-  FOREACH v_name IN ARRAY v_drop LOOP
-    EXECUTE format('DROP POLICY %I ON public.announcements', v_name);
-  END LOOP;
+  IF v_install THEN
+    FOREACH v_name IN ARRAY v_drop LOOP
+      EXECUTE format('DROP POLICY %I ON public.announcements', v_name);
+    END LOOP;
+  END IF;
 
   ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 
-  CREATE POLICY "Signed-in users can read announcements"
-    ON public.announcements
-    FOR SELECT
-    TO authenticated
-    USING (true);
+  IF v_install THEN
+    CREATE POLICY "Signed-in users can read announcements"
+      ON public.announcements
+      FOR SELECT
+      TO authenticated
+      USING (true);
 
-  CREATE POLICY "Lecturers can post announcements"
-    ON public.announcements
-    FOR INSERT
-    TO authenticated
-    WITH CHECK (public.is_lecturer());
+    CREATE POLICY "Lecturers can post announcements"
+      ON public.announcements
+      FOR INSERT
+      TO authenticated
+      WITH CHECK (public.is_lecturer());
+
+    CREATE POLICY "Lecturers can update announcements"
+      ON public.announcements
+      FOR UPDATE
+      TO authenticated
+      USING (public.is_lecturer())
+      WITH CHECK (public.is_lecturer());
+
+    CREATE POLICY "Lecturers can delete announcements"
+      ON public.announcements
+      FOR DELETE
+      TO authenticated
+      USING (public.is_lecturer());
+  END IF;
 END $$;
 
 REVOKE ALL ON TABLE public.announcements FROM PUBLIC, anon;
-GRANT SELECT, INSERT ON TABLE public.announcements TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.announcements TO authenticated;
 
 -- -----------------------------------------------------------------------------
 -- (b) Maze session leaderboard policy
@@ -1067,6 +1408,7 @@ DECLARE
   r record;
   v_drop text[] := ARRAY[]::text[];
   v_has_own boolean := false;
+  v_left integer := 0;
   v_name text;
 BEGIN
   IF to_regclass('public.circuit_maze_sessions') IS NULL THEN
@@ -1096,12 +1438,13 @@ BEGIN
       CONTINUE;
     END IF;
 
-    RAISE EXCEPTION
-      'public.circuit_maze_sessions policy % is not an own-row policy and is not USING (true). Expression: %. Refusing to change it.',
+    v_left := v_left + 1;
+    RAISE NOTICE
+      'public.circuit_maze_sessions policy % is not an own-row policy and is not USING (true). Leaving it. Expression: %',
       r.polname, COALESCE(r.qual, r.chk, '(none)');
   END LOOP;
 
-  IF NOT v_has_own THEN
+  IF NOT v_has_own AND v_left = 0 THEN
     CREATE POLICY "Users manage own maze sessions"
       ON public.circuit_maze_sessions
       FOR ALL
@@ -1128,8 +1471,10 @@ END $$;
 --
 -- CircuitMazeLobbyScreen and GameRunnerLobbyScreen call those services.
 -- The app falls back to a direct lookup until the function exists.
--- Host insert and host update policies are kept when they test host_id or
--- user_id. A SELECT policy this script does not recognise stops the run.
+-- Host insert and host update policies are kept. A policy this script does
+-- not recognise is left in place. The run does not stop. The live SELECT
+-- policy is auth.uid() IS NOT NULL, which expr_is_open treats as open, so
+-- it is dropped and replaced with the member policy.
 --
 -- Repo columns, required when the table exists:
 --   rooms: id, code, host_id, status
@@ -1286,15 +1631,15 @@ BEGIN
       ELSIF r.polcmd = 'r' AND pg_temp.expr_is_open(r.qual) THEN
         v_drop := v_drop || r.polname;
       ELSIF r.polcmd = 'r' THEN
-        RAISE EXCEPTION
-          'public.% SELECT policy % is not a list-all policy. Expression: %. Refusing to leave room codes readable.',
+        RAISE NOTICE
+          'public.% SELECT policy % is not a list-all policy. Leaving it. Expression: %',
           v_rooms, r.polname, COALESCE(r.qual, '(none)');
       ELSIF NOT (
         pg_temp.expr_mentions(r.qual, 'host_id') OR pg_temp.expr_mentions(r.chk, 'host_id')
         OR pg_temp.expr_mentions(r.qual, 'user_id') OR pg_temp.expr_mentions(r.chk, 'user_id')
       ) THEN
-        RAISE EXCEPTION
-          'public.% policy % does not test host_id or user_id. Expression: %. Refusing to change room policies.',
+        RAISE NOTICE
+          'public.% policy % does not test host_id or user_id. Leaving it. Expression: %',
           v_rooms, r.polname, COALESCE(r.qual, r.chk, '(none)');
       END IF;
     END LOOP;
@@ -1328,15 +1673,15 @@ BEGIN
       ELSIF r.polcmd = 'r' AND pg_temp.expr_is_open(r.qual) THEN
         v_drop := v_drop || r.polname;
       ELSIF r.polcmd = 'r' THEN
-        RAISE EXCEPTION
-          'public.% SELECT policy % is not a list-all policy. Expression: %. Refusing to change it.',
+        RAISE NOTICE
+          'public.% SELECT policy % is not a list-all policy. Leaving it. Expression: %',
           v_players, r.polname, COALESCE(r.qual, '(none)');
       ELSIF NOT (
         pg_temp.expr_mentions(r.qual, 'user_id') OR pg_temp.expr_mentions(r.chk, 'user_id')
         OR pg_temp.expr_mentions(r.qual, 'room_id') OR pg_temp.expr_mentions(r.chk, 'room_id')
       ) THEN
-        RAISE EXCEPTION
-          'public.% policy % does not test user_id or room_id. Expression: %. Refusing to change it.',
+        RAISE NOTICE
+          'public.% policy % does not test user_id or room_id. Leaving it. Expression: %',
           v_players, r.polname, COALESCE(r.qual, r.chk, '(none)');
       END IF;
     END LOOP;
@@ -1356,11 +1701,23 @@ END $$;
 -- -----------------------------------------------------------------------------
 -- game_scores
 -- -----------------------------------------------------------------------------
--- GameScreen upserts the signed-in user's best score and reads a top-five
--- list. The table is not created by the schema scripts. If it is missing, it
--- is created with user_id, score, and updated_at. If it exists, user_id must
--- be uuid, score must be integer, and user_id must already be unique. This
--- script does not add or rewrite a key.
+-- LIVE HOLE: RLS is disabled and anon has every grant, so anyone with the
+-- anon key can read, change, and delete game_scores. This section enables
+-- RLS and adds own-row SELECT, INSERT, and UPDATE. There is one announcement
+-- row and five game_scores rows on the live project; the grants are the hole,
+-- not the row count.
+--
+-- GameScreen upserts the signed-in user's best score on conflict user_id and
+-- reads a top-five list. The table is not created by the schema scripts. If
+-- it is missing, it is created with user_id as a primary key, score, and
+-- updated_at. If it exists, user_id must be uuid and score must be integer.
+-- user_id is NOT required to be unique. This script does not add or rewrite
+-- a key. If user_id is not unique, GameScreen's upsert can fail at runtime;
+-- that is reported with a notice, not an exception.
+--
+-- A policy this script does not recognise is left in place. Own-row policies
+-- are not added beside it. When RLS is off and there is no such policy, the
+-- own-row policies are created and RLS is enabled.
 --
 -- Own-row policies replace a public USING (true) read. get_runner_leaderboard
 -- returns the top five names without opening every profiles row. GameScreen
@@ -1373,6 +1730,9 @@ DECLARE
   r record;
   v_drop text[] := ARRAY[]::text[];
   v_name text;
+  v_rls boolean := false;
+  v_left integer := 0;
+  v_install boolean := false;
 BEGIN
   IF to_regclass('public.game_scores') IS NULL THEN
     CREATE TABLE public.game_scores (
@@ -1411,9 +1771,14 @@ BEGIN
         AND i.indnkeyatts = 1
         AND pg_get_indexdef(i.indexrelid) ~* '\(\s*"?user_id"?\s*\)'
     ) THEN
-      RAISE EXCEPTION 'public.game_scores.user_id is not unique. GameScreen upserts on that column. Refusing to rewrite the key.';
+      RAISE NOTICE 'public.game_scores.user_id is not unique. No unique key was added. GameScreen upserts onConflict user_id, which fails if that column has duplicates.';
     END IF;
   END IF;
+
+  SELECT c.relrowsecurity INTO v_rls
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relname = 'game_scores';
 
   FOR r IN
     SELECT pol.polname, pol.polcmd,
@@ -1438,35 +1803,47 @@ BEGIN
       CONTINUE;
     END IF;
 
-    RAISE EXCEPTION
-      'public.game_scores policy % is not an own-row or public-read policy. Expression: %. Refusing to change it.',
+    v_left := v_left + 1;
+    RAISE NOTICE
+      'public.game_scores policy % is not an own-row or public-read policy. Leaving it. Expression: %',
       r.polname, COALESCE(r.qual, r.chk, '(none)');
   END LOOP;
 
-  FOREACH v_name IN ARRAY v_drop LOOP
-    EXECUTE format('DROP POLICY %I ON public.game_scores', v_name);
-  END LOOP;
+  IF (NOT COALESCE(v_rls, false) AND v_left = 0)
+     OR (cardinality(v_drop) > 0 AND v_left = 0) THEN
+    v_install := true;
+  ELSE
+    RAISE NOTICE 'public.game_scores kept its existing non-open policies. Own-row policies were not added beside them.';
+  END IF;
+
+  IF v_install THEN
+    FOREACH v_name IN ARRAY v_drop LOOP
+      EXECUTE format('DROP POLICY %I ON public.game_scores', v_name);
+    END LOOP;
+  END IF;
 
   ALTER TABLE public.game_scores ENABLE ROW LEVEL SECURITY;
 
-  CREATE POLICY "Users read own runner score"
-    ON public.game_scores
-    FOR SELECT
-    TO authenticated
-    USING (auth.uid() = user_id);
+  IF v_install THEN
+    CREATE POLICY "Users read own runner score"
+      ON public.game_scores
+      FOR SELECT
+      TO authenticated
+      USING (auth.uid() = user_id);
 
-  CREATE POLICY "Users insert own runner score"
-    ON public.game_scores
-    FOR INSERT
-    TO authenticated
-    WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Users insert own runner score"
+      ON public.game_scores
+      FOR INSERT
+      TO authenticated
+      WITH CHECK (auth.uid() = user_id);
 
-  CREATE POLICY "Users update own runner score"
-    ON public.game_scores
-    FOR UPDATE
-    TO authenticated
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Users update own runner score"
+      ON public.game_scores
+      FOR UPDATE
+      TO authenticated
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
 END $$;
 
 REVOKE ALL ON TABLE public.game_scores FROM PUBLIC, anon;
@@ -1496,9 +1873,11 @@ GRANT EXECUTE ON FUNCTION public.get_runner_leaderboard() TO authenticated;
 -- Windows11SimulatorScreen inserts user_id and session_start, then updates
 -- session_end and duration_seconds on that id. If the table is missing, it is
 -- created with the columns in supabase-windows-sim.sql. If it exists, those
--- columns are required and none are added. The own-row policy is unchanged
--- in effect. A public USING (true) policy is dropped. Any other policy stops
--- the run.
+-- columns are required and none are added. A public USING (true) policy is
+-- dropped. The own-row policy is recreated. A policy that reads
+-- auth.jwt()->>'role' is left in place so lecturer access keeps working
+-- whether or not the access-token hook is enabled. The run does not stop
+-- for that policy.
 
 DO $$
 DECLARE
@@ -1542,8 +1921,8 @@ BEGIN
       CONTINUE;
     END IF;
 
-    RAISE EXCEPTION
-      'public.windows_simulation_sessions policy % is not an own-row or public-read policy. Expression: %. Refusing to change it.',
+    RAISE NOTICE
+      'public.windows_simulation_sessions policy % is not an own-row or public-read policy. Leaving it. Expression: %',
       r.polname, COALESCE(r.qual, r.chk, '(none)');
   END LOOP;
 
@@ -1698,13 +2077,26 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin')
+     AND to_regprocedure('public.handle_new_user()') IS NOT NULL THEN
     GRANT EXECUTE ON FUNCTION public.handle_new_user() TO supabase_auth_admin;
-    GRANT EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb) TO supabase_auth_admin;
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
-    GRANT EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb) TO service_role;
-  END IF;
+
+  -- Grant the hook by its real signature. The body is not changed. A missing
+  -- hook is not created here.
+  FOR v_func IN
+    SELECT p.oid
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'custom_access_token_hook'
+  LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO supabase_auth_admin', v_func::regprocedure);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', v_func::regprocedure);
+    END IF;
+  END LOOP;
 END $$;
 
 DO $$
@@ -1759,14 +2151,15 @@ BEGIN
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = 'award_maze_xp'
   ) THEN
-    RAISE EXCEPTION 'public.award_maze_xp exists with a signature other than (integer). Refusing to revoke the wrong function.';
+    RAISE NOTICE 'public.award_maze_xp exists with a signature other than (integer). Its body was not changed. Anon execute is still removed by the grant loop above.';
   END IF;
 END $$;
 
 -- A quiz function that still names the owner column that does not exist
--- would fail closed at runtime, but only after this transaction committed.
--- Stop now if one is still in the catalog. Folders and documents may mention
--- lecturer_id; that is their own column and is not an error.
+-- fails when a lecturer saves a quiz. This notice does not roll back the
+-- transaction: announcements and game_scores must still be locked. Folders
+-- and documents may mention lecturer_id; that is their own column and is
+-- not an error. Function bodies are not replaced here.
 
 DO $$
 DECLARE
@@ -1789,8 +2182,8 @@ BEGIN
          r.prosrc ILIKE '%quizzes.' || v_wrong || '%'
          OR r.prosrc ILIKE '%qz.' || v_wrong || '%'
        ) THEN
-      RAISE EXCEPTION
-        '%.% still reads quizzes.% but the owner column is %. Refusing to commit.',
+      RAISE NOTICE
+        '%.% still reads quizzes.% but the owner column is %. The function body was not replaced.',
         r.nspname, r.proname, v_wrong, v_owner;
     END IF;
   END LOOP;
@@ -1817,7 +2210,8 @@ BEGIN
     JOIN pg_class c ON c.oid = pol.polrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE (n.nspname = 'public' AND c.relname IN (
-            'folders', 'documents', 'quizzes', 'quiz_questions', 'announcements',
+            'folders', 'documents', 'quizzes', 'quiz_questions', 'quiz_options',
+            'announcements',
             'circuit_maze_sessions', 'circuit_maze_rooms', 'circuit_maze_players',
             'game_runner_rooms', 'game_runner_players', 'game_scores'
           ))
@@ -1843,6 +2237,8 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- Live quiz_questions policies may use a helper and never spell the owner
+  -- column. That is not a failure. An open read is already rejected above.
   IF NOT EXISTS (
     SELECT 1
     FROM pg_policy pol
@@ -1853,9 +2249,25 @@ BEGIN
       AND (
         pg_temp.expr_mentions(pg_get_expr(pol.polqual, pol.polrelid), v_owner)
         OR pg_temp.expr_mentions(pg_get_expr(pol.polwithcheck, pol.polrelid), v_owner)
+        OR pg_temp.expr_mentions(pg_get_expr(pol.polqual, pol.polrelid), 'is_lecturer')
+        OR pg_temp.expr_mentions(pg_get_expr(pol.polwithcheck, pol.polrelid), 'is_lecturer')
       )
   ) THEN
-    RAISE EXCEPTION 'quiz_questions has no policy using %. Refusing to commit.', v_owner;
+    RAISE NOTICE 'quiz_questions has no policy naming % or is_lecturer(). Existing policies were left as they are.', v_owner;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM sec_facts WHERE k = 'quiz_attempts_insert_revoked' AND v = 'yes'
+  ) AND EXISTS (
+    SELECT 1
+    FROM pg_policy pol
+    JOIN pg_class c ON c.oid = pol.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'quiz_attempts'
+      AND pol.polcmd = 'a'
+  ) THEN
+    RAISE EXCEPTION 'quiz_attempts still has an INSERT policy. Refusing to commit.';
   END IF;
 
   IF EXISTS (
@@ -1865,9 +2277,9 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
       AND c.relname = 'quiz_attempts'
-      AND pol.polcmd IN ('a', '*')
+      AND pol.polcmd = '*'
   ) THEN
-    RAISE EXCEPTION 'quiz_attempts still has an INSERT or FOR ALL policy. Refusing to commit.';
+    RAISE NOTICE 'quiz_attempts still has a FOR ALL policy. It was left in place so SELECT is not removed.';
   END IF;
 END $$;
 
