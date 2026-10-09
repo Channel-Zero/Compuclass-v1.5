@@ -2,6 +2,7 @@ import { supabase } from '../config/supabase';
 import { aiService } from './aiService';
 import { cleanText, cleanEmail, sanitizeFileName, ValidationError, LIMITS } from '../utils/inputValidation';
 import { assertUploadAllowed, storagePathFromStoredValue } from './fileAccess';
+import { buildDocumentObjectPath } from './documentUploadPath';
 import { AppError } from '../utils/errorMessages';
 
 const MAX_QUESTIONS_PER_QUIZ = 100;
@@ -87,7 +88,7 @@ export const lecturerService = {
       assertUploadAllowed(file);
       const safeFileName = sanitizeFileName(file?.name, 'document');
       const { data: { user } } = await supabase.auth.getUser();
-      const fileName = `${user.id}/${Date.now()}_${safeFileName}`;
+      const fileName = buildDocumentObjectPath(user.id, safeFileName);
       
       // Read file using fetch and arrayBuffer
       const response = await fetch(file.uri);
