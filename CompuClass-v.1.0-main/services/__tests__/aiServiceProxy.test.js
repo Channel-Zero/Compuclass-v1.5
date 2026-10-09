@@ -1,5 +1,4 @@
-// Proxy mode (EXPO_PUBLIC_USE_AI_PROXY=true): requests go to the gemini-proxy
-// Edge Function and the Gemini key is never used by the app.
+// AI requests go to the gemini-proxy Edge Function. The Gemini key is never used by the app.
 
 const loadProxyModeService = () => {
   process.env.EXPO_PUBLIC_USE_AI_PROXY = 'true';

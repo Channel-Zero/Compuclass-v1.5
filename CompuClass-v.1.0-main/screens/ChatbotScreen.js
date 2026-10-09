@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
+  StyleSheet, KeyboardAvoidingView, Platform,
   SafeAreaView, Image, Clipboard, ToastAndroid, Alert, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { aiService } from '../services/aiService';
-import { RateLimitError } from '../utils/rateLimiter';
+import { COMPUBOT_MAX_CHARS, compuBotErrorMessage } from '../utils/compuBotError';
 
 const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#6B7280'; const BUBBLE_AI = '#EFF6FF';
@@ -102,7 +102,7 @@ export default function ChatbotScreen({ navigation, route }) {
       const reply = await aiService.chatWithAI(recentMessages, context, imageBase64);
       setMessages(prev => [...prev, { id: Date.now() + 1, role: 'ai', text: reply, timestamp: new Date().toISOString() }]);
     } catch (error) {
-      const text = error instanceof RateLimitError ? error.userMessage : 'Sorry, I ran into an issue. Please try again.';
+      const text = compuBotErrorMessage(error);
       setMessages(prev => [...prev, { id: Date.now() + 1, role: 'ai', text, timestamp: new Date().toISOString() }]);
     } finally {
       setLoading(false);
@@ -251,15 +251,21 @@ export default function ChatbotScreen({ navigation, route }) {
           <TouchableOpacity onPress={pickImage} style={styles.iconBtn}>
             <Ionicons name="image-outline" size={22} color={MUTED} />
           </TouchableOpacity>
-          <TextInput
-            style={styles.input}
-            placeholder="Ask a question..."
-            placeholderTextColor={MUTED}
-            value={input}
-            onChangeText={setInput}
-            multiline
-            maxLength={500}
-          />
+          <View style={styles.inputColumn}>
+            <TextInput
+              style={styles.input}
+              placeholder="Ask a question..."
+              placeholderTextColor={MUTED}
+              value={input}
+              onChangeText={setInput}
+              multiline
+              maxLength={COMPUBOT_MAX_CHARS}
+            />
+            <Text style={styles.charCount} accessibilityLiveRegion="polite">
+              {input.length}/{COMPUBOT_MAX_CHARS}
+              {input.length >= COMPUBOT_MAX_CHARS ? ' · This message stops at 500 characters' : ''}
+            </Text>
+          </View>
           <TouchableOpacity
             style={[styles.sendBtn, ((!input.trim() && !selectedImage) || loading) && styles.sendBtnDisabled]}
             onPress={() => sendMessage(input, selectedImage?.base64)}
@@ -310,7 +316,9 @@ const styles = StyleSheet.create({
   imagePreviewText: { fontSize: 12, color: MUTED },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: WHITE, paddingHorizontal: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 8 },
   iconBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, backgroundColor: BG, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: TEXT, maxHeight: 100 },
+  inputColumn: { flex: 1 },
+  input: { backgroundColor: BG, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: TEXT, maxHeight: 100 },
+  charCount: { fontSize: 11, color: MUTED, marginTop: 4, marginLeft: 4 },
   sendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: BLUE + '50' },
 });

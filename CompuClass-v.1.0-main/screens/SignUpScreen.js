@@ -23,7 +23,6 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('student');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,7 +37,8 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
       const passwordProblems = await validateNewPassword(password, { email: cleanedEmail });
       if (passwordProblems.length > 0) { Alert.alert('Choose a stronger password', passwordProblems.join('\n')); return; }
       await limiters.signUp.consume('device');
-      const { session } = await authService.signUp(cleanedEmail, password, cleanName, role);
+      // Role is not sent. handle_new_user ignores a client role and creates a student.
+      const { session } = await authService.signUp(cleanedEmail, password, cleanName);
       if (session) {
         Alert.alert('Success', 'Account created!', [{ text: 'OK', onPress: onSignUp }]);
       } else {
@@ -64,14 +64,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
         </LinearGradient>
 
         <View style={[styles.card, { backgroundColor: CARD }]}>
-          <View style={styles.roleRow}>
-            {['student', 'lecturer'].map((r) => (
-              <TouchableOpacity key={r} style={[styles.roleBtn, { borderColor: BORDER }, role === r && styles.roleBtnActive]} onPress={() => setRole(r)} activeOpacity={0.8}>
-                <Ionicons name={r === 'student' ? 'school' : 'person'} size={20} color={role === r ? WHITE : MUTED} />
-                <Text style={[styles.roleText, { color: MUTED }, role === r && styles.roleTextActive]}>{r.charAt(0).toUpperCase() + r.slice(1)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text style={[styles.studentNote, { color: MUTED }]}>New accounts are students. A lecturer is promoted in the database.</Text>
 
           {[
             { icon: 'person-outline', placeholder: 'Full Name', value: fullName, onChange: setFullName },
@@ -130,6 +123,7 @@ const styles = StyleSheet.create({
   appTagline: { fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
   card: { borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20, flex: 1, padding: 28, paddingTop: 32 },
   roleRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  studentNote: { fontSize: 13, fontWeight: '600', marginBottom: 16, lineHeight: 18 },
   roleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderRadius: 14, paddingVertical: 12, gap: 8 },
   roleBtnActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
   roleText: { fontSize: 14, fontWeight: '700' },

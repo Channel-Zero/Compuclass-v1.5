@@ -7,19 +7,15 @@ import { supabase } from '../../config/supabase';
 
 jest.mock('../../config/supabase', () => {
   const query = { select: () => query, ilike: () => Promise.resolve({ data: [] }) };
-  return { supabase: { from: jest.fn(() => query) } };
+  return { supabase: { from: jest.fn(() => query), functions: { invoke: jest.fn() } } };
 });
 jest.mock('expo-file-system/legacy', () => ({ documentDirectory: 'file:///docs/' }));
 jest.mock('expo-sharing', () => ({}));
 
-const okGeminiResponse = {
-  ok: true,
-  json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
-};
-
 describe('AI endpoint rate limiting', () => {
   beforeEach(async () => {
-    global.fetch = jest.fn().mockResolvedValue(okGeminiResponse);
+    global.fetch = jest.fn();
+    supabase.functions.invoke.mockResolvedValue({ data: { text: 'ok' }, error: null });
     await limiters.aiChat.reset('device');
   });
 
@@ -34,8 +30,9 @@ describe('AI endpoint rate limiting', () => {
       expect(r).toBeInstanceOf(RateLimitError);
       expect(r.status).toBe(429);
     });
-    // Blocked calls never reach the network.
-    expect(global.fetch).toHaveBeenCalledTimes(10);
+    // Blocked calls never reach the Edge Function.
+    expect(supabase.functions.invoke).toHaveBeenCalledTimes(10);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('does not affect normal usage (a few messages spread out)', async () => {

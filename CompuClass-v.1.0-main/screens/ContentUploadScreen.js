@@ -15,7 +15,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
-import { openRemoteDocument } from '../utils/fileDownload';
+import { openStoredDocument } from '../utils/fileDownload';
 
 export default function ContentUploadScreen({ navigation, route }) {
   const { theme } = useTheme();
@@ -67,7 +67,18 @@ export default function ContentUploadScreen({ navigation, route }) {
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: [
+          'application/pdf',
+          'image/png',
+          'image/jpeg',
+          'image/gif',
+          'image/webp',
+          'text/plain',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-powerpoint',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        ],
         copyToCacheDirectory: true,
       });
 
@@ -77,7 +88,7 @@ export default function ContentUploadScreen({ navigation, route }) {
         setTitle(file.name.split('.')[0]);
         setShowUpload(true);
       }
-    } catch (error) {
+    } catch (_error) {
       Alert.alert('Error', 'Failed to pick document');
     }
   };
@@ -177,7 +188,7 @@ export default function ContentUploadScreen({ navigation, route }) {
 
   const handleDownload = async (doc) => {
     try {
-      const outcome = await openRemoteDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
+      const outcome = await openStoredDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
       if (outcome === 'downloaded') Alert.alert('Success', 'File downloaded');
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error, { context: 'ContentUpload', fallback: 'Failed to download file' }));

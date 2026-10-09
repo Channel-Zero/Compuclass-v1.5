@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
 import { escapeLikePattern, LIMITS } from '../utils/inputValidation';
-import { openRemoteDocument } from '../utils/fileDownload';
+import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
@@ -61,9 +61,8 @@ export default function SearchScreen({ navigation }) {
     const pattern = `%${escapeLikePattern(query.trim().slice(0, LIMITS.search))}%`;
     try {
       const [quizzesRes, docsRes] = await Promise.all([
-        // Only the question count is displayed here — fetch ids, not full rows,
-        // so correct_answer never reaches a student's device for quizzes they
-        // haven't started yet.
+        // Question rows stay on the server. Counts come from quiz_question_counts
+        // when that function exists; the embed is only ids, never correct_answer.
         supabase.from('quizzes').select('*, quiz_questions(id)').ilike('title', pattern),
         supabase.from('documents').select('*').ilike('title', pattern),
       ]);
@@ -72,8 +71,19 @@ export default function SearchScreen({ navigation }) {
       // supabase-js returns errors rather than throwing; previously a failed
       // search just looked like "No results found".
       if (quizzesRes.error || docsRes.error) throw quizzesRes.error || docsRes.error;
+      const quizzes = quizzesRes.data || [];
+      const ids = quizzes.map((quiz) => quiz.id).filter(Boolean);
+      let counts = null;
+      if (ids.length > 0 && typeof supabase.rpc === 'function') {
+        const countRes = await supabase.rpc('quiz_question_counts', { p_quiz_ids: ids });
+        if (!countRes.error && Array.isArray(countRes.data)) {
+          counts = Object.fromEntries(countRes.data.map((row) => [row.quiz_id, row.question_count]));
+        }
+      }
       setSearchError('');
-      setQuizzes(quizzesRes.data || []);
+      setQuizzes(counts
+        ? quizzes.map((quiz) => ({ ...quiz, quiz_questions: Array.from({ length: counts[quiz.id] || 0 }) }))
+        : quizzes);
       setDocuments(docsRes.data || []);
     } catch (error) {
       if (searchId === latestSearch.current) {
@@ -86,7 +96,7 @@ export default function SearchScreen({ navigation }) {
 
   const openDocument = async (doc) => {
     try {
-      const outcome = await openRemoteDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
+      const outcome = await openStoredDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
       if (outcome === 'downloaded') Alert.alert('Success', 'File downloaded');
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error, { context: 'SearchDownload', fallback: 'Failed to download document' }));

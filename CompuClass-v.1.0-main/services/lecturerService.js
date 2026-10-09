@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { aiService } from './aiService';
 import { cleanText, cleanEmail, sanitizeFileName, ValidationError, LIMITS } from '../utils/inputValidation';
+import { assertUploadAllowed, storagePathFromStoredValue } from './fileAccess';
 import { AppError } from '../utils/errorMessages';
 
 const MAX_QUESTIONS_PER_QUIZ = 100;
@@ -25,6 +26,15 @@ function cleanQuestions(questions) {
     }
     return { ...q, question, options };
   });
+}
+
+// Live save_quiz returns a plain uuid (the quiz id), not a JSON row.
+function quizIdFromSaveQuiz(data) {
+  if (typeof data === 'string' && data.trim()) return data.trim();
+  if (data && typeof data === 'object' && !Array.isArray(data) && typeof data.id === 'string' && data.id) {
+    return data.id;
+  }
+  return null;
 }
 
 export const lecturerService = {
@@ -72,6 +82,7 @@ export const lecturerService = {
   async uploadDocument(folderId, file, title) {
     try {
       title = cleanText(title, { field: 'Document title', maxLength: LIMITS.title, required: true, allowMarkup: false });
+      assertUploadAllowed(file);
       const safeFileName = sanitizeFileName(file?.name, 'document');
       const { data: { user } } = await supabase.auth.getUser();
       const fileName = `${user.id}/${Date.now()}_${safeFileName}`;
@@ -94,17 +105,13 @@ export const lecturerService = {
         throw uploadError;
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
-
-      // Insert document record
+      // Store the object path. Readers request a signed URL; the bucket is private
+      // after the security migration, so a public URL would stop working.
       const { data, error } = await supabase
         .from('documents')
         .insert({
           title,
-          file_url: urlData.publicUrl,
+          file_url: fileName,
           file_name: safeFileName,
           file_type: file.mimeType,
           file_size: file.size,
@@ -145,67 +152,72 @@ export const lecturerService = {
     try {
       title = cleanText(title, { field: 'Quiz title', maxLength: LIMITS.title, required: true, allowMarkup: false });
       questions = cleanQuestions(questions);
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from('quizzes')
-        .insert({
-          title,
-          description: '',
-          passing_score: 70,
-          folder_id: folderId,
-          lecturer_id: user.id
-        })
-        .select()
-        .single();
+      // Live quizzes are owned by created_by and written by save_quiz.
+      // p_questions carries the columns the live quiz_questions table has.
+      // points, type, and image_url are included only when the caller set them.
+      const p_questions = questions.map((q, idx) => {
+        const row = {
+          question: q.question,
+          options: q.options,
+          correct_answer: q.options[q.correctAnswer],
+          order_index: idx,
+        };
+        if (q.points != null) row.points = q.points;
+        if (q.type) row.type = q.type;
+        if (q.image_url) row.image_url = q.image_url;
+        return row;
+      });
+
+      const { data, error } = await supabase.rpc('save_quiz', {
+        p_quiz_id: null,
+        p_title: title,
+        p_type: 'practice',
+        p_questions,
+        p_folder_id: folderId,
+      });
       if (error) {
         console.error('❌ Create quiz error:', error.message);
         throw error;
       }
 
-      const questionInserts = questions.map((q, idx) => ({
-        quiz_id: data.id,
-        question: q.question,
-        options: q.options,
-        correct_answer: q.options[q.correctAnswer],
-        order_index: idx
-      }));
+      const quizId = quizIdFromSaveQuiz(data);
+      if (!quizId) throw new AppError('The quiz could not be saved. Please try again.');
 
-      const { data: insertedQuestions, error: qError } = await supabase
-        .from('quiz_questions')
-        .insert(questionInserts)
-        .select();
-      if (qError) {
-        console.error('❌ Insert quiz questions error:', qError.message);
-        throw qError;
-      }
-
-      // Attach per-question timer/difficulty where the lecturer customized
-      // them (defaults are no time limit + medium difficulty, so most
-      // questions skip this entirely). Match by order_index rather than
-      // array position — insert return order isn't guaranteed to match
-      // the input array.
-      const byOrderIndex = {};
-      (insertedQuestions || []).forEach((row) => { byOrderIndex[row.order_index] = row; });
-
-      const settingsCalls = questions
-        .map((q, idx) => ({ q, inserted: byOrderIndex[idx] }))
-        .filter(({ q, inserted }) => inserted && (q.timeLimitSeconds || (q.difficulty && q.difficulty !== 'medium')))
-        .map(({ q, inserted }) =>
-          supabase.rpc('set_question_gamification_settings', {
-            p_question_id: inserted.id,
-            p_time_limit_seconds: q.timeLimitSeconds || null,
-            p_difficulty: q.difficulty || 'medium',
-          })
-        );
-
-      if (settingsCalls.length > 0) {
-        const results = await Promise.all(settingsCalls);
-        const failed = results.find((r) => r.error);
-        if (failed) console.error('⚠️ Some question settings failed to save:', failed.error.message);
+      const needsSettings = questions.some(
+        (q) => q.timeLimitSeconds || (q.difficulty && q.difficulty !== 'medium')
+      );
+      if (needsSettings) {
+        try {
+          const { data: rows, error: rowsError } = await supabase
+            .from('quiz_questions')
+            .select('id, order_index')
+            .eq('quiz_id', quizId)
+            .order('order_index');
+          if (rowsError) throw rowsError;
+          const byOrderIndex = {};
+          (rows || []).forEach((row) => { byOrderIndex[row.order_index] = row; });
+          const settingsCalls = questions
+            .map((q, idx) => ({ q, inserted: byOrderIndex[idx] }))
+            .filter(({ q, inserted }) => inserted?.id && (q.timeLimitSeconds || (q.difficulty && q.difficulty !== 'medium')))
+            .map(({ q, inserted }) =>
+              supabase.rpc('set_question_gamification_settings', {
+                p_question_id: inserted.id,
+                p_time_limit_seconds: q.timeLimitSeconds || null,
+                p_difficulty: q.difficulty || 'medium',
+              })
+            );
+          if (settingsCalls.length > 0) {
+            const results = await Promise.all(settingsCalls);
+            const failed = results.find((r) => r.error);
+            if (failed) console.error('⚠️ Some question settings failed to save:', failed.error.message);
+          }
+        } catch (settingsError) {
+          console.error('⚠️ Question settings were not saved:', settingsError.message);
+        }
       }
 
       console.log('✅ Quiz created:', title, 'with', questions.length, 'questions');
-      return data;
+      return { id: quizId, title, folder_id: folderId, type: 'practice' };
     } catch (error) {
       console.error('❌ Create quiz exception:', error);
       throw error;
@@ -274,19 +286,16 @@ export const lecturerService = {
       }
       
       if (doc?.file_url) {
-        // Extract file path from URL
-        const urlParts = doc.file_url.split('/documents/');
-        if (urlParts[1]) {
-          const filePath = urlParts[1].split('?')[0];
-          
-          // Delete from storage
+        try {
+          const filePath = storagePathFromStoredValue(doc.file_url);
           const { error: storageError } = await supabase.storage
             .from('documents')
             .remove([filePath]);
-          
           if (storageError) {
             console.error('❌ Delete from storage error:', storageError.message);
           }
+        } catch (pathError) {
+          console.error('❌ Delete from storage error:', pathError.message);
         }
       }
       
@@ -362,16 +371,19 @@ export const lecturerService = {
 
   async shareQuizToClasses(quizId, classIds) {
     try {
-      // Insert quiz assignments for each class
-      const assignments = classIds.map(classId => ({
-        quiz_id: quizId,
-        class_id: classId,
-        assigned_at: new Date().toISOString()
-      }));
-      
-      const { error } = await supabase
-        .from('quiz_assignments')
-        .insert(assignments);
+      // Live signature:
+      // assign_quiz_to_classes(p_quiz_id, p_class_ids uuid[], p_due_at, p_closes_at,
+      //   p_attempt_limit default 3, p_late_penalty_percent default 10, p_time_limit_seconds)
+      // returns jsonb. The share screen does not collect dates or a time limit.
+      const { error } = await supabase.rpc('assign_quiz_to_classes', {
+        p_quiz_id: quizId,
+        p_class_ids: classIds,
+        p_due_at: null,
+        p_closes_at: null,
+        p_attempt_limit: 3,
+        p_late_penalty_percent: 10,
+        p_time_limit_seconds: null,
+      });
       
       if (error) {
         console.error('❌ Share quiz error:', error.message);
@@ -398,18 +410,21 @@ export const lecturerService = {
     return data || [];
   },
 
-  async addStudent(email) {
+  async addStudent(email, classId) {
     try {
       email = cleanEmail(email);
-      // Look up the user by email via the RPC function
+      if (!classId) throw new AppError('Create a class before adding a student');
+      // Look up the user by email via the RPC function. Lecturers only:
+      // get_students_with_emails checks the caller inside the database.
       const { data: students, error } = await supabase.rpc('get_students_with_emails');
       if (error) {
         console.error('❌ Add student lookup error:', error.message);
         throw error;
       }
       const found = (students || []).find(s => s.email?.toLowerCase() === email.toLowerCase());
-      if (!found) throw new AppError(`No registered user found with email: ${email}`);
-      console.log('✅ Student found:', email);
+      if (!found) throw new AppError(`No registered student found with email: ${email}`);
+      await this.assignStudentsToClass(classId, [found.id]);
+      console.log('✅ Student enrolled:', email);
       return found;
     } catch (error) {
       console.error('❌ Add student exception:', error);

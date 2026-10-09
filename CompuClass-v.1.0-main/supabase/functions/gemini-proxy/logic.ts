@@ -9,6 +9,8 @@ export const LIMITS = {
   maxTextChars: 100_000,
   // ~10 MB PDF once base64-encoded.
   maxPdfBase64Chars: 14_000_000,
+  // ChatbotScreen sends one JPEG. Cap it so a client cannot forward a huge file.
+  maxImageBase64Chars: 8_000_000,
   minQuestions: 1,
   maxQuestions: 20,
 };
@@ -27,7 +29,7 @@ export class RequestError extends Error {
 }
 
 type ChatMessage = { role: 'user' | 'ai'; text: string };
-export type ChatRequest = { action: 'chat'; messages: ChatMessage[] };
+export type ChatRequest = { action: 'chat'; messages: ChatMessage[]; imageBase64?: string };
 export type QuizRequest = { action: 'quiz'; title: string; questionCount: number; text?: string; pdfBase64?: string };
 
 const CHAT_SYSTEM_PROMPT = `You are CompuBot, a helpful AI assistant for CompuClass — a computer hardware and software learning platform for students.
@@ -52,7 +54,16 @@ export function validateRequest(body: unknown): ChatRequest | QuizRequest {
       if (!text || text.length > LIMITS.maxMessageChars) throw new RequestError(400, 'Message is empty or too long.');
       return { role: m.role, text } as ChatMessage;
     });
-    return { action: 'chat', messages: clean };
+    let imageBase64: string | undefined;
+    if (body.imageBase64 != null) {
+      if (typeof body.imageBase64 !== 'string') throw new RequestError(400, 'Invalid image.');
+      const image = body.imageBase64.replace(/\s/g, '');
+      if (!image || image.length > LIMITS.maxImageBase64Chars || !/^[A-Za-z0-9+/=]+$/.test(image.slice(0, 1000))) {
+        throw new RequestError(413, 'Image is too large or invalid.');
+      }
+      imageBase64 = image;
+    }
+    return { action: 'chat', messages: clean, ...(imageBase64 ? { imageBase64 } : {}) };
   }
 
   if (body.action === 'quiz') {
@@ -96,7 +107,13 @@ export function buildGeminiBody(req: ChatRequest | QuizRequest) {
       contents: [
         { role: 'user', parts: [{ text: CHAT_SYSTEM_PROMPT }] },
         { role: 'model', parts: [{ text: 'Understood! I am CompuBot, your CompuClass AI assistant. How can I help you today?' }] },
-        ...req.messages.map((m) => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
+        ...req.messages.map((m, index) => {
+          const parts: { text?: string; inline_data?: { mime_type: string; data: string } }[] = [{ text: m.text }];
+          if (req.imageBase64 && index === req.messages.length - 1 && m.role === 'user') {
+            parts.push({ inline_data: { mime_type: 'image/jpeg', data: req.imageBase64 } });
+          }
+          return { role: m.role === 'user' ? 'user' : 'model', parts };
+        }),
       ],
     };
   }

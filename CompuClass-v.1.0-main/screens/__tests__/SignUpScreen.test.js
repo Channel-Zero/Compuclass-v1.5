@@ -43,7 +43,7 @@ describe('SignUpScreen password policy', () => {
     const utils = renderScreen(<SignUpScreen onSignUp={onSignUp} onBackToLogin={onBackToLogin} />);
     fill(utils, { password: 'Violet-Kettle-Orbit-47' });
 
-    await waitFor(() => expect(authService.signUp).toHaveBeenCalledWith('new.student@compuclass.test', 'Violet-Kettle-Orbit-47', 'Test Student', 'student'), { timeout: 5000 });
+    await waitFor(() => expect(authService.signUp).toHaveBeenCalledWith('new.student@compuclass.test', 'Violet-Kettle-Orbit-47', 'Test Student'), { timeout: 5000 });
     // No session means email confirmation is still required, so the user is not signed in.
     expect(Alert.alert).toHaveBeenCalledWith(
       'Verify your email',

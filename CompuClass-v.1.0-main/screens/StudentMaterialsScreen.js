@@ -5,9 +5,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
-import { openRemoteDocument } from '../utils/fileDownload';
+import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
+const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
 const MUTED = '#4B5563'; const CARD = '#FFFFFF';
 
@@ -34,22 +34,33 @@ export default function StudentMaterialsScreen({ navigation }) {
     try {
       const [docsRes, quizzesRes] = await Promise.all([
         supabase.from('documents').select('*').eq('folder_id', folderId),
-        // Only the question count is displayed here — fetch ids, not full rows,
-        // so correct_answer never reaches a student's device for quizzes they
-        // haven't started yet.
+        // Question rows stay on the server. The count comes from
+        // quiz_question_counts when that function exists, otherwise from ids
+        // only so correct_answer is not selected.
         supabase.from('quizzes').select('*, quiz_questions(id)').eq('folder_id', folderId),
       ]);
       if (docsRes.error) throw docsRes.error;
       if (quizzesRes.error) throw quizzesRes.error;
+      const quizzes = quizzesRes.data || [];
+      const ids = quizzes.map((quiz) => quiz.id).filter(Boolean);
+      let counts = null;
+      if (ids.length > 0 && typeof supabase.rpc === 'function') {
+        const countRes = await supabase.rpc('quiz_question_counts', { p_quiz_ids: ids });
+        if (!countRes.error && Array.isArray(countRes.data)) {
+          counts = Object.fromEntries(countRes.data.map((row) => [row.quiz_id, row.question_count]));
+        }
+      }
       setDocuments(docsRes.data);
-      setQuizzes(quizzesRes.data);
+      setQuizzes(counts
+        ? quizzes.map((quiz) => ({ ...quiz, quiz_questions: Array.from({ length: counts[quiz.id] || 0 }) }))
+        : quizzes);
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials' })); }
   };
 
   const openDocument = async (doc) => {
     try {
       if (!doc.file_url) { Alert.alert('Error', 'No file URL available'); return; }
-      const outcome = await openRemoteDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
+      const outcome = await openStoredDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
       if (outcome === 'downloaded') Alert.alert('Success', 'File downloaded');
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials', fallback: 'Failed to download document' })); }
   };

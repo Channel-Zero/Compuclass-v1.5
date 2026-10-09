@@ -7,6 +7,7 @@ import { limiters, RateLimitError } from '../utils/rateLimiter';
 import { getErrorMessage } from '../utils/errorMessages';
 import { logSecurityEvent, maskEmail } from '../utils/securityLog';
 import { useTheme } from '../context/ThemeContext';
+import { cleanEmail } from '../utils/inputValidation';
 
 const { height } = Dimensions.get('window');
 
@@ -30,7 +31,13 @@ export default function LoginScreen({ onLogin, onSignUp, onForgotPassword }) {
 
   const handleLogin = async () => {
     if (!email || !password) { Alert.alert('Error', 'Please enter email and password'); return; }
-    const trimmedEmail = email.trim();
+    let trimmedEmail;
+    try {
+      trimmedEmail = cleanEmail(email);
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, { context: 'login' }));
+      return;
+    }
     setLoading(true);
     try {
       const { allowed, retryAfterMs } = await limiters.login.check(trimmedEmail);

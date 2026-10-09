@@ -7,6 +7,7 @@ import { limiters, RateLimitError } from '../utils/rateLimiter';
 import { getErrorMessage } from '../utils/errorMessages';
 import { logSecurityEvent, maskEmail } from '../utils/securityLog';
 import { validateNewPassword, PASSWORD_HINT, PASSWORD_MAX_LENGTH } from '../utils/passwordPolicy';
+import { passwordResetSendOutcome } from '../utils/passwordResetNotice';
 
 const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
@@ -32,11 +33,21 @@ export default function ForgotPasswordScreen({ onBackToLogin }) {
     }
     try {
       const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
-      if (error) throw error;
-      Alert.alert('Code Sent', `A 6-digit code has been sent to ${email}`);
-      setStep(2);
+      const outcome = passwordResetSendOutcome(error);
+      if (outcome.advance) {
+        Alert.alert('Check your email', outcome.message);
+        setStep(2);
+      } else {
+        Alert.alert('Error', getErrorMessage(error, { context: 'passwordResetSend' }));
+      }
     } catch (error) {
-      Alert.alert('Error', error.message === 'Signups not allowed for otp' ? 'No account found with this email' : getErrorMessage(error, { context: 'passwordResetSend' }));
+      const outcome = passwordResetSendOutcome(error);
+      if (outcome.advance) {
+        Alert.alert('Check your email', outcome.message);
+        setStep(2);
+      } else {
+        Alert.alert('Error', getErrorMessage(error, { context: 'passwordResetSend' }));
+      }
     } finally { setLoading(false); }
   };
 
@@ -86,13 +97,20 @@ export default function ForgotPasswordScreen({ onBackToLogin }) {
     finally { setLoading(false); }
   };
 
+  const leave = async () => {
+    if (step >= 3) {
+      try { await supabase.auth.signOut(); } catch { /* still return to login */ }
+    }
+    onBackToLogin();
+  };
+
   const stepLabels = ['Enter your email to receive a reset code', 'Enter the 6-digit code sent to your email', 'Enter your new password'];
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.topBanner}>
-          <TouchableOpacity style={styles.backBtn} onPress={onBackToLogin}>
+          <TouchableOpacity style={styles.backBtn} onPress={leave}>
             <Ionicons name="arrow-back" size={20} color={WHITE} />
           </TouchableOpacity>
           <View style={styles.iconWrap}>

@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;

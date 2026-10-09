@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import { lecturerService } from '../services/lecturerService';
 import { useTheme } from '../context/ThemeContext';
 import { getErrorMessage } from '../utils/errorMessages';
+import { openStoredDocument } from '../utils/fileDownload';
 
 export default function FolderContentScreen({ route, navigation }) {
   const { theme } = useTheme();
@@ -53,7 +53,7 @@ export default function FolderContentScreen({ route, navigation }) {
           Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
         }
       }
-    } catch (error) {
+    } catch (_error) {
       Alert.alert('Error', 'Failed to pick document');
     }
   };
@@ -72,6 +72,19 @@ export default function FolderContentScreen({ route, navigation }) {
       Alert.alert('Success', 'Quiz created successfully');
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
+    }
+  };
+
+  const openDocument = async (doc) => {
+    try {
+      if (!doc.file_url) {
+        Alert.alert('Error', 'This file could not be opened. Please try again.');
+        return;
+      }
+      const outcome = await openStoredDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
+      if (outcome === 'downloaded') Alert.alert('Success', 'File downloaded');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent', fallback: 'This file could not be opened. Please try again.' }));
     }
   };
 
@@ -97,10 +110,11 @@ export default function FolderContentScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
           {documents.map((doc) => (
-            <View key={doc.id} style={[styles.itemCard, { backgroundColor: theme.card }]}>
+            <TouchableOpacity key={doc.id} style={[styles.itemCard, { backgroundColor: theme.card }]} onPress={() => openDocument(doc)}>
               <Ionicons name="document" size={24} color="#3B82F6" />
               <Text style={[styles.itemTitle, { color: theme.text }]}>{doc.title}</Text>
-            </View>
+              <Ionicons name="download-outline" size={18} color={theme.primary} />
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -225,7 +239,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937' },
   itemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 16, borderRadius: 12, marginBottom: 8, gap: 12 },
-  itemTitle: { fontSize: 16, color: '#1F2937' },
+  itemTitle: { flex: 1, fontSize: 16, color: '#1F2937' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#fff', borderRadius: 16, padding: 20, maxHeight: '80%' },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#1F2937' },

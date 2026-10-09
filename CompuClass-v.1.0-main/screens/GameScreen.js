@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, useWindowDimensions, TouchableOpacity,
-  Animated, PanResponder, TextInput, StatusBar, ScrollView,
+  Animated, PanResponder, TextInput, StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -483,9 +483,10 @@ export default function GameScreen({ navigation, route }) {
 
   const loadLeaderboard = async () => {
     try {
-      const { data } = await supabase.from('game_scores').select('score, profiles(full_name)').order('score', { ascending: false }).limit(5);
-      setLeaderboard(data || []);
-    } catch {}
+      setLeaderboard(await gameRunnerService.getLeaderboard());
+    } catch {
+      setLeaderboard([]);
+    }
   };
 
   const saveScore = async (finalScore) => {

@@ -5,6 +5,16 @@ import { AppError } from '../utils/errorMessages';
 // Generate a random 6-char room code
 const makeCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
+function roomFromJoinRpc(data, error) {
+  if (error) throw new AppError('Room not found or already started');
+  let room = data;
+  if (typeof data === 'string') {
+    try { room = JSON.parse(data); } catch (_parseError) { room = null; }
+  }
+  if (!room?.id) throw new AppError('Room not found or already started');
+  return room;
+}
+
 export const gameRunnerService = {
   // ── Multiplayer: host creates a room ────────────────────────────────────
   async createRoom() {
@@ -36,16 +46,10 @@ export const gameRunnerService = {
     try {
       const user = await authService.getCurrentUser();
       const cleanCode = code.trim().toUpperCase();
-      const { data: room, error } = await supabase
-        .from('game_runner_rooms')
-        .select('*')
-        .eq('code', cleanCode)
-        .eq('status', 'waiting')
-        .single();
-      if (error || !room) {
-        console.error('joinRoom lookup failed:', { cleanCode, error, userId: user?.id });
-        throw new AppError('Room not found or already started');
-      }
+      // Room rows are visible only to the host or a player. join_game_runner_room
+      // returns one waiting room (jsonb) for this code.
+      const rpc = await supabase.rpc('join_game_runner_room', { p_code: cleanCode });
+      const room = roomFromJoinRpc(rpc.data, rpc.error);
 
       const { error: joinErr } = await supabase.from('game_runner_players').insert({
         room_id: room.id,
@@ -115,6 +119,13 @@ export const gameRunnerService = {
       .order('score', { ascending: false });
     if (error) return [];
     return data;
+  },
+
+  // Top five names. game_scores is own-row only, so the table cannot supply this list.
+  async getLeaderboard() {
+    const { data, error } = await supabase.rpc('get_runner_leaderboard');
+    if (error || !Array.isArray(data)) return [];
+    return data.map((row) => ({ score: row.score, profiles: { full_name: row.full_name } }));
   },
 
   // ── Count finishers to assign rank ──────────────────────────────────────

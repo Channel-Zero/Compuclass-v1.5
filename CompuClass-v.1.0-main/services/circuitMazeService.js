@@ -5,6 +5,16 @@ import { AppError } from '../utils/errorMessages';
 // Generate a random 6-char room code
 const makeCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
+function roomFromJoinRpc(data, error) {
+  if (error) throw new AppError('Room not found or already started');
+  let room = data;
+  if (typeof data === 'string') {
+    try { room = JSON.parse(data); } catch (_parseError) { room = null; }
+  }
+  if (!room?.id) throw new AppError('Room not found or already started');
+  return room;
+}
+
 export const circuitMazeService = {
   // ── XP ──────────────────────────────────────────────────────────────────
   async awardXp(xp) {
@@ -57,13 +67,11 @@ export const circuitMazeService = {
   async joinRoom(code) {
     try {
       const user = await authService.getCurrentUser();
-      const { data: room, error } = await supabase
-        .from('circuit_maze_rooms')
-        .select('*')
-        .eq('code', code.toUpperCase())
-        .eq('status', 'waiting')
-        .single();
-      if (error || !room) throw new AppError('Room not found or already started');
+      const cleanCode = code.trim().toUpperCase();
+      // Room rows are visible only to the host or a player. join_circuit_maze_room
+      // is security definer and returns one waiting room (jsonb) for this code.
+      const rpc = await supabase.rpc('join_circuit_maze_room', { p_code: cleanCode });
+      const room = roomFromJoinRpc(rpc.data, rpc.error);
 
       const { error: joinErr } = await supabase.from('circuit_maze_players').insert({
         room_id: room.id,
