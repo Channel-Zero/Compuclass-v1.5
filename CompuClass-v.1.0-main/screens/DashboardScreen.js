@@ -234,7 +234,7 @@ export default function DashboardScreen({ navigation }) {
               <Ionicons name={s.icon} size={18} color={s.color} />
             </View>
             <Text style={styles.statValue}>{loading ? '–' : s.value}</Text>
-            <Text style={styles.statLabel} numberOfLines={1}>{s.label}</Text>
+            <Text style={styles.statLabel}>{s.label}</Text>
           </View>
         ))}
       </View>
@@ -253,7 +253,7 @@ export default function DashboardScreen({ navigation }) {
       {/* Pending Quizzes */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionHeaderTitle}>Pending quizzes</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Quiz')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="See all quizzes">
+        <TouchableOpacity onPress={() => navigation.navigate('Quiz')} style={styles.seeAllBtn} accessibilityRole="button" accessibilityLabel="See all quizzes">
           <Text style={styles.seeAll}>See all</Text>
         </TouchableOpacity>
       </View>
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, backgroundColor: CARD, borderRadius: 16, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 6, gap: 4 },
   statIconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
   statValue: { fontSize: 20, fontWeight: '900', color: TEXT },
-  statLabel: { fontSize: 11, fontWeight: '600', color: MUTED },
+  statLabel: { fontSize: 11, fontWeight: '600', color: MUTED, textAlign: 'center', lineHeight: 14 },
 
   tipCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, marginHorizontal: GUTTER, marginBottom: 24, borderRadius: 16, padding: 14, gap: 12 },
   tipIconWrap: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -396,6 +396,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: GUTTER, marginBottom: 12 },
   sectionHeaderTitle: { fontSize: 18, fontWeight: '900', color: TEXT },
   sectionTitle: { fontSize: 18, fontWeight: '900', color: TEXT, marginHorizontal: GUTTER, marginBottom: 12, marginTop: 4 },
+  seeAllBtn: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   seeAll: { fontSize: 13, fontWeight: '700', color: BLUE },
 
   emptyCard: { alignItems: 'center', backgroundColor: CARD, marginHorizontal: GUTTER, borderRadius: 16, padding: 24, marginBottom: 24, gap: 8 },
