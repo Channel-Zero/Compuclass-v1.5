@@ -28,25 +28,13 @@ function cleanQuestions(questions) {
   });
 }
 
-// save_quiz's return shape is not in the repo. Use question ids only when the
-// payload actually includes them, so timer settings are not sent with a guess.
-function questionRowsFromSaveQuiz(data) {
-  const rows = Array.isArray(data)
-    ? data
-    : data?.questions || data?.quiz_questions || data?.p_questions || [];
-  return Array.isArray(rows) ? rows.filter((row) => row && typeof row === 'object') : [];
-}
-
-function quizFromSaveQuiz(data, title, folderId) {
-  if (data && typeof data === 'object' && !Array.isArray(data) && data.id) return data;
-  if (typeof data === 'string') return { id: data, title, folder_id: folderId, type: 'practice' };
-  const first = questionRowsFromSaveQuiz(data)[0];
-  return {
-    id: first?.quiz_id || null,
-    title,
-    folder_id: folderId,
-    type: 'practice',
-  };
+// Live save_quiz returns a plain uuid (the quiz id), not a JSON row.
+function quizIdFromSaveQuiz(data) {
+  if (typeof data === 'string' && data.trim()) return data.trim();
+  if (data && typeof data === 'object' && !Array.isArray(data) && typeof data.id === 'string' && data.id) {
+    return data.id;
+  }
+  return null;
 }
 
 export const lecturerService = {
@@ -192,29 +180,44 @@ export const lecturerService = {
         throw error;
       }
 
-      const savedQuestions = questionRowsFromSaveQuiz(data);
-      const byOrderIndex = {};
-      savedQuestions.forEach((row) => { byOrderIndex[row.order_index] = row; });
+      const quizId = quizIdFromSaveQuiz(data);
+      if (!quizId) throw new AppError('The quiz could not be saved. Please try again.');
 
-      const settingsCalls = questions
-        .map((q, idx) => ({ q, inserted: byOrderIndex[idx] }))
-        .filter(({ q, inserted }) => inserted?.id && (q.timeLimitSeconds || (q.difficulty && q.difficulty !== 'medium')))
-        .map(({ q, inserted }) =>
-          supabase.rpc('set_question_gamification_settings', {
-            p_question_id: inserted.id,
-            p_time_limit_seconds: q.timeLimitSeconds || null,
-            p_difficulty: q.difficulty || 'medium',
-          })
-        );
-
-      if (settingsCalls.length > 0) {
-        const results = await Promise.all(settingsCalls);
-        const failed = results.find((r) => r.error);
-        if (failed) console.error('⚠️ Some question settings failed to save:', failed.error.message);
+      const needsSettings = questions.some(
+        (q) => q.timeLimitSeconds || (q.difficulty && q.difficulty !== 'medium')
+      );
+      if (needsSettings) {
+        try {
+          const { data: rows, error: rowsError } = await supabase
+            .from('quiz_questions')
+            .select('id, order_index')
+            .eq('quiz_id', quizId)
+            .order('order_index');
+          if (rowsError) throw rowsError;
+          const byOrderIndex = {};
+          (rows || []).forEach((row) => { byOrderIndex[row.order_index] = row; });
+          const settingsCalls = questions
+            .map((q, idx) => ({ q, inserted: byOrderIndex[idx] }))
+            .filter(({ q, inserted }) => inserted?.id && (q.timeLimitSeconds || (q.difficulty && q.difficulty !== 'medium')))
+            .map(({ q, inserted }) =>
+              supabase.rpc('set_question_gamification_settings', {
+                p_question_id: inserted.id,
+                p_time_limit_seconds: q.timeLimitSeconds || null,
+                p_difficulty: q.difficulty || 'medium',
+              })
+            );
+          if (settingsCalls.length > 0) {
+            const results = await Promise.all(settingsCalls);
+            const failed = results.find((r) => r.error);
+            if (failed) console.error('⚠️ Some question settings failed to save:', failed.error.message);
+          }
+        } catch (settingsError) {
+          console.error('⚠️ Question settings were not saved:', settingsError.message);
+        }
       }
 
       console.log('✅ Quiz created:', title, 'with', questions.length, 'questions');
-      return quizFromSaveQuiz(data, title, folderId);
+      return { id: quizId, title, folder_id: folderId, type: 'practice' };
     } catch (error) {
       console.error('❌ Create quiz exception:', error);
       throw error;
@@ -368,12 +371,18 @@ export const lecturerService = {
 
   async shareQuizToClasses(quizId, classIds) {
     try {
-      // Live quiz_assignments.created_by is filled by assign_quiz_to_classes.
-      // The argument names match the live function's table (quiz id + class ids).
-      // The function body is not in the repo, so this is the call the app makes.
+      // Live signature:
+      // assign_quiz_to_classes(p_quiz_id, p_class_ids uuid[], p_due_at, p_closes_at,
+      //   p_attempt_limit default 3, p_late_penalty_percent default 10, p_time_limit_seconds)
+      // returns jsonb. The share screen does not collect dates or a time limit.
       const { error } = await supabase.rpc('assign_quiz_to_classes', {
         p_quiz_id: quizId,
         p_class_ids: classIds,
+        p_due_at: null,
+        p_closes_at: null,
+        p_attempt_limit: 3,
+        p_late_penalty_percent: 10,
+        p_time_limit_seconds: null,
       });
       
       if (error) {

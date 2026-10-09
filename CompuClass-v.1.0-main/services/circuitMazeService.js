@@ -5,6 +5,16 @@ import { AppError } from '../utils/errorMessages';
 // Generate a random 6-char room code
 const makeCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
+function roomFromJoinRpc(data, error) {
+  if (error) throw new AppError('Room not found or already started');
+  let room = data;
+  if (typeof data === 'string') {
+    try { room = JSON.parse(data); } catch (_parseError) { room = null; }
+  }
+  if (!room?.id) throw new AppError('Room not found or already started');
+  return room;
+}
+
 export const circuitMazeService = {
   // ── XP ──────────────────────────────────────────────────────────────────
   async awardXp(xp) {
@@ -57,24 +67,11 @@ export const circuitMazeService = {
   async joinRoom(code) {
     try {
       const user = await authService.getCurrentUser();
-      const cleanCode = code.toUpperCase();
-      // After the security migration, room rows are hidden unless you are in
-      // the room. The join function reveals one waiting room by code. Until
-      // that function exists, fall back to the direct lookup.
-      let room = null;
+      const cleanCode = code.trim().toUpperCase();
+      // Room rows are visible only to the host or a player. join_circuit_maze_room
+      // is security definer and returns one waiting room (jsonb) for this code.
       const rpc = await supabase.rpc('join_circuit_maze_room', { p_code: cleanCode });
-      if (!rpc.error && rpc.data?.id) {
-        room = rpc.data;
-      } else {
-        const direct = await supabase
-          .from('circuit_maze_rooms')
-          .select('*')
-          .eq('code', cleanCode)
-          .eq('status', 'waiting')
-          .single();
-        if (direct.error || !direct.data) throw new AppError('Room not found or already started');
-        room = direct.data;
-      }
+      const room = roomFromJoinRpc(rpc.data, rpc.error);
 
       const { error: joinErr } = await supabase.from('circuit_maze_players').insert({
         room_id: room.id,
