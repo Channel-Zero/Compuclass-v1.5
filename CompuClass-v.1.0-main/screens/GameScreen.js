@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, useWindowDimensions, TouchableOpacity,
-  Animated, PanResponder, TextInput, StatusBar, ScrollView,
+  Animated, PanResponder, TextInput, StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

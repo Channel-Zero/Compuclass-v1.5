@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import WebView from './WebEmbed';
 

@@ -9,7 +9,7 @@ export default function CPUAR() {
   if (failed) {
     return (
       <View style={styles.fallback}>
-        <Text style={styles.fallbackTitle}>The CPU model didn't load</Text>
+        <Text style={styles.fallbackTitle}>{"The CPU model didn't load"}</Text>
         <Text style={styles.fallbackText}>
           Check your connection, then open this view again. You can still finish the PC Lab steps without the 3D model.
         </Text>
@@ -33,7 +33,7 @@ export default function CPUAR() {
           </View>
         )}
       />
-      <Text style={styles.hint}>If the model stays blank, it didn't load. Go back and continue the assembly steps.</Text>
+      <Text style={styles.hint}>{"If the model stays blank, it didn't load. Go back and continue the assembly steps."}</Text>
     </View>
   );
 }

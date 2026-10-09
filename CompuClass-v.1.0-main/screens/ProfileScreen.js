@@ -22,9 +22,7 @@ export default function ProfileScreen({ onLogout }) {
   const BLUE = theme.primary;
   const YELLOW = theme.secondary;
   const RED = theme.error;
-  const GREEN = theme.success;
   const PURPLE = theme.purple;
-  const WHITE = "#FFFFFF";
   const BG = theme.surface;
   const TEXT = theme.text;
   const MUTED = theme.textSecondary;

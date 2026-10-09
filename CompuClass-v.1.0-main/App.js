@@ -5,7 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, PanResponder, Animated, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -51,7 +51,6 @@ import { supabase } from './config/supabase';
 import { sessionCheckDecision } from './utils/sessionCheck';
 import { isUnknownWebPath as pathIsUnknown, linkingConfig } from './utils/webRoutes';
 import { ThemeProvider } from './context/ThemeContext';
-import { useOffline } from './hooks/useOffline';
 
 installWebAlert();
 
@@ -63,8 +62,8 @@ const ONBOARDING_KEY = 'onboardingComplete';
 const isUnknownWebPath = () =>
   Platform.OS === 'web' && typeof window !== 'undefined' && pathIsUnknown(window.location.pathname);
 
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const WHITE = '#FFFFFF';
-const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563';
+const BLUE = '#2563EB'; const WHITE = '#FFFFFF';
+const TEXT = '#111827'; const MUTED = '#4B5563';
 
 function LecturerStack() {
   return (
@@ -175,7 +174,6 @@ function CustomHeader({ onMenuPress, onLogoPress }) {
 }
 
 function AppContent() {
-  const { isOnline } = useOffline();
   const [isFirstLaunch, setIsFirstLaunch] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
@@ -193,28 +191,6 @@ function AppContent() {
   // Read through a ref: the pan responder is created once, so reading state
   // directly would always see the initial empty route.
   const currentRouteRef = useRef('');
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => {
-        // These screens own the full gesture surface, so the sidebar swipe
-        // must not steal drags from them.
-        if (currentRouteRef.current === 'PC Lab' || currentRouteRef.current === 'Game') return false;
-        return g.dx > 20 && Math.abs(g.dy) < 80;
-      },
-      onPanResponderMove: (_, g) => {
-        sidebarTranslateX.setValue(Math.min(0, sidebarHiddenX.current + g.dx));
-      },
-      onPanResponderRelease: (_, g) => {
-        if (g.dx > 50) {
-          Animated.spring(sidebarTranslateX, { toValue: 0, useNativeDriver: true }).start();
-          setSidebarVisible(true);
-        } else {
-          Animated.spring(sidebarTranslateX, { toValue: sidebarHiddenX.current, useNativeDriver: true }).start();
-        }
-      },
-    })
-  ).current;
 
   useEffect(() => { checkUser(); }, []);
 
@@ -318,8 +294,8 @@ function AppContent() {
   if (offlineStartup && !isLoggedIn) return (
     <View style={styles.offlineGate}>
       <StatusBar style="dark" />
-      <Text style={styles.offlineTitle}>You're offline</Text>
-      <Text style={styles.offlineText}>We couldn't check your session. Connect and try again. You have not been signed out.</Text>
+      <Text style={styles.offlineTitle}>{"You're offline"}</Text>
+      <Text style={styles.offlineText}>{"We couldn't check your session. Connect and try again. You have not been signed out."}</Text>
       <TouchableOpacity style={styles.offlineBtn} onPress={() => { setLoading(true); checkUser(); }} accessibilityRole="button">
         <Text style={styles.offlineBtnText}>Try again</Text>
       </TouchableOpacity>
@@ -371,7 +347,7 @@ function AppContent() {
           <View style={{ flex: 1 }}>
             <StatusBar style="dark" backgroundColor={WHITE} />
             {offlineStartup && (
-              <Text style={styles.offlineBanner}>You're offline. Some features need a connection.</Text>
+              <Text style={styles.offlineBanner}>{"You're offline. Some features need a connection."}</Text>
             )}
             <Tab.Navigator
               tabBar={props => <CustomTabBar {...props} />}

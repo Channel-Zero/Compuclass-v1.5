@@ -101,7 +101,7 @@ export default function QuizCreationScreen({ navigation, route }) {
         setSelectedFile(result.assets[0]);
         setShowAIGenerate(true);
       }
-    } catch (error) {
+    } catch (_error) {
       Alert.alert('Error', 'Failed to pick document');
     }
   };

@@ -17,9 +17,6 @@ import { authService } from "../services/authService";
 import { gamificationService } from "../services/gamificationservice";
 
 const BLUE = "#2563EB";
-const YELLOW = "#FACC15";
-const RED = "#EF4444";
-const GREEN = "#22C55E";
 const PURPLE = "#8B5CF6";
 const WHITE = "#FFFFFF";
 const BG = "#F3F4F6";

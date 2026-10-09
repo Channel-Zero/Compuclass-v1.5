@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
 import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
-const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
+const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
 const MUTED = '#4B5563'; const CARD = '#FFFFFF';
 

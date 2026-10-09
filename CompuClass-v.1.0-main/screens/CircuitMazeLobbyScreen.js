@@ -6,7 +6,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { circuitMazeService } from '../services/circuitMazeService';
 import { authService } from '../services/authService';
 import { getErrorMessage } from '../utils/errorMessages';

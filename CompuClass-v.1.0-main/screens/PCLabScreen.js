@@ -12,7 +12,7 @@ import GPUAR from '../components/GPUAR';
 import PSUAR from '../components/PSUAR';
 
 const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
-const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const TEXT = '#111827'; const MUTED = '#4B5563';
 
 const components = [
   { id: 'motherboard', name: 'Motherboard',  icon: 'hardware-chip',    color: '#2563EB' },

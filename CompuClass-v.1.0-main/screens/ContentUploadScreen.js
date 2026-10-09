@@ -88,7 +88,7 @@ export default function ContentUploadScreen({ navigation, route }) {
         setTitle(file.name.split('.')[0]);
         setShowUpload(true);
       }
-    } catch (error) {
+    } catch (_error) {
       Alert.alert('Error', 'Failed to pick document');
     }
   };

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import { lecturerService } from '../services/lecturerService';
 import { useTheme } from '../context/ThemeContext';
@@ -53,7 +52,7 @@ export default function FolderContentScreen({ route, navigation }) {
           Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
         }
       }
-    } catch (error) {
+    } catch (_error) {
       Alert.alert('Error', 'Failed to pick document');
     }
   };
