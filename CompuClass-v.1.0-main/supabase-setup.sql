@@ -893,6 +893,41 @@ REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb) FROM PUBLIC, a
 GRANT EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb) TO supabase_auth_admin, service_role;
 
 -- ============================================
+-- 10. ROOM READ FOR THE HOST
+-- ============================================
+-- Room tables are created by supabase-circuit-maze.sql and
+-- supabase-game-runner.sql, then locked down by
+-- supabase/migrations/20261006140000_security_hardening.sql.
+-- A SELECT policy that calls only is_*_member(id) hides a room from the
+-- host who just created it, because that function reads the same table.
+-- The live project already has the host-or-member form from
+-- supabase/migrations/20261009150000_room_host_read_fix.sql (applied).
+-- When these tables are present, this block installs the same rule.
+
+DO $$
+BEGIN
+  IF to_regclass('public.circuit_maze_rooms') IS NOT NULL
+     AND to_regprocedure('public.is_circuit_maze_member(uuid)') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Members can read maze rooms" ON public.circuit_maze_rooms;
+    CREATE POLICY "Members can read maze rooms"
+      ON public.circuit_maze_rooms
+      FOR SELECT
+      TO authenticated
+      USING (host_id = auth.uid() OR public.is_circuit_maze_member(id));
+  END IF;
+
+  IF to_regclass('public.game_runner_rooms') IS NOT NULL
+     AND to_regprocedure('public.is_game_runner_member(uuid)') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Members can read runner rooms" ON public.game_runner_rooms;
+    CREATE POLICY "Members can read runner rooms"
+      ON public.game_runner_rooms
+      FOR SELECT
+      TO authenticated
+      USING (host_id = auth.uid() OR public.is_game_runner_member(id));
+  END IF;
+END $$;
+
+-- ============================================
 -- SETUP COMPLETE
 -- ============================================
 

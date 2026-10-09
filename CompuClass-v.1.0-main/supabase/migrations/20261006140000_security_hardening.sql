@@ -1474,7 +1474,14 @@ END $$;
 -- Host insert and host update policies are kept. A policy this script does
 -- not recognise is left in place. The run does not stop. The live SELECT
 -- policy is auth.uid() IS NOT NULL, which expr_is_open treats as open, so
--- it is dropped and replaced with the member policy.
+-- it is dropped and replaced with the host-or-member policy.
+--
+-- Applied history: live databases received the member-only form first.
+-- 20261009150000_room_host_read_fix.sql (already applied live) replaced it
+-- with host_id = auth.uid() OR is_*_member(id). This CREATE POLICY matches
+-- that fix so a fresh run does not recreate the member-only policy. The
+-- member function reads this same table, so a host's new row is not visible
+-- through the function alone.
 --
 -- Repo columns, required when the table exists:
 --   rooms: id, code, host_id, status
@@ -1650,7 +1657,7 @@ BEGIN
 
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', v_rooms);
     EXECUTE format(
-      'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (public.%I(id))',
+      'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (host_id = auth.uid() OR public.%I(id))',
       v_policy, v_rooms, v_member
     );
 
