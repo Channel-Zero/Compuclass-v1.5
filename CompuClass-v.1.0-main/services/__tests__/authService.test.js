@@ -91,6 +91,57 @@ describe('authService.signOut', () => {
     expect(await AsyncStorage.getItem('user')).toBeNull();
     expect(await AsyncStorage.getItem('loginTimestamp')).toBeNull();
   });
+
+  it('clears chat and game progress that belongs to the signed-in user', async () => {
+    await AsyncStorage.setItem('compubot_chat_history', '[]');
+    await AsyncStorage.setItem('circuitMazeProgress:v1', '{}');
+    await AsyncStorage.setItem('compurunner_highscore', '10');
+    await AsyncStorage.setItem('notifications', 'true');
+    supabase.auth.signOut.mockResolvedValue({});
+
+    await authService.signOut();
+
+    expect(await AsyncStorage.getItem('compubot_chat_history')).toBeNull();
+    expect(await AsyncStorage.getItem('circuitMazeProgress:v1')).toBeNull();
+    expect(await AsyncStorage.getItem('compurunner_highscore')).toBeNull();
+    expect(await AsyncStorage.getItem('notifications')).toBe('true');
+  });
+});
+
+describe('authService.signIn per-user storage', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  it('clears the previous user progress when a different person signs in', async () => {
+    await AsyncStorage.setItem('user', JSON.stringify({ id: 'user-1' }));
+    await AsyncStorage.setItem('compubot_chat_history', 'old chat');
+    await AsyncStorage.setItem('compurunner_highscore', '9');
+    supabase.auth.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'user-2', email: 'other@compuclass.test' } },
+      error: null,
+    });
+
+    await authService.signIn('other@compuclass.test', 'password123');
+
+    expect(await AsyncStorage.getItem('compubot_chat_history')).toBeNull();
+    expect(await AsyncStorage.getItem('compurunner_highscore')).toBeNull();
+    expect(JSON.parse(await AsyncStorage.getItem('user')).id).toBe('user-2');
+  });
+
+  it('keeps progress when the same user signs in again', async () => {
+    await AsyncStorage.setItem('user', JSON.stringify({ id: 'user-1' }));
+    await AsyncStorage.setItem('compubot_chat_history', 'kept');
+    supabase.auth.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'student@compuclass.test' } },
+      error: null,
+    });
+
+    await authService.signIn('student@compuclass.test', 'password123');
+
+    expect(await AsyncStorage.getItem('compubot_chat_history')).toBe('kept');
+  });
 });
 
 describe('authService.isSessionValid', () => {

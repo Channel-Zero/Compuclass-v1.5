@@ -1,8 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../config/supabase';
 import { assertUploadAllowed, createSignedFileUrl } from './fileAccess';
+import { clearPerUserLocalData } from './userLocalData';
 
 const SESSION_LIMIT_MS = 30 * 60 * 1000;
+
+async function rememberSignedInUser(user) {
+  const previous = await AsyncStorage.getItem('user');
+  let previousId = null;
+  try { previousId = previous ? JSON.parse(previous)?.id : null; } catch {}
+  if (previousId && previousId !== user?.id) await clearPerUserLocalData();
+  await AsyncStorage.setItem('user', JSON.stringify(user));
+  await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
+}
 
 export const authService = {
   async signUp(email, password, fullName) {
@@ -24,8 +34,7 @@ export const authService = {
 
 
       if (data.session) {
-        await AsyncStorage.setItem('user', JSON.stringify(data.user));
-        await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
+        await rememberSignedInUser(data.user);
       }
       console.log('✅ Sign up successful:', email);
       return data;
@@ -47,8 +56,7 @@ export const authService = {
         throw error;
       }
       
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
-      await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
+      await rememberSignedInUser(data.user);
       console.log('✅ Sign in successful:', email);
       return data;
     } catch (error) {
@@ -63,6 +71,7 @@ export const authService = {
     } catch (error) {
       console.error('Supabase signout error:', error);
     }
+    await clearPerUserLocalData();
     await AsyncStorage.removeItem('user');
     await AsyncStorage.removeItem('loginTimestamp');
   },
