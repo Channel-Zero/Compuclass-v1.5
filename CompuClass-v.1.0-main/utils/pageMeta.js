@@ -31,6 +31,7 @@ export const PAGE_META = {
   CircuitMazeLobby: { title: 'Circuit Maze Lobby', description: 'Start a solo Circuit Maze run or join a multiplayer room.' },
   CircuitMaze: { title: 'Circuit Maze', description: 'Answer questions to route power through the Circuit Maze.' },
   Game: { title: 'CompuRunner', description: 'Dodge obstacles, collect PC components and answer questions to survive.' },
+  GameRunnerLobby: { title: 'CompuRunner Lobby', description: 'Start a solo CompuRunner game or join a multiplayer room with a class code.' },
 
   Lecturer: { title: 'Lecturer Dashboard', description: 'Manage your CompuClass folders, content, quizzes and classes.' },
   LecturerDashboard: { title: 'Lecturer Dashboard', description: 'Manage your CompuClass folders, content, quizzes and classes.' },

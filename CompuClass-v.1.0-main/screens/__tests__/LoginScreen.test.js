@@ -3,6 +3,9 @@ import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import LoginScreen from '../LoginScreen';
 import { authService } from '../../services/authService';
+import { ThemeProvider } from '../../context/ThemeContext';
+
+const renderScreen = (ui) => render(ui, { wrapper: ThemeProvider });
 
 jest.mock('../../services/authService', () => ({
   authService: { signIn: jest.fn() },
@@ -15,7 +18,7 @@ describe('LoginScreen', () => {
   });
 
   it('warns instead of calling signIn when email or password is missing', () => {
-    const { getByText } = render(<LoginScreen onLogin={jest.fn()} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />);
+    const { getByText } = renderScreen(<LoginScreen onLogin={jest.fn()} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />);
 
     fireEvent.press(getByText('Sign In'));
 
@@ -26,7 +29,7 @@ describe('LoginScreen', () => {
   it('signs in and calls onLogin when credentials are provided', async () => {
     authService.signIn.mockResolvedValue({ user: { id: 'user-1' } });
     const onLogin = jest.fn();
-    const { getByText, getByPlaceholderText } = render(
+    const { getByText, getByPlaceholderText } = renderScreen(
       <LoginScreen onLogin={onLogin} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />
     );
 
@@ -41,7 +44,7 @@ describe('LoginScreen', () => {
   it('shows the Supabase error message and does not call onLogin on failure', async () => {
     authService.signIn.mockRejectedValue(new Error('Invalid login credentials'));
     const onLogin = jest.fn();
-    const { getByText, getByPlaceholderText } = render(
+    const { getByText, getByPlaceholderText } = renderScreen(
       <LoginScreen onLogin={onLogin} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />
     );
 
@@ -67,7 +70,7 @@ describe('LoginScreen', () => {
 
     const renderLogin = () => {
       const onLogin = jest.fn();
-      const utils = render(<LoginScreen onLogin={onLogin} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />);
+      const utils = renderScreen(<LoginScreen onLogin={onLogin} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />);
       return { ...utils, onLogin };
     };
 

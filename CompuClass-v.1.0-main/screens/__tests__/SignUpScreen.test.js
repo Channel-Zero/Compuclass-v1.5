@@ -3,6 +3,9 @@ import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import SignUpScreen from '../SignUpScreen';
 import { authService } from '../../services/authService';
+import { ThemeProvider } from '../../context/ThemeContext';
+
+const renderScreen = (ui) => render(ui, { wrapper: ThemeProvider });
 
 jest.mock('../../services/authService', () => ({
   authService: { signUp: jest.fn() },
@@ -26,7 +29,7 @@ describe('SignUpScreen password policy', () => {
   });
 
   it('rejects "password123" and never creates the account', async () => {
-    const utils = render(<SignUpScreen onSignUp={jest.fn()} onBackToLogin={jest.fn()} />);
+    const utils = renderScreen(<SignUpScreen onSignUp={jest.fn()} onBackToLogin={jest.fn()} />);
     fill(utils, { password: 'password123' });
 
     // Generous timeout: validation is async and CI machines running suites in parallel can be slow.
@@ -35,15 +38,34 @@ describe('SignUpScreen password policy', () => {
   });
 
   it('accepts a strong unique password and creates the account', async () => {
-    const utils = render(<SignUpScreen onSignUp={jest.fn()} onBackToLogin={jest.fn()} />);
+    const onSignUp = jest.fn();
+    const onBackToLogin = jest.fn();
+    const utils = renderScreen(<SignUpScreen onSignUp={onSignUp} onBackToLogin={onBackToLogin} />);
     fill(utils, { password: 'Violet-Kettle-Orbit-47' });
 
     await waitFor(() => expect(authService.signUp).toHaveBeenCalledWith('new.student@compuclass.test', 'Violet-Kettle-Orbit-47', 'Test Student', 'student'), { timeout: 5000 });
-    expect(Alert.alert).toHaveBeenCalledWith('Success', expect.any(String), expect.any(Array));
+    // No session means email confirmation is still required, so the user is not signed in.
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'Verify your email',
+      'Account created! Check your email to verify it, then sign in.',
+      [{ text: 'OK', onPress: onBackToLogin }]
+    );
+    expect(onSignUp).not.toHaveBeenCalled();
+  });
+
+  it('shows Success and continues when signup already returns a session', async () => {
+    authService.signUp.mockResolvedValue({ user: { id: 'new' }, session: { access_token: 'token' } });
+    const onSignUp = jest.fn();
+    const onBackToLogin = jest.fn();
+    const utils = renderScreen(<SignUpScreen onSignUp={onSignUp} onBackToLogin={onBackToLogin} />);
+    fill(utils, { password: 'Violet-Kettle-Orbit-47' });
+
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Success', 'Account created!', [{ text: 'OK', onPress: onSignUp }]), { timeout: 5000 });
+    expect(onBackToLogin).not.toHaveBeenCalled();
   });
 
   it('shows the password requirements up front', () => {
-    const utils = render(<SignUpScreen onSignUp={jest.fn()} onBackToLogin={jest.fn()} />);
+    const utils = renderScreen(<SignUpScreen onSignUp={jest.fn()} onBackToLogin={jest.fn()} />);
     expect(utils.getByText(/At least 8 characters/)).toBeTruthy();
   });
 });

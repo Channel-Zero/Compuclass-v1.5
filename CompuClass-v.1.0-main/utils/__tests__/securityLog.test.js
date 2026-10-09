@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import LoginScreen from '../../screens/LoginScreen';
 import { authService } from '../../services/authService';
+import { ThemeProvider } from '../../context/ThemeContext';
 import { getSecurityLog, maskEmail, __resetSecurityLogForTests } from '../securityLog';
 import { getErrorMessage, __resetErrorTrackingForTests } from '../errorMessages';
 import { createRequestLimiter } from '../rateLimiter';
@@ -25,7 +26,7 @@ afterEach(() => jest.restoreAllMocks());
 describe('suspicious activity logging', () => {
   it('logs each failed login with timestamp and context, then the lockout', async () => {
     authService.signIn.mockRejectedValue(new Error('Invalid login credentials'));
-    const utils = render(<LoginScreen onLogin={jest.fn()} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />);
+    const utils = render(<LoginScreen onLogin={jest.fn()} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />, { wrapper: ThemeProvider });
 
     for (let i = 0; i < 5; i++) {
       Alert.alert.mockClear();
