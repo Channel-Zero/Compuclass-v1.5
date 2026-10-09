@@ -14,4 +14,19 @@ describe('document upload paths', () => {
     expect(isOwnAvatarPath('other-user/avatar_1.jpg', 'user-1')).toBe(false);
     expect(isOwnAvatarPath('user-1/nested/avatar_1.jpg', 'user-1')).toBe(false);
   });
+
+  it('rejects another user folder, a bare folder, and an empty path', () => {
+    expect(isOwnDocumentPath('other-user/1_notes.pdf', 'user-1')).toBe(false);
+    expect(isOwnDocumentPath('user-1', 'user-1')).toBe(false);
+    expect(isOwnDocumentPath('', 'user-1')).toBe(false);
+    expect(isOwnDocumentPath('user-1/1_notes.pdf', '')).toBe(false);
+  });
+
+  it('builds a lecturer document path that is not the avatar exception', () => {
+    const path = buildDocumentObjectPath('lecturer-1', 'notes.pdf', 1700000000000);
+    expect(path.split('/')[0]).toBe('lecturer-1');
+    expect(isOwnDocumentPath(path, 'lecturer-1')).toBe(true);
+    expect(isOwnDocumentPath(path, 'student-2')).toBe(false);
+    expect(isOwnAvatarPath(path, 'lecturer-1')).toBe(false);
+  });
 });

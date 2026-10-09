@@ -47,7 +47,11 @@ export async function checkPwnedPassword(password, { fetchImpl = globalThis.fetc
 
     const response = await Promise.race([
       fetchImpl(`${HIBP_RANGE_URL}${prefix}`, { headers: { 'Add-Padding': 'true' } }),
-      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('HIBP timeout')), timeoutMs); }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('HIBP timeout')), timeoutMs);
+        // A slow lookup must not keep the test runner alive after the caller has moved on.
+        if (typeof timer.unref === 'function') timer.unref();
+      }),
     ]);
     if (!response.ok) throw new Error(`HIBP status ${response.status}`);
 

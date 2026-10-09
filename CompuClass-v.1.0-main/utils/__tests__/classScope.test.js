@@ -29,3 +29,35 @@ describe('class scope filtering', () => {
     expect(filterByClassScope(rows, { ready: false })).toBe(rows);
   });
 });
+
+describe('class-scoped documents, folders, and announcements', () => {
+  const documents = [
+    { id: 'handout', class_id: null, lecturer_id: 'lecturer-9' },
+    { id: 'enrolled', class_id: 'class-a', lecturer_id: 'lecturer-9' },
+    { id: 'teaching', class_id: 'class-b', lecturer_id: 'lecturer-9' },
+    { id: 'owned', class_id: 'class-c', lecturer_id: 'lecturer-1' },
+    { id: 'hidden', class_id: 'class-c', lecturer_id: 'lecturer-9' },
+  ];
+  const folders = documents.map((row) => ({ ...row, id: `folder-${row.id}` }));
+  const announcements = [
+    { id: 'everyone', class_id: null },
+    { id: 'enrolled', class_id: 'class-a' },
+    { id: 'teaching', class_id: 'class-b' },
+    { id: 'other-class', class_id: 'class-c' },
+  ];
+
+  it('keeps materials for every class, an enrolled class, a taught class, or the owner', () => {
+    expect(filterByClassScope(documents, scope).map((row) => row.id)).toEqual(['handout', 'enrolled', 'teaching', 'owned']);
+    expect(filterByClassScope(folders, scope).map((row) => row.id)).toEqual(['folder-handout', 'folder-enrolled', 'folder-teaching', 'folder-owned']);
+  });
+
+  it('hides an announcement for another class because announcements have no owner', () => {
+    expect(filterByClassScope(announcements, scope).map((row) => row.id)).toEqual(['everyone', 'enrolled', 'teaching']);
+    expect(visibleInClassScope({ id: 'other-class', class_id: 'class-c' }, scope)).toBe(false);
+  });
+
+  it('leaves documents and announcements unfiltered when membership could not be loaded', () => {
+    expect(filterByClassScope(documents, { ready: false })).toBe(documents);
+    expect(filterByClassScope(announcements, { ready: false })).toBe(announcements);
+  });
+});

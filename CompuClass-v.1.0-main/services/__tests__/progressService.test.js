@@ -85,3 +85,66 @@ describe('syncProgressOnSignIn', () => {
     );
   });
 });
+
+describe('progressService offline queue', () => {
+  beforeEach(async () => {
+    jest.useFakeTimers();
+    await AsyncStorage.clear();
+    progressService._remote = null;
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    progressService._remote = null;
+  });
+
+  function remote(upsert) {
+    progressService._remote = {
+      auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
+      from: () => ({ upsert }),
+    };
+  }
+
+  it('writes locally at once and sends only the latest value after the debounce', async () => {
+    const upsert = jest.fn(async () => ({ error: null }));
+    remote(upsert);
+
+    await progressService.set(PROGRESS_KEYS.pcAssembly, { installed: ['cpu'] });
+    expect(JSON.parse(await AsyncStorage.getItem(PROGRESS_KEYS.pcAssembly))).toEqual({ installed: ['cpu'] });
+    expect(upsert).not.toHaveBeenCalled();
+
+    await progressService.set(PROGRESS_KEYS.pcAssembly, { installed: ['cpu', 'ram'] });
+    await jest.advanceTimersByTimeAsync(399);
+    expect(upsert).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-1',
+        key: PROGRESS_KEYS.pcAssembly,
+        value: { installed: ['cpu', 'ram'] },
+      }),
+      { onConflict: 'user_id,key' },
+    );
+  });
+
+  it('keeps the local copy when the account write fails', async () => {
+    const upsert = jest.fn(async () => { throw new Error('offline'); });
+    remote(upsert);
+    await progressService.set(PROGRESS_KEYS.pcLab, { currentStep: 2 });
+    await jest.advanceTimersByTimeAsync(400);
+    expect(JSON.parse(await AsyncStorage.getItem(PROGRESS_KEYS.pcLab))).toEqual({ currentStep: 2 });
+  });
+
+  it('does not send a value that is 100KB or larger', async () => {
+    const upsert = jest.fn(async () => ({ error: null }));
+    remote(upsert);
+    const huge = { blob: 'x'.repeat(MAX_PROGRESS_BYTES) };
+    await progressService.set(PROGRESS_KEYS.pcAssembly, huge);
+    await jest.advanceTimersByTimeAsync(400);
+    expect(upsert).not.toHaveBeenCalled();
+    expect(JSON.parse(await AsyncStorage.getItem(PROGRESS_KEYS.pcAssembly)).blob).toHaveLength(MAX_PROGRESS_BYTES);
+  });
+});

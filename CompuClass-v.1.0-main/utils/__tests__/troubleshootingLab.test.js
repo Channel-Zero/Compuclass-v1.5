@@ -1,5 +1,6 @@
 import { TROUBLESHOOTING_SCENARIOS, LAB_CATEGORIES, scenarioProblems } from '../../data/troubleshootingScenarios';
 import {
+  SCORE,
   applyCheck,
   canCommit,
   commitDiagnosis,
@@ -46,6 +47,15 @@ describe('troubleshooting score', () => {
     expect(xpForAttempt(40, 80)).toBe(40);
     expect(xpForAttempt(80, 80)).toBe(0);
     expect(xpForAttempt(90, 80)).toBe(0);
+  });
+
+  it('charges 25 points for each hint and never awards XP without a better score', () => {
+    const plain = scoreAttempt({ difficulty: 'medium', checksUsed: 1, hintsTaken: 0, correct: true });
+    const hinted = scoreAttempt({ difficulty: 'medium', checksUsed: 1, hintsTaken: 1, correct: true });
+    expect(plain - hinted).toBe(SCORE.hintCost);
+    expect(SCORE.hintCost).toBe(25);
+    expect(xpForAttempt(hinted, hinted)).toBe(0);
+    expect(xpForAttempt(hinted - 1, hinted)).toBe(1);
   });
 });
 
