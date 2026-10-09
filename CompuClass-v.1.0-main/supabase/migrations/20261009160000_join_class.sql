@@ -46,9 +46,13 @@ END $$;
 
 ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS join_code text;
 
+-- SECURITY DEFINER so the uniqueness check sees every class, not only the
+-- rows the inserting lecturer can read. authenticated cannot call this
+-- directly (revoked below). The insert trigger is the caller.
 CREATE OR REPLACE FUNCTION public.generate_class_join_code()
 RETURNS text
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
@@ -72,9 +76,14 @@ $$;
 
 REVOKE ALL ON FUNCTION public.generate_class_join_code() FROM PUBLIC, anon, authenticated;
 
+-- SECURITY DEFINER so a lecturer insert can call generate_class_join_code
+-- after that function is revoked from authenticated. Without this, creating
+-- a class fails with permission denied for function generate_class_join_code.
+-- authenticated still cannot call this function directly.
 CREATE OR REPLACE FUNCTION public.classes_set_join_code()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
