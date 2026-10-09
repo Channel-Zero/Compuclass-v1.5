@@ -35,6 +35,7 @@ describe('storagePathFromStoredValue', () => {
   it('keeps an object path stored for a new upload', () => {
     expect(storagePathFromStoredValue('lecturer-1/171000_notes.pdf')).toBe('lecturer-1/171000_notes.pdf');
     expect(storagePathFromStoredValue('/lecturer-1/171000_notes.pdf')).toBe('lecturer-1/171000_notes.pdf');
+    expect(storagePathFromStoredValue('lecturer-1/my notes.pdf')).toBe('lecturer-1/my notes.pdf');
   });
 
   it('rejects a URL that is not in the documents bucket', () => {

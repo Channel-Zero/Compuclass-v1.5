@@ -13,9 +13,13 @@
 -- Storage SELECT for the documents bucket is narrowed when storage.foldername
 -- exists: the caller's own folder (avatars and their uploads) or a documents
 -- row they are allowed to see whose file_url is that object. Old file_url
--- values are full public URLs, so the match is an exact path or a URL that
--- ends with /<object name>. If foldername is missing, the bucket-wide
--- signed-in SELECT is left in place and the app keeps using signed URLs.
+-- values are full public URLs, including spaces stored as %20. Before the
+-- policy swap those URLs are rewritten to the storage object name when the
+-- decoded tail is /object/public/documents/<objects.name>. The policy still
+-- accepts a leftover URL by comparing the raw value, replace(file_url,
+-- '%20', ' '), and the decoded form. If foldername is missing, the
+-- bucket-wide signed-in SELECT is left in place and the app keeps using
+-- signed URLs. The app already accepts a plain object path.
 --
 -- Preflight (read-only) is above BEGIN so it can be run on its own.
 
@@ -216,6 +220,49 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Turns a stored file_url into comparable text. %XX sequences are decoded as
+-- UTF-8. A query string or fragment is removed so a public URL can be matched
+-- to storage.objects.name. A plain object path is returned unchanged.
+CREATE OR REPLACE FUNCTION public.decode_document_file_url(p_value text)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_bytes bytea := ''::bytea;
+  v_text text := coalesce(p_value, '');
+  i integer := 1;
+  v_len integer;
+  v_ch text;
+  v_hex text;
+BEGIN
+  v_len := char_length(v_text);
+  WHILE i <= v_len LOOP
+    v_ch := substring(v_text FROM i FOR 1);
+    IF v_ch = '%' AND i + 2 <= v_len
+       AND substring(v_text FROM i + 1 FOR 2) ~ '^[0-9A-Fa-f]{2}$' THEN
+      v_hex := substring(v_text FROM i + 1 FOR 2);
+      v_bytes := v_bytes || decode(v_hex, 'hex');
+      i := i + 3;
+    ELSE
+      v_bytes := v_bytes || convert_to(v_ch, 'UTF8');
+      i := i + 1;
+    END IF;
+  END LOOP;
+  v_text := convert_from(v_bytes, 'UTF8');
+  v_text := split_part(v_text, '?', 1);
+  v_text := split_part(v_text, '#', 1);
+  RETURN v_text;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN split_part(split_part(coalesce(p_value, ''), '?', 1), '#', 1);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.decode_document_file_url(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.decode_document_file_url(text) TO authenticated;
+
 -- Storage reads. Own folder covers avatars, which have no documents row.
 -- A class file is readable when the documents row is visible to this user.
 DO $$
@@ -228,9 +275,40 @@ DECLARE
   v_known text[] := ARRAY['Signed-in users can read document files', 'Anyone can view documents'];
 BEGIN
   IF to_regclass('storage.objects') IS NULL THEN
-    RAISE NOTICE 'storage.objects is missing. Document file reads stay on signed URLs under the existing policy.';
+    RAISE NOTICE 'storage.objects is missing. Document file_url values were not rewritten, and document file reads stay on signed URLs under the existing policy.';
     RETURN;
   END IF;
+
+  -- Rewrite a public URL to the object name before the SELECT policy changes.
+  -- A second run does nothing: the stored value is no longer an http(s) URL.
+  IF to_regclass('public.documents') IS NOT NULL
+     AND EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'documents' AND column_name = 'file_url'
+     )
+     AND EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'documents' AND column_name = 'id'
+     ) THEN
+    UPDATE public.documents AS d
+    SET file_url = matched.name
+    FROM (
+      SELECT DISTINCT ON (doc.id) doc.id, obj.name
+      FROM public.documents AS doc
+      JOIN storage.objects AS obj ON obj.bucket_id = 'documents'
+      WHERE doc.file_url ~* '^https?://'
+        AND right(
+          public.decode_document_file_url(doc.file_url),
+          char_length('/object/public/documents/' || obj.name)
+        ) = '/object/public/documents/' || obj.name
+      ORDER BY doc.id, char_length(obj.name) DESC
+    ) AS matched
+    WHERE d.id = matched.id
+      AND d.file_url IS DISTINCT FROM matched.name;
+  ELSE
+    RAISE NOTICE 'public.documents.file_url could not be rewritten to storage object names. The SELECT policy still accepts an encoded public URL.';
+  END IF;
+
   IF to_regprocedure('storage.foldername(text)') IS NULL THEN
     RAISE NOTICE 'storage.foldername(text) is missing. The documents bucket SELECT was not changed. The app still opens files with signed URLs, and any signed-in user who can call createSignedUrl can still read any object in the bucket.';
     RETURN;
@@ -289,7 +367,11 @@ BEGIN
           WHERE d.file_url IS NOT NULL
             AND (
               d.file_url = name
+              OR replace(d.file_url, '%20', ' ') = name
+              OR public.decode_document_file_url(d.file_url) = name
               OR right(d.file_url, char_length(name) + 1) = '/' || name
+              OR right(replace(d.file_url, '%20', ' '), char_length(name) + 1) = '/' || name
+              OR right(public.decode_document_file_url(d.file_url), char_length(name) + 1) = '/' || name
             )
             AND (
               d.class_id IS NULL
