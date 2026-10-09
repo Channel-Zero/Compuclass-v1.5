@@ -48,6 +48,8 @@ import { setPageMeta } from './utils/pageMeta';
 
 import { authService } from './services/authService';
 import { supabase } from './config/supabase';
+import { sessionCheckDecision } from './utils/sessionCheck';
+import { isUnknownWebPath as pathIsUnknown, linkingConfig } from './utils/webRoutes';
 import { ThemeProvider } from './context/ThemeContext';
 import { useOffline } from './hooks/useOffline';
 
@@ -56,11 +58,10 @@ installWebAlert();
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Web only: the app is served entirely from "/", so any other path is a 404.
+// Web only: known screen paths open after login. Any other path is a 404.
 const ONBOARDING_KEY = 'onboardingComplete';
-const KNOWN_WEB_PATHS = ['', '/', '/index.html'];
 const isUnknownWebPath = () =>
-  Platform.OS === 'web' && typeof window !== 'undefined' && !KNOWN_WEB_PATHS.includes(window.location.pathname);
+  Platform.OS === 'web' && typeof window !== 'undefined' && pathIsUnknown(window.location.pathname);
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const WHITE = '#FFFFFF';
 const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563';
@@ -180,6 +181,7 @@ function AppContent() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [offlineStartup, setOfflineStartup] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [notFound] = useState(isUnknownWebPath);
@@ -241,19 +243,35 @@ function AppContent() {
     try {
       const seenOnboarding = await AsyncStorage.getItem(ONBOARDING_KEY);
       if (seenOnboarding === '1') setIsFirstLaunch(false);
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
       if (session) {
         const user = await authService.getCurrentUser();
         if (user) {
           setUserRole(user.profile?.role || 'student');
           setIsLoggedIn(true);
           setIsFirstLaunch(false);
+          setOfflineStartup(false);
         }
       } else {
         await authService.signOut();
+        setIsLoggedIn(false);
+        setOfflineStartup(false);
       }
     } catch (error) {
-      await authService.signOut();
+      if (sessionCheckDecision(error) === 'signOut') {
+        await authService.signOut();
+        setIsLoggedIn(false);
+        setOfflineStartup(false);
+      } else {
+        setOfflineStartup(true);
+        const cached = await authService.getOfflineUser();
+        if (cached) {
+          setUserRole(cached.profile?.role || 'student');
+          setIsLoggedIn(true);
+          setIsFirstLaunch(false);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -297,6 +315,17 @@ function AppContent() {
 
   if (loading) return null;
 
+  if (offlineStartup && !isLoggedIn) return (
+    <View style={styles.offlineGate}>
+      <StatusBar style="dark" />
+      <Text style={styles.offlineTitle}>You're offline</Text>
+      <Text style={styles.offlineText}>We couldn't check your session. Connect and try again. You have not been signed out.</Text>
+      <TouchableOpacity style={styles.offlineBtn} onPress={() => { setLoading(true); checkUser(); }} accessibilityRole="button">
+        <Text style={styles.offlineBtnText}>Try again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (isFirstLaunch) return (
     <>
       <StatusBar style="light" />
@@ -332,11 +361,18 @@ function AppContent() {
         <NavigationContainer
           ref={navigationRef}
           documentTitle={{ enabled: false }}
+          linking={{
+            prefixes: [Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : 'compuclass://'],
+            config: linkingConfig(userRole),
+          }}
           onReady={syncRoute}
           onStateChange={syncRoute}
         >
           <View style={{ flex: 1 }}>
             <StatusBar style="dark" backgroundColor={WHITE} />
+            {offlineStartup && (
+              <Text style={styles.offlineBanner}>You're offline. Some features need a connection.</Text>
+            )}
             <Tab.Navigator
               tabBar={props => <CustomTabBar {...props} />}
               screenOptions={({ route }) => ({
@@ -440,7 +476,13 @@ const styles = StyleSheet.create({
   headerLogoWrap: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   headerAppName: { fontSize: 17, fontWeight: '900', color: TEXT },
   headerTagline: { fontSize: 11, color: MUTED, marginTop: 1 },
-  menuBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: BLUE + '12', alignItems: 'center', justifyContent: 'center' },
+  menuBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: BLUE + '12', alignItems: 'center', justifyContent: 'center' },
+  offlineGate: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: WHITE },
+  offlineTitle: { fontSize: 22, fontWeight: '900', color: TEXT, marginBottom: 8 },
+  offlineText: { fontSize: 15, color: MUTED, textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  offlineBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: 20, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
+  offlineBtnText: { color: WHITE, fontWeight: '800', fontSize: 16 },
+  offlineBanner: { backgroundColor: '#FEF3C7', color: TEXT, textAlign: 'center', paddingVertical: 8, paddingHorizontal: 12, fontSize: 13, fontWeight: '700' },
 });
 
 export default function App() {
