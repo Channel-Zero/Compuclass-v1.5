@@ -3,6 +3,10 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvo
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../config/supabase';
+import { limiters, RateLimitError } from '../utils/rateLimiter';
+import { getErrorMessage } from '../utils/errorMessages';
+import { logSecurityEvent, maskEmail } from '../utils/securityLog';
+import { validateNewPassword, PASSWORD_HINT, PASSWORD_MAX_LENGTH } from '../utils/passwordPolicy';
 
 const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
@@ -20,12 +24,19 @@ export default function ForgotPasswordScreen({ onBackToLogin }) {
     if (!email.trim()) { Alert.alert('Error', 'Please enter your email'); return; }
     setLoading(true);
     try {
+      await limiters.passwordResetSend.consume(email.trim());
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, { context: 'passwordResetSend' }));
+      setLoading(false);
+      return;
+    }
+    try {
       const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
       if (error) throw error;
       Alert.alert('Code Sent', `A 6-digit code has been sent to ${email}`);
       setStep(2);
     } catch (error) {
-      Alert.alert('Error', error.message === 'Signups not allowed for otp' ? 'No account found with this email' : error.message);
+      Alert.alert('Error', error.message === 'Signups not allowed for otp' ? 'No account found with this email' : getErrorMessage(error, { context: 'passwordResetSend' }));
     } finally { setLoading(false); }
   };
 
@@ -33,24 +44,45 @@ export default function ForgotPasswordScreen({ onBackToLogin }) {
     if (!code.trim()) { Alert.alert('Error', 'Please enter the code'); return; }
     setLoading(true);
     try {
+      const { allowed, retryAfterMs } = await limiters.passwordResetVerify.check(email);
+      if (!allowed) {
+        logSecurityEvent('password_reset_verify_blocked_locked_out', { email: maskEmail(email), retryAfterSeconds: Math.ceil(retryAfterMs / 1000) });
+        throw new RateLimitError(retryAfterMs);
+      }
       const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
       if (error) throw error;
+      await limiters.passwordResetVerify.reset(email);
       setStep(3);
-    } catch { Alert.alert('Error', 'Invalid or expired code. Please try again.'); }
+    } catch (error) {
+      if (error instanceof RateLimitError) {
+        Alert.alert('Error', error.userMessage);
+      } else {
+        getErrorMessage(error, { context: 'passwordResetVerify' });
+        const result = await limiters.passwordResetVerify.recordFailure(email);
+        logSecurityEvent('password_reset_code_failed', { email: maskEmail(email), recentFailures: result.failures });
+        if (result.lockedNow) {
+          logSecurityEvent('password_reset_lockout', { email: maskEmail(email), lockoutSeconds: Math.ceil(result.retryAfterMs / 1000) });
+          Alert.alert('Error', new RateLimitError(result.retryAfterMs).userMessage);
+        } else {
+          Alert.alert('Error', 'Invalid or expired code. Please try again.');
+        }
+      }
+    }
     finally { setLoading(false); }
   };
 
   const handleResetPassword = async () => {
     if (!newPassword || !confirmPassword) { Alert.alert('Error', 'Please fill all fields'); return; }
-    if (newPassword.length < 6) { Alert.alert('Error', 'Password must be at least 6 characters'); return; }
     if (newPassword !== confirmPassword) { Alert.alert('Error', 'Passwords do not match'); return; }
     setLoading(true);
     try {
+      const passwordProblems = await validateNewPassword(newPassword, { email });
+      if (passwordProblems.length > 0) { Alert.alert('Choose a stronger password', passwordProblems.join('\n')); return; }
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       await supabase.auth.signOut();
       Alert.alert('Success', 'Password reset successfully! Please log in.', [{ text: 'OK', onPress: onBackToLogin }]);
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'passwordReset' })); }
     finally { setLoading(false); }
   };
 
@@ -108,11 +140,12 @@ export default function ForgotPasswordScreen({ onBackToLogin }) {
             <>
               <View style={styles.inputWrap}>
                 <Ionicons name="lock-closed-outline" size={18} color={MUTED} />
-                <TextInput style={styles.input} placeholder="New Password" placeholderTextColor={MUTED} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showPassword} />
+                <TextInput style={styles.input} placeholder="New Password" placeholderTextColor={MUTED} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showPassword} maxLength={PASSWORD_MAX_LENGTH} />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={18} color={MUTED} />
                 </TouchableOpacity>
               </View>
+              <Text style={styles.passwordHint}>{PASSWORD_HINT}</Text>
               <View style={styles.inputWrap}>
                 <Ionicons name="lock-closed-outline" size={18} color={MUTED} />
                 <TextInput style={styles.input} placeholder="Confirm New Password" placeholderTextColor={MUTED} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showPassword} />
@@ -141,6 +174,7 @@ const styles = StyleSheet.create({
   stepDot: { width: 40, height: 6, borderRadius: 3, backgroundColor: '#E5E7EB' },
   inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderWidth: 2, borderColor: BORDER, borderRadius: 14, paddingHorizontal: 14, height: 54, marginBottom: 14, gap: 10 },
   input: { flex: 1, color: TEXT, fontSize: 15 },
+  passwordHint: { color: MUTED, fontSize: 12, marginTop: -6, marginBottom: 14, marginLeft: 4, lineHeight: 16 },
   ctaBtn: { backgroundColor: BLUE, height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 12, shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   ctaText: { color: WHITE, fontSize: 16, fontWeight: '800' },
   resendBtn: { alignItems: 'center', marginTop: 4 },

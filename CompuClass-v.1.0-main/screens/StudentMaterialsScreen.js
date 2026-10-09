@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { supabase } from '../config/supabase';
-
+import { openRemoteDocument } from '../utils/fileDownload';
+import { getErrorMessage } from '../utils/errorMessages';
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
-const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const MUTED = '#4B5563'; const CARD = '#FFFFFF';
 
 export default function StudentMaterialsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [documents, setDocuments] = useState([]);
@@ -27,75 +27,59 @@ export default function StudentMaterialsScreen({ navigation }) {
       const { data, error } = await supabase.from('folders').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       setFolders(data);
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials' })); }
   };
 
   const loadFolderContent = async (folderId) => {
     try {
       const [docsRes, quizzesRes] = await Promise.all([
         supabase.from('documents').select('*').eq('folder_id', folderId),
-        supabase.from('quizzes').select('*, quiz_questions(*)').eq('folder_id', folderId),
+        // Only the question count is displayed here — fetch ids, not full rows,
+        // so correct_answer never reaches a student's device for quizzes they
+        // haven't started yet.
+        supabase.from('quizzes').select('*, quiz_questions(id)').eq('folder_id', folderId),
       ]);
       if (docsRes.error) throw docsRes.error;
       if (quizzesRes.error) throw quizzesRes.error;
       setDocuments(docsRes.data);
       setQuizzes(quizzesRes.data);
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials' })); }
   };
 
   const openDocument = async (doc) => {
     try {
       if (!doc.file_url) { Alert.alert('Error', 'No file URL available'); return; }
-      const fileName = doc.file_name || `${doc.title}.pdf`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-      const result = await FileSystem.downloadAsync(doc.file_url, fileUri);
-      if (result.status === 200) {
-        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri);
-        else Alert.alert('Success', 'File downloaded');
-      } else { Alert.alert('Error', 'Download failed'); }
-    } catch (error) { Alert.alert('Error', error.message || 'Failed to download document'); }
+      const outcome = await openRemoteDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
+      if (outcome === 'downloaded') Alert.alert('Success', 'File downloaded');
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials', fallback: 'Failed to download document' })); }
   };
 
   if (selectedFolder) return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: BG }]}>
       <LinearGradient colors={[PURPLE, '#7C3AED']} style={[styles.folderHeader, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => setSelectedFolder(null)} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color={WHITE} />
-        </TouchableOpacity>
-        <View style={styles.folderHeaderIcon}>
-          <Ionicons name="folder-open" size={22} color={WHITE} />
-        </View>
+        <TouchableOpacity onPress={() => setSelectedFolder(null)} style={styles.backBtn}><Ionicons name="arrow-back" size={20} color={WHITE} /></TouchableOpacity>
+        <View style={styles.folderHeaderIcon}><Ionicons name="folder-open" size={22} color={WHITE} /></View>
         <Text style={styles.folderHeaderTitle}>{selectedFolder.name}</Text>
       </LinearGradient>
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-        <Text style={styles.sectionLabel}>Documents</Text>
+        <Text style={[styles.sectionLabel, { color: MUTED }]}>Documents</Text>
         {documents.length === 0
-          ? <Text style={styles.emptyText}>No documents in this folder</Text>
+          ? <Text style={[styles.emptyText, { color: MUTED }]}>No documents in this folder</Text>
           : documents.map((doc) => (
-            <TouchableOpacity key={doc.id} style={styles.itemCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openDocument(doc); }} activeOpacity={0.75}>
-              <View style={[styles.itemIconWrap, { backgroundColor: PURPLE }]}>
-                <Ionicons name="document-text" size={18} color={WHITE} />
-              </View>
-              <Text style={styles.itemTitle}>{doc.title}</Text>
-              <View style={styles.downloadBadge}>
-                <Ionicons name="download-outline" size={14} color={PURPLE} />
-              </View>
+            <TouchableOpacity key={doc.id} style={[styles.itemCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openDocument(doc); }} activeOpacity={0.75}>
+              <View style={[styles.itemIconWrap, { backgroundColor: PURPLE }]}><Ionicons name="document-text" size={18} color={WHITE} /></View>
+              <Text style={[styles.itemTitle, { color: TEXT }]}>{doc.title}</Text>
+              <View style={[styles.downloadBadge, { backgroundColor: PURPLE + '15' }]}><Ionicons name="download-outline" size={14} color={PURPLE} /></View>
             </TouchableOpacity>
           ))}
-
-        <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Quizzes</Text>
+        <Text style={[styles.sectionLabel, { color: MUTED, marginTop: 20 }]}>Quizzes</Text>
         {quizzes.length === 0
-          ? <Text style={styles.emptyText}>No quizzes in this folder</Text>
+          ? <Text style={[styles.emptyText, { color: MUTED }]}>No quizzes in this folder</Text>
           : quizzes.map((quiz) => (
-            <TouchableOpacity key={quiz.id} style={styles.itemCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: quiz.id }); }} activeOpacity={0.75}>
-              <View style={[styles.itemIconWrap, { backgroundColor: YELLOW }]}>
-                <Ionicons name="help-circle" size={18} color={TEXT} />
-              </View>
-              <Text style={styles.itemTitle}>{quiz.title}</Text>
-              <View style={styles.questionBadge}>
-                <Text style={styles.questionBadgeText}>{quiz.quiz_questions?.length || 0} Q</Text>
-              </View>
+            <TouchableOpacity key={quiz.id} style={[styles.itemCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: quiz.id }); }} activeOpacity={0.75}>
+              <View style={[styles.itemIconWrap, { backgroundColor: YELLOW }]}><Ionicons name="help-circle" size={18} color={TEXT} /></View>
+              <Text style={[styles.itemTitle, { color: TEXT }]}>{quiz.title}</Text>
+              <View style={[styles.questionBadge, { backgroundColor: YELLOW + '30' }]}><Text style={[styles.questionBadgeText, { color: TEXT }]}>{quiz.quiz_questions?.length || 0} Q</Text></View>
             </TouchableOpacity>
           ))}
         <View style={{ height: 32 }} />
@@ -104,32 +88,25 @@ export default function StudentMaterialsScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: BG }]}>
       <LinearGradient colors={[PURPLE, '#7C3AED']} style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <View style={styles.headerIconWrap}>
-          <Ionicons name="library" size={32} color={WHITE} />
-        </View>
+        <View style={styles.headerIconWrap}><Ionicons name="library" size={32} color={WHITE} /></View>
         <Text style={styles.headerTitle}>Learning Materials 📚</Text>
         <Text style={styles.headerSubtitle}>Browse your course folders and resources</Text>
       </LinearGradient>
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
         {folders.length === 0 ? (
           <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}>
-              <Ionicons name="folder-open" size={40} color={WHITE} />
-            </View>
-            <Text style={styles.emptyTitle}>No folders yet</Text>
-            <Text style={styles.emptySubtitle}>Your lecturer will add materials here</Text>
+            <View style={[styles.emptyIconWrap, { backgroundColor: PURPLE }]}><Ionicons name="folder-open" size={40} color={WHITE} /></View>
+            <Text style={[styles.emptyTitle, { color: TEXT }]}>No folders yet</Text>
+            <Text style={[styles.emptySubtitle, { color: MUTED }]}>Your lecturer will add materials here</Text>
           </View>
         ) : folders.map((folder) => (
-          <TouchableOpacity key={folder.id} style={styles.folderCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedFolder(folder); }} activeOpacity={0.75}>
-            <View style={styles.folderIconWrap}>
-              <Ionicons name="folder" size={26} color={WHITE} />
-            </View>
+          <TouchableOpacity key={folder.id} style={[styles.folderCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedFolder(folder); }} activeOpacity={0.75}>
+            <View style={[styles.folderIconWrap, { backgroundColor: PURPLE }]}><Ionicons name="folder" size={26} color={WHITE} /></View>
             <View style={styles.folderInfo}>
-              <Text style={styles.folderName}>{folder.name}</Text>
-              {folder.description && <Text style={styles.folderDesc}>{folder.description}</Text>}
+              <Text style={[styles.folderName, { color: TEXT }]}>{folder.name}</Text>
+              {folder.description && <Text style={[styles.folderDesc, { color: MUTED }]}>{folder.description}</Text>}
             </View>
             <Ionicons name="chevron-forward" size={18} color={MUTED} />
           </TouchableOpacity>
@@ -141,7 +118,7 @@ export default function StudentMaterialsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1 },
   header: { alignItems: 'center', paddingBottom: 32, paddingHorizontal: 20 },
   headerIconWrap: { width: 68, height: 68, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   headerTitle: { fontSize: 24, fontWeight: '900', color: WHITE, marginBottom: 6 },
@@ -157,13 +134,13 @@ const styles = StyleSheet.create({
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   emptyTitle: { fontSize: 20, fontWeight: '900', color: TEXT, marginBottom: 6 },
   emptySubtitle: { fontSize: 14, color: MUTED, fontWeight: '500' },
-  folderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 10, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  folderIconWrap: { width: 52, height: 52, borderRadius: 14, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center' },
+  folderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 16, marginBottom: 10, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  folderIconWrap: { width: 46, height: 46, borderRadius: 12, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center' },
   folderInfo: { flex: 1 },
   folderName: { fontSize: 15, fontWeight: '700', color: TEXT },
   folderDesc: { fontSize: 12, color: MUTED, marginTop: 3 },
-  itemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 14, padding: 14, marginBottom: 8, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  itemIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  itemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 16, padding: 14, marginBottom: 8, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  itemIconWrap: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   itemTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
   downloadBadge: { width: 32, height: 32, borderRadius: 10, backgroundColor: PURPLE + '15', alignItems: 'center', justifyContent: 'center' },
   questionBadge: { backgroundColor: YELLOW + '30', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },

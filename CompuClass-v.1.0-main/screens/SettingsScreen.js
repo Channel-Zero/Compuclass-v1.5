@@ -7,9 +7,12 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
 import { supabase } from '../config/supabase';
+import { saveTextFile } from '../utils/fileDownload';
+import { getErrorMessage } from '../utils/errorMessages';
 
 const BLUE = '#2563EB'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
+const CARD = '#FFFFFF';
 
 export default function SettingsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -39,13 +42,10 @@ export default function SettingsScreen({ navigation }) {
     try {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       const exportData = JSON.stringify({ user: { email: user.email, name: user.user_metadata?.full_name }, profile, exportDate: new Date().toISOString() }, null, 2);
-      const FileSystem = await import('expo-file-system');
-      const Sharing = await import('expo-sharing');
-      const fileUri = FileSystem.documentDirectory + `compuclass_data_${Date.now()}.json`;
-      await FileSystem.writeAsStringAsync(fileUri, exportData);
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(fileUri);
-      else Alert.alert('Success', 'Data exported to: ' + fileUri);
-    } catch { Alert.alert('Error', 'Failed to export data'); }
+      const outcome = await saveTextFile(`compuclass_data_${Date.now()}.json`, exportData);
+      if (outcome === 'downloaded') Alert.alert('Success', 'Your data has been downloaded.');
+      else if (outcome !== 'shared') Alert.alert('Success', 'Data exported to: ' + outcome);
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'ExportData', fallback: 'Failed to export data' })); }
   };
 
   const sections = [
@@ -65,7 +65,7 @@ export default function SettingsScreen({ navigation }) {
     {
       title: 'About',
       items: [
-        { icon: 'information-circle', label: 'About CompuClass', subtitle: 'Version 1.0.0', color: '#FACC15', onPress: () => Alert.alert('CompuClass', 'Version 1.0.0\n\nInteractive Computer Learning Platform\n\n© 2025 CompuClass') },
+        { icon: 'information-circle', label: 'About CompuClass', subtitle: 'Version 1.0.0', color: '#FACC15', onPress: () => Alert.alert('CompuClass', `Version 1.0.0\n\nInteractive Computer Learning Platform\n\n© ${new Date().getFullYear()} CompuClass`) },
       ],
     },
   ];
@@ -124,10 +124,10 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   section: { marginBottom: 20 },
   sectionLabel: { fontSize: 12, fontWeight: '800', color: MUTED, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8, marginLeft: 4 },
-  sectionCard: { backgroundColor: WHITE, borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  sectionCard: { backgroundColor: CARD, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 16 },
   row: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
-  rowIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  rowIconWrap: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   rowInfo: { flex: 1 },
   rowLabel: { fontSize: 15, fontWeight: '700', color: TEXT },
   rowSubtitle: { fontSize: 12, color: MUTED, marginTop: 2 },

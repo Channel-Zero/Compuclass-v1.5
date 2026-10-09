@@ -6,15 +6,9 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "CompuClasscom.lint123.compuclass",
+      "bundleIdentifier": "com.compuclass.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Camera access is required for AR experiences.",
@@ -28,14 +22,34 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "CompuClasscom.lint123.compuclass",
-      "permissions": ["android.permission.CAMERA"]
+      "softwareKeyboardLayoutMode": "pan",
+      "package": "com.compuclass.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.VIBRATE"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "description": "CompuClass is an interactive computer learning platform: build a PC in a virtual lab, practise Windows 11, take quizzes and track your progress.",
+      "themeColor": "#2563EB",
+      "lang": "en"
     },
     "plugins": [
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-speech-recognition",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
     ],
     "extra": {
       "eas": {

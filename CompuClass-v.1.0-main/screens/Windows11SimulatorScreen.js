@@ -4,7 +4,7 @@ import Modal from 'react-native-modal';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { useNavigation } from '@react-navigation/native';
@@ -14,6 +14,7 @@ const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
 
 export default function Windows11SimulatorScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const webViewRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [sessionId, setSessionId] = useState(null);
@@ -22,7 +23,8 @@ export default function Windows11SimulatorScreen() {
 
   useEffect(() => {
     startSession();
-    return () => { endSession(); ScreenOrientation.unlockAsync(); };
+    // unlockAsync rejects on web (no orientation lock outside fullscreen), so ignore failures like the other calls do.
+    return () => { endSession(); ScreenOrientation.unlockAsync().catch(() => {}); };
   }, []);
 
   const startSession = async () => {
@@ -63,20 +65,14 @@ export default function Windows11SimulatorScreen() {
   if (Platform.OS === 'web') return (
     <View style={styles.container}>
       {!isFullscreen && (
-        <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.header}>
-          <View style={styles.titleRow}>
-            <View style={styles.headerIconWrap}>
-              <Ionicons name="desktop" size={20} color={WHITE} />
-            </View>
-            <View>
-              <Text style={styles.headerTitle}>Windows 11 Simulator</Text>
-              <Text style={styles.headerSubtitle}>Practice in a safe environment</Text>
-            </View>
-          </View>
-          <TouchableOpacity onPress={toggleFullscreen} style={styles.iconBtn}>
+        <>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.floatingBtn, styles.floatingBackBtn, { top: insets.top + 12 }]}>
+            <Ionicons name="arrow-back" size={18} color={WHITE} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleFullscreen} style={[styles.floatingBtn, styles.floatingFullscreenBtn, { top: insets.top + 12 }]}>
             <Ionicons name="expand-outline" size={18} color={WHITE} />
           </TouchableOpacity>
-        </LinearGradient>
+        </>
       )}
       <View style={[styles.webviewContainer, isFullscreen && styles.fullscreenContainer]}>
         {isFullscreen && (
@@ -121,25 +117,17 @@ export default function Windows11SimulatorScreen() {
 
       <View style={styles.container}>
         <StatusBar hidden={false} />
-        <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.header}>
-          <View style={styles.titleRow}>
-            <View style={styles.headerIconWrap}>
-              <Ionicons name="desktop" size={20} color={WHITE} />
-            </View>
-            <View>
-              <Text style={styles.headerTitle}>Windows 11 Simulator 🖥️</Text>
-              <Text style={styles.headerSubtitle}>Practice Windows 11 in a safe environment</Text>
-            </View>
-          </View>
-          <View style={styles.headerBtns}>
-            <TouchableOpacity onPress={handleRefresh} style={styles.iconBtn}>
-              <Ionicons name="refresh-outline" size={18} color={WHITE} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={toggleFullscreen} style={styles.iconBtn}>
-              <Ionicons name="expand-outline" size={18} color={WHITE} />
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.floatingBtn, styles.floatingBackBtn, { top: insets.top + 12 }]}>
+          <Ionicons name="arrow-back" size={18} color={WHITE} />
+        </TouchableOpacity>
+        <View style={[styles.floatingBtnGroup, { top: insets.top + 12 }]}>
+          <TouchableOpacity onPress={handleRefresh} style={styles.floatingBtn}>
+            <Ionicons name="refresh-outline" size={18} color={WHITE} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleFullscreen} style={styles.floatingBtn}>
+            <Ionicons name="expand-outline" size={18} color={WHITE} />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.webviewContainer}>
           {loading && (
@@ -155,7 +143,7 @@ export default function Windows11SimulatorScreen() {
             style={styles.webview}
             onLoadStart={() => setLoading(true)}
             onLoadEnd={() => setLoading(false)}
-            onError={(e) => { Alert.alert('Error', `Failed to load: ${e.nativeEvent.description}`); setLoading(false); }}
+            onError={(e) => { console.error('[Windows11Simulator] WebView load error:', e.nativeEvent); Alert.alert('Error', 'The Windows 11 simulator failed to load. Check your internet connection and try again.'); setLoading(false); }}
             onShouldStartLoadWithRequest={(req) => !req.url.startsWith('about:')}
             javaScriptEnabled domStorageEnabled allowsFullscreenVideo
             mediaPlaybackRequiresUserAction={false} scalesPageToFit bounces={false} scrollEnabled
@@ -173,13 +161,13 @@ export default function Windows11SimulatorScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 52, paddingBottom: 14, paddingHorizontal: 16 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  headerIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 15, fontWeight: '900', color: WHITE },
-  headerSubtitle: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  headerBtns: { flexDirection: 'row', gap: 8 },
-  iconBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  floatingBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(17,24,39,0.55)', alignItems: 'center', justifyContent: 'center',
+  },
+  floatingBackBtn: { position: 'absolute', left: 16, zIndex: 1000 },
+  floatingFullscreenBtn: { position: 'absolute', right: 16, zIndex: 1000 },
+  floatingBtnGroup: { position: 'absolute', right: 16, zIndex: 1000, flexDirection: 'row', gap: 8 },
   webviewContainer: { flex: 1, backgroundColor: '#000' },
   webview: { flex: 1 },
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },

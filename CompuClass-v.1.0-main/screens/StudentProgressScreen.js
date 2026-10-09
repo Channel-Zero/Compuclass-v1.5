@@ -10,11 +10,13 @@ import {
   Modal,
   TextInput,
   FlatList,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { lecturerService } from '../services/lecturerService';
+import { getErrorMessage } from '../utils/errorMessages';
 //Student progress screen for lecturer to view student progress and add students to class. Progress data is loaded from Supabase and displayed in a list of student cards. Each card shows student's name, email, quizzes completed, average score, materials viewed and last activity. Lecturer can tap on a student card to view more details in a modal. Lecturer can also add new students by entering their email in a modal form.
 export default function StudentProgressScreen({ navigation }) {
   const { theme } = useTheme();
@@ -42,7 +44,7 @@ export default function StudentProgressScreen({ navigation }) {
       const data = await lecturerService.getStudents();
       setStudents(data);
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', getErrorMessage(error, { context: 'StudentProgress' }));
     }
   };
 
@@ -68,7 +70,7 @@ export default function StudentProgressScreen({ navigation }) {
       loadStudents();
       Alert.alert('Success', 'Student added successfully');
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', getErrorMessage(error, { context: 'StudentProgress' }));
     } finally {
       setLoading(false);
     }
@@ -255,9 +257,21 @@ export default function StudentProgressScreen({ navigation }) {
               <ScrollView style={styles.detailContent}>
                 <View style={styles.detailSection}>
                   <Text style={[styles.sectionTitle, { color: theme.text }]}>Contact Info</Text>
-                  <Text style={[styles.detailText, { color: theme.textSecondary }]}>
-                    {selectedStudent.email}
-                  </Text>
+                  {selectedStudent.email ? (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(`mailto:${encodeURIComponent(selectedStudent.email).replace('%40', '@')}`).catch(() => Alert.alert('Error', 'No email app is available on this device.'))}
+                      accessibilityRole="link"
+                      accessibilityLabel={`Email ${selectedStudent.email}`}
+                      style={styles.emailLink}
+                    >
+                      <Ionicons name="mail-outline" size={16} color={theme.primary} />
+                      <Text style={[styles.detailText, { color: theme.primary, textDecorationLine: 'underline' }]}>
+                        {selectedStudent.email}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={[styles.detailText, { color: theme.textSecondary }]}>No email on file</Text>
+                  )}
                 </View>
                 
                 <View style={styles.detailSection}>
@@ -421,6 +435,7 @@ const styles = StyleSheet.create({
   detailSection: { marginBottom: 20 },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
   detailText: { fontSize: 14 },
+  emailLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 },
   progressDetails: { gap: 12 },
   progressItem: {
     flexDirection: 'row',

@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Dimensions, Animated } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Animated, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import RealAR from '../components/RealAR';
@@ -12,10 +11,8 @@ import CPUAR from '../components/CPUAR';
 import GPUAR from '../components/GPUAR';
 import PSUAR from '../components/PSUAR';
 
-const { width } = Dimensions.get('window');
 const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
-const CARD_W = (width - 56) / 2;
 
 const components = [
   { id: 'motherboard', name: 'Motherboard',  icon: 'hardware-chip',    color: '#2563EB' },
@@ -30,6 +27,14 @@ const steps = ['Install Motherboard', 'Install CPU', 'Install RAM', 'Install Gra
 
 export default function PCLabScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  // Live width/height so the grid and AR viewer follow window resizes and
+  // adapt to tablets/laptops, not just phone-sized viewports.
+  const { width, height } = useWindowDimensions();
+  const contentWidth = Math.min(width, 960);
+  const numColumns = width < 500 ? 2 : width < 900 ? 3 : 4;
+  const cardGap = 16;
+  const cardWidth = (contentWidth - 32 - cardGap * (numColumns - 1)) / numColumns;
+  const arHeight = Math.min(480, Math.max(260, height * 0.4));
   const [selectedComponents, setSelectedComponents] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -124,43 +129,18 @@ export default function PCLabScreen({ navigation }) {
     </View>
   );
 
-  const progress = (selectedComponents.length / steps.length) * 100;
-
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
-      <LinearGradient colors={[GREEN, '#16A34A']} style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        {/* No back button — PC Lab is a tab screen. Show menu icon instead */}
-        <View style={styles.headerContent}>
-          <Ionicons name="desktop" size={22} color={WHITE} />
-          <Text style={styles.headerTitle}>Interactive PC Building Lab 🖥️</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.infoBtn}
-          onPress={() => { setIsFullscreen(true); setShowInstructions(true); }}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="information-circle-outline" size={22} color={WHITE} />
-        </TouchableOpacity>
-      </LinearGradient>
+    <View style={styles.container}>
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={[styles.floatingBackBtn, { top: insets.top + 12 }]}
+        activeOpacity={0.75}
+      >
+        <Ionicons name="arrow-back" size={22} color={WHITE} />
+      </TouchableOpacity>
 
-      {/* Build progress */}
-      <View style={styles.progressSection}>
-        <View style={styles.progressLabelRow}>
-          <Text style={styles.progressLabel}>Build Progress</Text>
-          <Text style={styles.progressPct}>{selectedComponents.length}/{steps.length} parts</Text>
-        </View>
-        <View style={styles.progressBarBg}>
-          <Animated.View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-        </View>
-        {currentStep < steps.length && (
-          <View style={styles.nextStepHint}>
-            <Ionicons name="arrow-forward-circle" size={16} color={GREEN} />
-            <Text style={styles.nextStepText}>Next: {steps[currentStep]}</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.content}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+      <View style={[styles.content, { maxWidth: 960, width: '100%', alignSelf: 'center', marginTop: insets.top + 64 }]}>
         {/* 3D Model */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>3D PC Model</Text>
@@ -173,7 +153,7 @@ export default function PCLabScreen({ navigation }) {
             <Text style={styles.expandText}>Fullscreen</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.arContainer}><RealAR /></View>
+        <View style={[styles.arContainer, { height: arHeight }]}><RealAR /></View>
 
         {/* Components */}
         <Text style={[styles.sectionTitle, { marginTop: 20, marginBottom: 12 }]}>Available Components</Text>
@@ -181,7 +161,7 @@ export default function PCLabScreen({ navigation }) {
           {components.map((component, index) => {
             const installed = selectedComponents.includes(component.id);
             return (
-              <Animated.View key={component.id} style={{ transform: [{ scale: cardScales[index] }], width: CARD_W }}>
+              <Animated.View key={component.id} style={{ transform: [{ scale: cardScales[index] }], width: cardWidth }}>
                 <TouchableOpacity
                   style={[styles.componentCard, installed && styles.componentInstalled]}
                   onPress={() => handleComponentPress(component.id, index)}
@@ -203,31 +183,25 @@ export default function PCLabScreen({ navigation }) {
           })}
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16, paddingHorizontal: 16, gap: 12 },
-  headerContent: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  headerTitle: { fontSize: 15, fontWeight: '800', color: WHITE, flex: 1 },
-  infoBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  progressSection: { backgroundColor: WHITE, margin: 16, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  progressLabel: { fontSize: 13, fontWeight: '800', color: TEXT },
-  progressPct: { fontSize: 13, fontWeight: '700', color: GREEN },
-  progressBarBg: { height: 10, backgroundColor: '#E5E7EB', borderRadius: 5, overflow: 'hidden', marginBottom: 10 },
-  progressBarFill: { height: '100%', backgroundColor: GREEN, borderRadius: 5 },
-  nextStepHint: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  nextStepText: { fontSize: 12, color: GREEN, fontWeight: '700' },
+  floatingBackBtn: {
+    position: 'absolute', left: 16, zIndex: 10,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(17,24,39,0.55)', alignItems: 'center', justifyContent: 'center',
+  },
   content: { paddingHorizontal: 16 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '800', color: TEXT },
   expandBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, backgroundColor: GREEN + '20', borderRadius: 10 },
   expandText: { fontSize: 12, fontWeight: '700', color: GREEN },
-  arContainer: { height: 300, borderRadius: 16, overflow: 'hidden', borderWidth: 3, borderColor: GREEN },
-  componentsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  arContainer: { borderRadius: 16, overflow: 'hidden', borderWidth: 3, borderColor: GREEN },
+  componentsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   componentCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 3, position: 'relative' },
   componentInstalled: { opacity: 0.5 },
   componentIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
@@ -237,7 +211,7 @@ const styles = StyleSheet.create({
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },
   fullscreenBackBtn: { position: 'absolute', left: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 10 },
   instructionsOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 2 },
-  instructionsCard: { backgroundColor: WHITE, borderRadius: 20, padding: 24, marginHorizontal: 24, width: width - 48 },
+  instructionsCard: { backgroundColor: WHITE, borderRadius: 20, padding: 24, marginHorizontal: 24, alignSelf: 'stretch', maxWidth: 520 },
   instructionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   instructionsTitle: { fontSize: 17, fontWeight: '800', color: TEXT },
   instructionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 12 },
