@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../config/supabase';
+import { mergeTroubleshootingProgress } from '../utils/troubleshootingLab';
 
 // Keys stored for the signed-in person. The maze and chat keys match the
 // AsyncStorage keys already cleared on sign-out.
@@ -9,6 +10,7 @@ export const PROGRESS_KEYS = {
   circuitMaze: 'circuitMazeProgress:v1',
   compuRunner: 'compurunner',
   compuBot: 'compubot_chat_history',
+  troubleshooting: 'troubleshooting_lab',
 };
 
 export const MAX_PROGRESS_BYTES = 100 * 1024;
@@ -195,6 +197,20 @@ export async function syncProgressOnSignIn(keys = Object.values(PROGRESS_KEYS)) 
       const local = await localEnvelope(key);
       const remoteRow = rows.find((row) => row.key === key);
       const remote = remoteRow ? { value: remoteRow.value, updated_at: remoteRow.updated_at } : null;
+      if (key === PROGRESS_KEYS.troubleshooting) {
+        if (!local && !remote) continue;
+        const merged = mergeTroubleshootingProgress(local?.value, remote?.value);
+        const mergedJson = JSON.stringify(merged);
+        const stamp = new Date().toISOString();
+        if (mergedJson !== JSON.stringify(local?.value ?? null)) {
+          await AsyncStorage.setItem(key, mergedJson);
+          await writeMeta(key, stamp);
+        }
+        if (mergedJson !== JSON.stringify(remote?.value ?? null)) {
+          await writeRemote(key, merged, stamp);
+        }
+        continue;
+      }
       const winner = mergeByUpdatedAt(local, remote);
       if (!winner) continue;
       if (winner === remote) {

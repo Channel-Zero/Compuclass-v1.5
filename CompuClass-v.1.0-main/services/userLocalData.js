@@ -9,6 +9,7 @@ export const PER_USER_STORAGE_KEYS = [
   'compurunner',
   'pc_assembly',
   'pc_lab',
+  'troubleshooting_lab',
   'progress_updated_at',
 ];
 
