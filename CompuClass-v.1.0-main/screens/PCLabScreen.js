@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Animated, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import StorageAR from '../components/StorageAR';
 import CPUAR from '../components/CPUAR';
 import GPUAR from '../components/GPUAR';
 import PSUAR from '../components/PSUAR';
+import { PROGRESS_KEYS, progressService } from '../services/progressService';
 
 const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#F3F4F6';
 const TEXT = '#111827'; const MUTED = '#4B5563';
@@ -37,6 +38,22 @@ export default function PCLabScreen({ navigation }) {
   const arHeight = Math.min(480, Math.max(260, height * 0.4));
   const [selectedComponents, setSelectedComponents] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
+  const progressHydrated = useRef(false);
+
+  useEffect(() => {
+    progressService.get(PROGRESS_KEYS.pcLab).then((saved) => {
+      progressHydrated.current = true;
+      if (saved && Array.isArray(saved.selectedComponents) && Number.isInteger(saved.currentStep)) {
+        setSelectedComponents(saved.selectedComponents);
+        setCurrentStep(saved.currentStep);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!progressHydrated.current) return;
+    progressService.set(PROGRESS_KEYS.pcLab, { currentStep, selectedComponents });
+  }, [currentStep, selectedComponents]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showMotherboardFullscreen, setShowMotherboardFullscreen] = useState(false);

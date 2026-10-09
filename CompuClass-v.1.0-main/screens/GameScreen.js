@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PROGRESS_KEYS, progressService } from '../services/progressService';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { gameRunnerService } from '../services/gameRunnerService';
@@ -402,6 +403,7 @@ export default function GameScreen({ navigation, route }) {
   const [lives, setLives] = useState(3);
   const [energy, setEnergy] = useState(100);
   const [collected, setCollected] = useState([]);
+  const collectedRef = useRef([]);
   const [obstacles, setObstacles] = useState([]);
   const [pickups, setPickups] = useState([]);
   const [question, setQuestion] = useState(null);
@@ -439,7 +441,12 @@ export default function GameScreen({ navigation, route }) {
   const stopMusic = () => {};
 
   useEffect(() => {
-    AsyncStorage.getItem('compurunner_highscore').then(v => { if (v) setHighScore(parseInt(v)); });
+    progressService.get(PROGRESS_KEYS.compuRunner).then(async (saved) => {
+      const legacy = await AsyncStorage.getItem('compurunner_highscore');
+      const legacyScore = legacy ? parseInt(legacy, 10) : 0;
+      const best = Math.max(Number(saved?.highScore) || 0, Number.isNaN(legacyScore) ? 0 : legacyScore);
+      if (best) setHighScore(best);
+    });
     loadLeaderboard();
   }, []);
 
@@ -492,14 +499,19 @@ export default function GameScreen({ navigation, route }) {
   const saveScore = async (finalScore) => {
     try {
       const stored = await AsyncStorage.getItem('compurunner_highscore');
-      const prev = stored ? parseInt(stored) : 0;
-      if (finalScore > prev) {
-        await AsyncStorage.setItem('compurunner_highscore', String(finalScore));
-        setHighScore(finalScore);
+      const prev = stored ? parseInt(stored, 10) : 0;
+      const saved = await progressService.get(PROGRESS_KEYS.compuRunner);
+      const unlocked = new Set(Array.isArray(saved?.unlockedIds) ? saved.unlockedIds : []);
+      collectedRef.current.forEach((item) => { if (item?.id) unlocked.add(item.id); });
+      const best = Math.max(prev, Number(saved?.highScore) || 0, finalScore);
+      if (best > prev) {
+        await AsyncStorage.setItem('compurunner_highscore', String(best));
+        setHighScore(best);
         const user = await authService.getCurrentUser();
-        if (user) await supabase.from('game_scores').upsert({ user_id: user.id, score: finalScore }, { onConflict: 'user_id' });
+        if (user) await supabase.from('game_scores').upsert({ user_id: user.id, score: best }, { onConflict: 'user_id' });
         loadLeaderboard();
       }
+      await progressService.set(PROGRESS_KEYS.compuRunner, { highScore: best, unlockedIds: [...unlocked] });
     } catch {}
   };
 
@@ -555,7 +567,7 @@ export default function GameScreen({ navigation, route }) {
     playerRotate.setValue(0); playerLean.setValue(0);
     energyAnim.setValue(100); flashAnim.setValue(0);
     setScore(0); setLives(3); setEnergy(100);
-    setObstacles([]); setPickups([]); setCollected([]);
+    setObstacles([]); setPickups([]); setCollected([]); collectedRef.current = [];
     setQuestion(null); setAnswerInput(''); setAnswerFeedback(null);
     setParticles([]); setScorePopups([]); setMilestone(null);
     setInvincibleFlash(false);
@@ -688,7 +700,11 @@ export default function GameScreen({ navigation, route }) {
     energyRef.current = Math.min(100, energyRef.current + 18);
     setEnergy(Math.floor(energyRef.current));
     Animated.timing(energyAnim, { toValue: energyRef.current, duration: 200, useNativeDriver: false }).start();
-    setCollected(prev => [...prev, pickup]);
+    setCollected(prev => {
+      const next = [...prev, pickup];
+      collectedRef.current = next;
+      return next;
+    });
     const px = LANES[pickup.lane];
     const py = GROUND_Y - 40;
     addParticle(px, py, pickup.color);

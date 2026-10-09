@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../config/supabase';
 import { assertUploadAllowed, createSignedFileUrl } from './fileAccess';
 import { clearPerUserLocalData } from './userLocalData';
+import { syncProgressOnSignIn } from './progressService';
 
 const SESSION_LIMIT_MS = 30 * 60 * 1000;
 
@@ -12,6 +13,7 @@ async function rememberSignedInUser(user) {
   if (previousId && previousId !== user?.id) await clearPerUserLocalData();
   await AsyncStorage.setItem('user', JSON.stringify(user));
   await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
+  await syncProgressOnSignIn();
 }
 
 export const authService = {
