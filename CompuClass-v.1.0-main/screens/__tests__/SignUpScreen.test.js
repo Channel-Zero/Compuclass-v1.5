@@ -4,6 +4,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import SignUpScreen from '../SignUpScreen';
 import { authService } from '../../services/authService';
 import { ThemeProvider } from '../../context/ThemeContext';
+import { limiters } from '../../utils/rateLimiter';
 
 const renderScreen = (ui) => render(ui, { wrapper: ThemeProvider });
 
@@ -20,12 +21,28 @@ const fill = (utils, { name = 'Test Student', email = 'new.student@compuclass.te
 };
 
 describe('SignUpScreen password policy', () => {
-  beforeEach(() => {
+  // Jest's own 5s limit matches the breach-check timer and waitFor, so a cold
+  // first run can be killed while validation is still finishing.
+  jest.setTimeout(15000);
+
+  beforeEach(async () => {
+    jest.useRealTimers();
+    jest.clearAllTimers();
     jest.clearAllMocks();
+    // The sign-up limiter lives in a module Map. A previous run in this worker
+    // can still be inside the 5-request window and fail the next attempt.
+    await limiters.signUp.reset('device');
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    // No breach hits for the strong password.
+    // Resolve immediately so the 5s breach-check timer cannot tie with waitFor.
     global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => '' });
     authService.signUp.mockResolvedValue({ user: { id: 'new' } });
+  });
+
+  afterEach(async () => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    await limiters.signUp.reset('device');
+    jest.restoreAllMocks();
   });
 
   it('rejects "password123" and never creates the account', async () => {

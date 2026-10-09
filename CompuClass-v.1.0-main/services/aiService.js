@@ -54,19 +54,11 @@ export const aiService = {
   // Extract text from different file types
   async extractTextFromFile(file) {
     try {
-      console.log('=== FILE EXTRACTION ===');
-      console.log('File name:', file.name);
-      console.log('File type:', file.mimeType);
-      console.log('File URI:', file.uri);
-      
       // Try to read as text for all file types
       try {
         const content = await readPickedFile(file);
-        console.log('Extracted text length:', content.length);
-        console.log('First 200 chars:', content.substring(0, 200));
         return content;
-      } catch (readError) {
-        console.log('Could not read as text:', readError.message);
+      } catch {
         // Fallback: use filename and ask AI to generate generic questions
         return `Generate educational quiz questions about: ${file.name.replace(/\.[^/.]+$/, '')}`;
       }
@@ -118,15 +110,9 @@ export const aiService = {
 
   async generateQuizFromPDF(file, title, questionCount = 5) {
     try {
-      console.log('=== PDF QUIZ GENERATION START ===');
-      
       // Read PDF as base64 using expo-file-system (React Native compatible)
       const base64Data = await readPickedFile(file, { base64: true });
-      
-      console.log('PDF converted to base64, length:', base64Data.length);
-
       const { questions } = await invokeAiProxy({ action: 'quiz', title, questionCount, pdfBase64: base64Data });
-      console.log('=== PDF QUIZ GENERATION SUCCESS ===');
       return toQuiz(title, questions);
     } catch (error) {
       console.error('=== PDF QUIZ GENERATION ERROR ===');

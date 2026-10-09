@@ -8,6 +8,8 @@ import { supabase } from '../config/supabase';
 import { escapeLikePattern, LIMITS } from '../utils/inputValidation';
 import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
+import { classService } from '../services/classService';
+import { filterByClassScope } from '../utils/classScope';
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
 const MUTED = '#4B5563'; const CARD = '#FFFFFF';
@@ -23,7 +25,7 @@ function SkeletonCard() {
         Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [shimmer]);
   const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
   return (
     <Animated.View style={[{ flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 14, padding: 14, marginBottom: 8, gap: 12 }, { opacity }]}>
@@ -84,7 +86,8 @@ export default function SearchScreen({ navigation }) {
       setQuizzes(counts
         ? quizzes.map((quiz) => ({ ...quiz, quiz_questions: Array.from({ length: counts[quiz.id] || 0 }) }))
         : quizzes);
-      setDocuments(docsRes.data || []);
+      const scope = await classService.classScopeForCurrentUser();
+      setDocuments(filterByClassScope(docsRes.data || [], scope));
     } catch (error) {
       if (searchId === latestSearch.current) {
         setQuizzes([]); setDocuments([]);

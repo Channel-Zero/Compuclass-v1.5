@@ -15,6 +15,7 @@ export const LOGGED_IN_WEB_SCREENS = {
   'Windows 11': 'windows',
   Troubleshoot: 'troubleshoot',
   Leaderboard: 'leaderboard',
+  JoinClass: 'join-class',
   Materials: 'materials',
   Settings: 'settings',
   Chatbot: 'chat',

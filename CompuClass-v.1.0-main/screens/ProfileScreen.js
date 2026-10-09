@@ -114,6 +114,7 @@ export default function ProfileScreen({ onLogout }) {
     { icon: "person-outline", label: "Edit Profile", color: BLUE, onPress: () => setShowEditModal(true) },
     { icon: "lock-closed-outline", label: "Change Password", color: PURPLE, onPress: () => setShowPasswordModal(true) },
     { icon: "settings-outline", label: "Settings", color: MUTED, onPress: () => navigation.navigate("Settings") },
+    ...(role === "lecturer" ? [] : [{ icon: "school-outline", label: "Join a class", color: BLUE, onPress: () => navigation.navigate("JoinClass") }]),
   ];
 
   return (

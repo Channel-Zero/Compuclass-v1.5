@@ -90,7 +90,7 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     const text = extractText(await geminiResponse.json());
-    log('info', 'ai_request_ok', { requestId, userId, action: request.action });
+    log('info', 'ai_request_ok', { requestId, action: request.action });
 
     return request.action === 'chat'
       ? json(200, { text })

@@ -131,6 +131,8 @@ export default function CircuitMazeScreen({ navigation, route }) {
   const diceNumOpacity = useRef(new Animated.Value(0)).current;
   const rollInterval   = useRef(null);
   const channelRef     = useRef(null);
+  const myIdRef        = useRef(route?.params?.myId);
+  myIdRef.current = route?.params?.myId;
 
   const theme       = LEVEL_THEMES[levelIdx];
   const topicLevels = LEVELS_BY_TOPIC[topic] || LEVELS_BY_TOPIC.networking;
@@ -160,14 +162,15 @@ export default function CircuitMazeScreen({ navigation, route }) {
   // multiplayer subscription
   useEffect(() => {
     if (!isMulti || !roomId) return;
+    const playerId = myIdRef.current;
     circuitMazeService.getRoomPlayers(roomId).then(players => {
-      setOtherPlayers(players.filter(p => p.user_id !== route?.params?.myId));
+      setOtherPlayers(players.filter(p => p.user_id !== playerId));
     });
     channelRef.current = circuitMazeService.subscribeToRoom(
       roomId,
       async () => {
         const players = await circuitMazeService.getRoomPlayers(roomId);
-        setOtherPlayers(players.filter(p => p.user_id !== route?.params?.myId));
+        setOtherPlayers(players.filter(p => p.user_id !== playerId));
       },
       () => {}
     );

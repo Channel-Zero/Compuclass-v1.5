@@ -184,7 +184,30 @@ CREATE POLICY "Lecturers can manage quiz questions" ON quiz_questions FOR ALL US
 );
 
 -- Classes policies
-CREATE POLICY "Lecturers can manage own classes" ON classes FOR ALL USING (auth.uid() = lecturer_id);
+-- Same rule as supabase/migrations/20261009200000_classes_lecturer_only.sql,
+-- which is already applied on the live project. is_lecturer() is created
+-- again by 20261006140000; it has to exist here so this policy can be installed
+-- on a brand-new database. SECURITY DEFINER avoids the profiles RLS policy.
+CREATE OR REPLACE FUNCTION public.is_lecturer()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = auth.uid()
+      AND role = 'lecturer'
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_lecturer() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_lecturer() TO authenticated;
+
+DROP POLICY IF EXISTS "Lecturers can manage own classes" ON public.classes;
+CREATE POLICY "Lecturers can manage own classes" ON public.classes FOR ALL TO authenticated USING ((select auth.uid()) = lecturer_id AND public.is_lecturer()) WITH CHECK ((select auth.uid()) = lecturer_id AND public.is_lecturer());
 CREATE POLICY "Students can view classes they belong to" ON classes FOR SELECT USING (
   EXISTS (SELECT 1 FROM class_students WHERE class_id = classes.id AND student_id = auth.uid())
 );

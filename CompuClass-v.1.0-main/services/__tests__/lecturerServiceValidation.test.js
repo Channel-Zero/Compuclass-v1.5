@@ -58,6 +58,11 @@ describe('lecturerService input validation', () => {
     expect(supabase.__inserted[0].row).toEqual({ name: "x'; DROP TABLE folders;--", description: 'desc', lecturer_id: 'lecturer-1' });
   });
 
+  it('stores a class id only when the lecturer picked a class', async () => {
+    await lecturerService.createFolder('Notes', 'desc', 'class-1');
+    expect(supabase.__inserted[0].row).toEqual({ name: 'Notes', description: 'desc', lecturer_id: 'lecturer-1', class_id: 'class-1' });
+  });
+
   it('rejects blank quiz questions instead of saving an empty quiz', async () => {
     await expect(
       lecturerService.createQuiz('f1', 'Quiz', [{ question: '', options: ['', '', '', ''], correctAnswer: 0 }])
@@ -101,6 +106,17 @@ describe('lecturerService input validation', () => {
     await lecturerService.uploadDocument('f1', { name: '../../other-user/evil.pdf', uri: 'file://x', mimeType: 'application/pdf', size: 1 }, 'Notes');
     expect(supabase.__inserted[0].row.file_name).toBe('evil.pdf');
     expect(supabase.__inserted[0].row.file_url).toMatch(/^lecturer-1\/\d+_evil\.pdf$/);
+    expect(supabase.__inserted[0].row.lecturer_id).toBe('lecturer-1');
+  });
+
+  it('does not upload when nobody is signed in', async () => {
+    supabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+    global.fetch = jest.fn();
+    await expect(
+      lecturerService.uploadDocument('f1', { name: 'notes.pdf', uri: 'file://x', mimeType: 'application/pdf', size: 1 }, 'Notes')
+    ).rejects.toThrow();
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(supabase.__inserted).toHaveLength(0);
   });
 
   it('uses the quiz uuid from save_quiz and loads question ids for timer settings', async () => {

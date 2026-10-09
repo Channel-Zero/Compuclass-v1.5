@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
 import { openStoredDocument } from '../utils/fileDownload';
+import ClassScopePicker from '../components/ClassScopePicker';
 
 export default function ContentUploadScreen({ navigation, route }) {
   const { theme } = useTheme();
@@ -26,9 +27,13 @@ export default function ContentUploadScreen({ navigation, route }) {
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [classes, setClasses] = useState([]);
+  const [classId, setClassId] = useState(null);
+  const initializeFolderRef = useRef(() => {});
 
   useEffect(() => {
-    initializeFolder();
+    initializeFolderRef.current();
+    lecturerService.getClasses().then((data) => setClasses(Array.isArray(data) ? data : [])).catch(() => setClasses([]));
   }, []);
 
   const initializeFolder = async () => {
@@ -54,6 +59,7 @@ export default function ContentUploadScreen({ navigation, route }) {
     
     loadDocuments(currentFolderId);
   };
+  initializeFolderRef.current = initializeFolder;
 
   const loadDocuments = async (folderIdToUse = folderId) => {
     try {
@@ -114,7 +120,7 @@ export default function ContentUploadScreen({ navigation, route }) {
         });
       }, 200);
 
-      await lecturerService.uploadDocument(folderId, selectedFile, title);
+      await lecturerService.uploadDocument(folderId, selectedFile, title, classId);
       
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -123,6 +129,7 @@ export default function ContentUploadScreen({ navigation, route }) {
         setShowUpload(false);
         setSelectedFile(null);
         setTitle('');
+        setClassId(null);
         setUploadProgress(0);
         loadDocuments();
         Alert.alert('Success', 'Document uploaded successfully');
@@ -291,6 +298,14 @@ export default function ContentUploadScreen({ navigation, route }) {
               placeholderTextColor={theme.textTertiary}
               value={title}
               onChangeText={setTitle}
+            />
+            <ClassScopePicker
+              classes={classes}
+              value={classId}
+              onChange={setClassId}
+              textColor={theme.text}
+              mutedColor={theme.textSecondary}
+              accent={theme.primary}
             />
 
             {loading && (

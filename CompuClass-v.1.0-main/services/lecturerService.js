@@ -2,6 +2,7 @@ import { supabase } from '../config/supabase';
 import { aiService } from './aiService';
 import { cleanText, cleanEmail, sanitizeFileName, ValidationError, LIMITS } from '../utils/inputValidation';
 import { assertUploadAllowed, storagePathFromStoredValue } from './fileAccess';
+import { buildDocumentObjectPath } from './documentUploadPath';
 import { AppError } from '../utils/errorMessages';
 
 const MAX_QUESTIONS_PER_QUIZ = 100;
@@ -38,21 +39,22 @@ function quizIdFromSaveQuiz(data) {
 }
 
 export const lecturerService = {
-  async createFolder(name, description = '') {
+  async createFolder(name, description = '', classId = null) {
     try {
       name = cleanName(name, 'Folder name');
       description = cleanDescription(description);
       const { data: { user } } = await supabase.auth.getUser();
+      const row = { name, description, lecturer_id: user.id };
+      if (classId) row.class_id = classId;
       const { data, error } = await supabase
         .from('folders')
-        .insert({ name, description, lecturer_id: user.id })
+        .insert(row)
         .select()
         .single();
       if (error) {
         console.error('❌ Create folder error:', error.message);
         throw error;
       }
-      console.log('✅ Folder created:', name);
       return data;
     } catch (error) {
       console.error('❌ Create folder exception:', error);
@@ -79,13 +81,13 @@ export const lecturerService = {
     }
   },
 
-  async uploadDocument(folderId, file, title) {
+  async uploadDocument(folderId, file, title, classId = null) {
     try {
       title = cleanText(title, { field: 'Document title', maxLength: LIMITS.title, required: true, allowMarkup: false });
       assertUploadAllowed(file);
       const safeFileName = sanitizeFileName(file?.name, 'document');
       const { data: { user } } = await supabase.auth.getUser();
-      const fileName = `${user.id}/${Date.now()}_${safeFileName}`;
+      const fileName = buildDocumentObjectPath(user.id, safeFileName);
       
       // Read file using fetch and arrayBuffer
       const response = await fetch(file.uri);
@@ -107,17 +109,19 @@ export const lecturerService = {
 
       // Store the object path. Readers request a signed URL; the bucket is private
       // after the security migration, so a public URL would stop working.
+      const documentRow = {
+        title,
+        file_url: fileName,
+        file_name: safeFileName,
+        file_type: file.mimeType,
+        file_size: file.size,
+        folder_id: folderId,
+        lecturer_id: user.id,
+      };
+      if (classId) documentRow.class_id = classId;
       const { data, error } = await supabase
         .from('documents')
-        .insert({
-          title,
-          file_url: fileName,
-          file_name: safeFileName,
-          file_type: file.mimeType,
-          file_size: file.size,
-          folder_id: folderId,
-          lecturer_id: user.id
-        })
+        .insert(documentRow)
         .select()
         .single();
       
@@ -125,7 +129,6 @@ export const lecturerService = {
         console.error('❌ Document insert error:', error.message);
         throw error;
       }
-      console.log('✅ Document uploaded:', title);
       return data;
     } catch (error) {
       console.error('❌ Upload document exception:', error);
@@ -216,7 +219,6 @@ export const lecturerService = {
         }
       }
 
-      console.log('✅ Quiz created:', title, 'with', questions.length, 'questions');
       return { id: quizId, title, folder_id: folderId, type: 'practice' };
     } catch (error) {
       console.error('❌ Create quiz exception:', error);
@@ -265,7 +267,6 @@ export const lecturerService = {
         console.error('❌ Delete folder error:', error.message);
         throw error;
       }
-      console.log('✅ Folder deleted:', folderId);
     } catch (error) {
       console.error('❌ Delete folder exception:', error);
       throw error;
@@ -309,7 +310,6 @@ export const lecturerService = {
         console.error('❌ Delete document error:', error.message);
         throw error;
       }
-      console.log('✅ Document deleted:', documentId);
     } catch (error) {
       console.error('❌ Delete document exception:', error);
       throw error;
@@ -328,7 +328,6 @@ export const lecturerService = {
         console.error('❌ Delete quiz error:', error.message);
         throw error;
       }
-      console.log('✅ Quiz deleted:', quizId);
     } catch (error) {
       console.error('❌ Delete quiz exception:', error);
       throw error;
@@ -390,7 +389,6 @@ export const lecturerService = {
         throw error;
       }
       
-      console.log('✅ Quiz shared to', classIds.length, 'classes');
       return { success: true, assignedTo: classIds.length };
     } catch (error) {
       console.error('❌ Share quiz exception:', error);
@@ -424,7 +422,6 @@ export const lecturerService = {
       const found = (students || []).find(s => s.email?.toLowerCase() === email.toLowerCase());
       if (!found) throw new AppError(`No registered student found with email: ${email}`);
       await this.assignStudentsToClass(classId, [found.id]);
-      console.log('✅ Student enrolled:', email);
       return found;
     } catch (error) {
       console.error('❌ Add student exception:', error);
@@ -435,7 +432,6 @@ export const lecturerService = {
   async getStudentProgress() {
     try {
       const students = await this.getStudents();
-      console.log('👥 Total students:', students?.length);
       
       if (!students || !Array.isArray(students)) {
         return {};
@@ -446,7 +442,6 @@ export const lecturerService = {
       for (const student of students) {
         if (!student || !student.id) continue;
         
-        console.log('🔍 Fetching progress for:', student.email, student.id);
         
         // Get quiz attempts
         const { data: quizAttempts, error: attemptsError } = await supabase
@@ -458,7 +453,6 @@ export const lecturerService = {
           console.error('❌ Quiz attempts error for', student.email, ':', attemptsError.message);
         }
         
-        console.log('📊 Quiz attempts for', student.email, ':', quizAttempts?.length || 0, quizAttempts);
         
         // Get material views
         const { data: materialViews } = await supabase
@@ -482,7 +476,6 @@ export const lecturerService = {
           lastActivity
         };
         
-        console.log('✅ Progress for', student.email, ':', progressData[student.id]);
       }
       
       return progressData;
@@ -540,7 +533,6 @@ export const lecturerService = {
         console.error('❌ Create class error:', error.message);
         throw error;
       }
-      console.log('✅ Class created:', name);
       return data;
     } catch (error) {
       console.error('❌ Create class exception:', error);
@@ -595,7 +587,6 @@ export const lecturerService = {
         throw error;
       }
       
-      console.log('✅ Assigned', studentIds.length, 'students to class');
       return { success: true };
     } catch (error) {
       console.error('❌ Assign students exception:', error);
@@ -650,7 +641,6 @@ export const lecturerService = {
         console.error('❌ Remove student error:', error.message);
         throw error;
       }
-      console.log('✅ Student removed from class');
       return { success: true };
     } catch (error) {
       console.error('❌ Remove student exception:', error);
@@ -660,7 +650,6 @@ export const lecturerService = {
 
   async getClassDetail(classId) {
     try {
-      console.log('🔍 Fetching class detail for:', classId);
       
       // Get class info
       const { data: classData, error: classError } = await supabase
@@ -706,7 +695,6 @@ export const lecturerService = {
         })
       );
       
-      console.log('✅ Class detail fetched successfully');
       return { class: classData, students };
     } catch (error) {
       console.error('❌ Get class detail exception:', error);

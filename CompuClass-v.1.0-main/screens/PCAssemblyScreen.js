@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { PROGRESS_KEYS, progressService } from '../services/progressService';
 
 const GREEN = '#22C55E'; const WHITE = '#FFFFFF'; const BG = '#E9EEF4';
 const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#D6DEE8';
@@ -158,6 +159,19 @@ export default function PCAssemblyScreen({ navigation }) {
   const isWide = width >= 700;
 
   const [installed, setInstalled] = useState([]);
+  const progressHydrated = useRef(false);
+
+  useEffect(() => {
+    progressService.get(PROGRESS_KEYS.pcAssembly).then((saved) => {
+      progressHydrated.current = true;
+      if (Array.isArray(saved?.installed)) setInstalled(saved.installed);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!progressHydrated.current) return;
+    progressService.set(PROGRESS_KEYS.pcAssembly, { installed });
+  }, [installed]);
   const [mistakes, setMistakes] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [caseSize, setCaseSize] = useState({ w: 0, h: 0 });

@@ -145,4 +145,7 @@ export const limiters = {
   signUp: createRequestLimiter({ name: 'signUp', maxRequests: 5, windowMs: 10 * 60 * 1000 }),
   aiChat: createRequestLimiter({ name: 'aiChat', maxRequests: 10, windowMs: 60 * 1000, message: "You're sending messages too quickly. Please wait a moment and try again." }),
   aiQuiz: createRequestLimiter({ name: 'aiQuiz', maxRequests: 5, windowMs: 10 * 60 * 1000, message: 'AI quiz generation limit reached. Please wait a few minutes and try again.' }),
+  // Class codes: 8 tries in 10 minutes, at least 2 seconds apart. A wrong code
+  // and a missing code look the same on the server.
+  classJoin: createRequestLimiter({ name: 'classJoin', maxRequests: 8, windowMs: 10 * 60 * 1000, minIntervalMs: 2000, message: 'Too many class codes. Please wait and try again.' }),
 };

@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PROGRESS_KEYS, progressService } from '../services/progressService';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { gameRunnerService } from '../services/gameRunnerService';
@@ -80,7 +81,7 @@ function ServerRack({ style }) {
     ]));
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [blink]);
   return (
     <View style={[styles.rack, style]}>
       {[0, 1, 2].map(i => (
@@ -184,8 +185,11 @@ function ParticleBurst({ x, y, color, onDone }) {
       angle: (i / 8) * Math.PI * 2,
     }))
   ).current;
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
+    const done = onDoneRef.current;
     const anims = particles.map(p => {
       const dist = 40 + Math.random() * 30;
       return Animated.parallel([
@@ -196,8 +200,8 @@ function ParticleBurst({ x, y, color, onDone }) {
         Animated.timing(p.opacity, { toValue: 0, duration: 500, useNativeDriver: true }),
       ]);
     });
-    Animated.parallel(anims).start(onDone);
-  }, []);
+    Animated.parallel(anims).start(() => done?.());
+  }, [particles]);
 
   return (
     <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
@@ -218,15 +222,18 @@ function ParticleBurst({ x, y, color, onDone }) {
 function ScorePopup({ x, y, value, color, onDone }) {
   const anim = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
   useEffect(() => {
+    const done = onDoneRef.current;
     Animated.parallel([
       Animated.timing(anim, { toValue: -60, duration: 800, useNativeDriver: true }),
       Animated.sequence([
         Animated.delay(400),
         Animated.timing(opacity, { toValue: 0, duration: 400, useNativeDriver: true }),
       ]),
-    ]).start(onDone);
-  }, []);
+    ]).start(() => done?.());
+  }, [anim, opacity]);
   return (
     <Animated.Text style={{
       position: 'absolute', left: x - 20, top: y,
@@ -253,7 +260,7 @@ function StartScreen({ onStart, onBack, highScore }) {
       Animated.timing(float, { toValue: -12, duration: 1000, useNativeDriver: true }),
       Animated.timing(float, { toValue: 0, duration: 1000, useNativeDriver: true }),
     ])).start();
-  }, []);
+  }, [float, pulse]);
 
   return (
     <LinearGradient colors={['#0B1226', DARK_BLUE, BLUE]} style={styles.fullScreen}>
@@ -319,7 +326,7 @@ function GameOverScreen({ score, highScore, collected, leaderboard, onRestart, o
       Animated.spring(slideUp, { toValue: 0, useNativeDriver: true, speed: 12, bounciness: 6 }),
       Animated.timing(fadeIn, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [fadeIn, slideUp]);
 
   const isNewHigh = score > 0 && score >= highScore;
 
@@ -402,6 +409,7 @@ export default function GameScreen({ navigation, route }) {
   const [lives, setLives] = useState(3);
   const [energy, setEnergy] = useState(100);
   const [collected, setCollected] = useState([]);
+  const collectedRef = useRef([]);
   const [obstacles, setObstacles] = useState([]);
   const [pickups, setPickups] = useState([]);
   const [question, setQuestion] = useState(null);
@@ -436,16 +444,24 @@ export default function GameScreen({ navigation, route }) {
 
   const playSound = () => {};
   const startMusic = () => {};
-  const stopMusic = () => {};
+  const stopMusic = useCallback(() => {}, []);
 
   useEffect(() => {
-    AsyncStorage.getItem('compurunner_highscore').then(v => { if (v) setHighScore(parseInt(v)); });
+    progressService.get(PROGRESS_KEYS.compuRunner).then(async (saved) => {
+      const legacy = await AsyncStorage.getItem('compurunner_highscore');
+      const legacyScore = legacy ? parseInt(legacy, 10) : 0;
+      const best = Math.max(Number(saved?.highScore) || 0, Number.isNaN(legacyScore) ? 0 : legacyScore);
+      if (best) setHighScore(best);
+    });
     loadLeaderboard();
   }, []);
 
   // Multiplayer: subscribe to the room and mirror opponents' lane/score/lives.
+  const lanesRef = useRef(LANES);
+  lanesRef.current = LANES;
   useEffect(() => {
     if (!isMulti || !roomId) return;
+    const lanes = lanesRef.current;
     let cancelled = false;
 
     const refreshOthers = async () => {
@@ -454,7 +470,7 @@ export default function GameScreen({ navigation, route }) {
       const others = players.filter(p => p.user_id !== myIdRef.current);
       setOtherPlayers(others);
       others.forEach(p => {
-        const targetX = LANES[p.lane] - PLAYER_W / 2;
+        const targetX = lanes[p.lane] - PLAYER_W / 2;
         if (!ghostAnimsRef.current[p.user_id]) {
           ghostAnimsRef.current[p.user_id] = new Animated.Value(targetX);
         } else {
@@ -492,14 +508,19 @@ export default function GameScreen({ navigation, route }) {
   const saveScore = async (finalScore) => {
     try {
       const stored = await AsyncStorage.getItem('compurunner_highscore');
-      const prev = stored ? parseInt(stored) : 0;
-      if (finalScore > prev) {
-        await AsyncStorage.setItem('compurunner_highscore', String(finalScore));
-        setHighScore(finalScore);
+      const prev = stored ? parseInt(stored, 10) : 0;
+      const saved = await progressService.get(PROGRESS_KEYS.compuRunner);
+      const unlocked = new Set(Array.isArray(saved?.unlockedIds) ? saved.unlockedIds : []);
+      collectedRef.current.forEach((item) => { if (item?.id) unlocked.add(item.id); });
+      const best = Math.max(prev, Number(saved?.highScore) || 0, finalScore);
+      if (best > prev) {
+        await AsyncStorage.setItem('compurunner_highscore', String(best));
+        setHighScore(best);
         const user = await authService.getCurrentUser();
-        if (user) await supabase.from('game_scores').upsert({ user_id: user.id, score: finalScore }, { onConflict: 'user_id' });
+        if (user) await supabase.from('game_scores').upsert({ user_id: user.id, score: best }, { onConflict: 'user_id' });
         loadLeaderboard();
       }
+      await progressService.set(PROGRESS_KEYS.compuRunner, { highScore: best, unlockedIds: [...unlocked] });
     } catch {}
   };
 
@@ -525,24 +546,24 @@ export default function GameScreen({ navigation, route }) {
     ]));
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [pickupPulse]);
   const pulseScale = pickupPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
   // Shadow shrinks and fades as the player jumps higher off the ground.
   const shadowScale = playerY.interpolate({ inputRange: [GROUND_Y - 120, GROUND_Y], outputRange: [0.45, 1], extrapolate: 'clamp' });
   const shadowOpacity = playerY.interpolate({ inputRange: [GROUND_Y - 120, GROUND_Y], outputRange: [0.3, 1], extrapolate: 'clamp' });
 
-  const startLegAnim = () => {
+  const startLegAnim = useCallback(() => {
     legLoop.current = Animated.loop(Animated.sequence([
       Animated.timing(legAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
       Animated.timing(legAnim, { toValue: -1, duration: 180, useNativeDriver: true }),
     ]));
     legLoop.current.start();
-  };
+  }, [legAnim]);
 
-  const stopLegAnim = () => {
+  const stopLegAnim = useCallback(() => {
     legLoop.current?.stop();
     legAnim.setValue(0);
-  };
+  }, [legAnim]);
 
   const resetGame = () => {
     laneRef.current = 1; isJumping.current = false; isSliding.current = false;
@@ -555,7 +576,7 @@ export default function GameScreen({ navigation, route }) {
     playerRotate.setValue(0); playerLean.setValue(0);
     energyAnim.setValue(100); flashAnim.setValue(0);
     setScore(0); setLives(3); setEnergy(100);
-    setObstacles([]); setPickups([]); setCollected([]);
+    setObstacles([]); setPickups([]); setCollected([]); collectedRef.current = [];
     setQuestion(null); setAnswerInput(''); setAnswerFeedback(null);
     setParticles([]); setScorePopups([]); setMilestone(null);
     setInvincibleFlash(false);
@@ -609,7 +630,7 @@ export default function GameScreen({ navigation, route }) {
         Animated.spring(playerScaleX, { toValue: 1, useNativeDriver: true, speed: 30 }),
       ]),
     ]).start(() => { isJumping.current = false; startLegAnim(); });
-  }, []);
+  }, [GROUND_Y, playerScaleX, playerScaleY, playerY, startLegAnim, stopLegAnim]);
 
   const slide = useCallback(() => {
     if (isJumping.current || isSliding.current) return;
@@ -626,9 +647,10 @@ export default function GameScreen({ navigation, route }) {
         Animated.spring(playerScaleX, { toValue: 1, useNativeDriver: true, speed: 25 }),
       ]),
     ]).start(() => { isSliding.current = false; startLegAnim(); });
-  }, []);
+  }, [playerScaleX, playerScaleY, startLegAnim, stopLegAnim]);
 
   const changeLane = useCallback((dir) => {
+    const lanes = [LANE_WIDTH * 0.5, LANE_WIDTH * 1.5, LANE_WIDTH * 2.5];
     const next = Math.max(0, Math.min(2, laneRef.current + dir));
     if (next === laneRef.current) return;
     laneRef.current = next;
@@ -637,10 +659,10 @@ export default function GameScreen({ navigation, route }) {
       Animated.spring(playerLean, { toValue: 0, useNativeDriver: true, speed: 30 }).start();
     });
     Animated.spring(playerX, {
-      toValue: LANES[next] - PLAYER_W / 2,
+      toValue: lanes[next] - PLAYER_W / 2,
       useNativeDriver: true, speed: 45, bounciness: 3,
     }).start();
-  }, []);
+  }, [LANE_WIDTH, playerLean, playerX]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -688,7 +710,11 @@ export default function GameScreen({ navigation, route }) {
     energyRef.current = Math.min(100, energyRef.current + 18);
     setEnergy(Math.floor(energyRef.current));
     Animated.timing(energyAnim, { toValue: energyRef.current, duration: 200, useNativeDriver: false }).start();
-    setCollected(prev => [...prev, pickup]);
+    setCollected(prev => {
+      const next = [...prev, pickup];
+      collectedRef.current = next;
+      return next;
+    });
     const px = LANES[pickup.lane];
     const py = GROUND_Y - 40;
     addParticle(px, py, pickup.color);
@@ -865,7 +891,7 @@ export default function GameScreen({ navigation, route }) {
     clearInterval(spawnRef.current);
     stopLegAnim();
     stopMusic();
-  }, []);
+  }, [stopLegAnim, stopMusic]);
 
   const rotateInterp = playerRotate.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-20deg', '0deg', '20deg'] });
   const leanInterp = playerLean.interpolate({ inputRange: [-15, 0, 15], outputRange: ['-15deg', '0deg', '15deg'] });

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,9 +12,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { supabase } from "../config/supabase";
 import { authService } from "../services/authService";
+import { classService } from "../services/classService";
+import { filterByClassScope } from "../utils/classScope";
 
 const BLUE = '#2563EB';
 const YELLOW = '#FACC15';
@@ -74,7 +77,7 @@ function SkeletonBlock({ width, height: h, style }) {
         Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [shimmer]);
   const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.85] });
   return <Animated.View style={[{ width, height: h, borderRadius: 10, backgroundColor: '#E5E7EB', opacity }, style]} />;
 }
@@ -125,7 +128,7 @@ export default function DashboardScreen({ navigation }) {
   const tipIndex = new Date().getDate() % DAILY_TIPS.length;
   const tip = DAILY_TIPS[tipIndex];
 
-  useEffect(() => { loadData(); }, []);
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const loadData = async () => {
     try {
@@ -134,7 +137,7 @@ export default function DashboardScreen({ navigation }) {
 
       const { data: classStudents } = await supabase
         .from('class_students').select('class_id, classes(name)').eq('student_id', u.id).limit(1);
-      if (classStudents?.length > 0) setEnrolledClass(classStudents[0].classes?.name);
+      setEnrolledClass(classStudents?.length > 0 ? classStudents[0].classes?.name || null : null);
       const classIds = classStudents?.map(cs => cs.class_id) || [];
 
       let assignedQuizIds = [];
@@ -154,6 +157,8 @@ export default function DashboardScreen({ navigation }) {
         const { data: pendingData } = await supabase
           .from('quizzes').select('*').in('id', pendingIds).limit(3);
         setPendingQuizzes(pendingData || []);
+      } else {
+        setPendingQuizzes([]);
       }
 
       const completed = allAttempts?.length || 0;
@@ -183,7 +188,8 @@ export default function DashboardScreen({ navigation }) {
 
       const { data: announcementsData } = await supabase
         .from('announcements').select('*').order('created_at', { ascending: false }).limit(3);
-      setAnnouncements(announcementsData || []);
+      const scope = await classService.classScopeForCurrentUser();
+      setAnnouncements(filterByClassScope(announcementsData || [], scope));
     } catch {}
     finally { setLoading(false); }
   };
@@ -212,7 +218,9 @@ export default function DashboardScreen({ navigation }) {
               <Text style={styles.greetingSubText} numberOfLines={1}>{enrolledClass}</Text>
             </View>
           ) : (
-            <Text style={styles.greetingSubText}>What are you learning today?</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('JoinClass')} accessibilityRole="button" accessibilityLabel="Join a class">
+              <Text style={styles.greetingSubText}>Join a class</Text>
+            </TouchableOpacity>
           )}
         </View>
         {streak > 0 && (
@@ -263,8 +271,13 @@ export default function DashboardScreen({ navigation }) {
       ) : pendingQuizzes.length === 0 ? (
         <View style={[styles.emptyCard, CARD_SHADOW]}>
           <Ionicons name="checkmark-done-circle-outline" size={32} color={GREEN} />
-          <Text style={styles.emptyText}>All caught up!</Text>
-          <Text style={styles.emptySubText}>No pending quizzes right now</Text>
+          <Text style={styles.emptyText}>{enrolledClass ? 'All caught up!' : 'No class yet'}</Text>
+          <Text style={styles.emptySubText}>{enrolledClass ? 'No pending quizzes right now' : 'Join a class to see quizzes from your lecturer'}</Text>
+          {!enrolledClass && (
+            <TouchableOpacity onPress={() => navigation.navigate('JoinClass')} style={styles.seeAllBtn} accessibilityRole="button" accessibilityLabel="Join a class">
+              <Text style={styles.seeAll}>Join a class</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         pendingQuizzes.map(q => (

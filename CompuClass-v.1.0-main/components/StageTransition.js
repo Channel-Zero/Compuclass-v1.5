@@ -7,8 +7,14 @@ export default function StageTransition({ stage, theme, onDone }) {
   const opacity  = useRef(new Animated.Value(0)).current;
   const scale    = useRef(new Animated.Value(0.6)).current;
   const slideOut = useRef(new Animated.Value(0)).current;
+  const onDoneRef = useRef(onDone);
+  const heightRef = useRef(SH);
+  onDoneRef.current = onDone;
+  heightRef.current = SH;
 
   useEffect(() => {
+    const height = heightRef.current;
+    const done = onDoneRef.current;
     Animated.sequence([
       Animated.parallel([
         Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
@@ -17,10 +23,10 @@ export default function StageTransition({ stage, theme, onDone }) {
       Animated.delay(1400),
       Animated.parallel([
         Animated.timing(opacity,  { toValue: 0, duration: 500, useNativeDriver: true }),
-        Animated.timing(slideOut, { toValue: -SH, duration: 500, useNativeDriver: true }),
+        Animated.timing(slideOut, { toValue: -height, duration: 500, useNativeDriver: true }),
       ]),
-    ]).start(() => onDone?.());
-  }, []);
+    ]).start(() => done?.());
+  }, [opacity, scale, slideOut]);
 
   return (
     <Animated.View style={[s.overlay, { opacity, transform: [{ translateY: slideOut }] }]}>

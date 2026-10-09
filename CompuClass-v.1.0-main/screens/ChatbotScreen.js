@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { progressService } from '../services/progressService';
 import { aiService } from '../services/aiService';
 import { COMPUBOT_MAX_CHARS, compuBotErrorMessage } from '../utils/compuBotError';
 
@@ -42,7 +42,7 @@ function TypingDots() {
     animate(dot1, 0);
     animate(dot2, 150);
     animate(dot3, 300);
-  }, []);
+  }, [dot1, dot2, dot3]);
 
   return (
     <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', paddingVertical: 4 }}>
@@ -62,16 +62,18 @@ export default function ChatbotScreen({ navigation, route }) {
   const listRef = useRef(null);
   const insets = useSafeAreaInsets();
   const context = route?.params?.context || null;
+  const chatHydrated = useRef(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(CHAT_STORAGE_KEY).then(saved => {
-      if (saved) setMessages(JSON.parse(saved));
+    progressService.get(CHAT_STORAGE_KEY).then((saved) => {
+      if (Array.isArray(saved)) setMessages(saved);
+      chatHydrated.current = true;
     });
   }, []);
 
   useEffect(() => {
-    if (messages.length > 0)
-      AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    if (!chatHydrated.current) return;
+    progressService.set(CHAT_STORAGE_KEY, messages);
   }, [messages]);
 
   const scrollToBottom = () => {
@@ -112,7 +114,7 @@ export default function ChatbotScreen({ navigation, route }) {
 
   const clearChat = () => {
     setMessages([]);
-    AsyncStorage.removeItem(CHAT_STORAGE_KEY);
+    progressService.set(CHAT_STORAGE_KEY, []);
   };
 
   const copyMessage = (text) => {

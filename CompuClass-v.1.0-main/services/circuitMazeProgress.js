@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { progressService } from './progressService';
 
 // Per-topic Circuit Maze progress, stored on the device.
 //
@@ -52,6 +53,7 @@ export const circuitMazeProgress = {
         },
       };
       await AsyncStorage.setItem(KEY, JSON.stringify(next));
+      try { await progressService.set(KEY, next); } catch { /* the device copy is already stored */ }
       return next;
     } catch {
       return null;
@@ -61,6 +63,7 @@ export const circuitMazeProgress = {
   async reset() {
     try {
       await AsyncStorage.removeItem(KEY);
+      try { await progressService.set(KEY, {}); } catch { /* the device copy is already cleared */ }
     } catch {
       /* nothing to clean up */
     }
