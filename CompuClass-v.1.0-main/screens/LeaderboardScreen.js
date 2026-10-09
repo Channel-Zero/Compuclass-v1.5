@@ -123,9 +123,12 @@ export default function LeaderboardScreen({ navigation }) {
 
       <View style={styles.scopeToggle}>
         <TouchableOpacity
-          style={[styles.scopeBtn, scope === "class" && styles.scopeBtnActive]}
+          style={[styles.scopeBtn, scope === "class" && styles.scopeBtnActive, classes.length === 0 && styles.scopeBtnDisabled]}
           onPress={() => switchScope("class")}
           disabled={classes.length === 0}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: classes.length === 0 }}
+          accessibilityHint={classes.length === 0 ? 'Join a class to see this' : undefined}
           activeOpacity={0.75}
         >
           <Text
@@ -152,6 +155,9 @@ export default function LeaderboardScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
       </View>
+      {classes.length === 0 && (
+        <Text style={styles.scopeHint}>Join a class to see this</Text>
+      )}
 
       {scope === "class" && classes.length > 1 && (
         <ScrollView
@@ -301,6 +307,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   scopeBtnActive: { backgroundColor: PURPLE },
+  scopeBtnDisabled: { opacity: 0.45 },
+  scopeHint: { marginTop: 8, marginHorizontal: 16, fontSize: 13, color: MUTED, fontWeight: "600" },
   scopeBtnText: { fontSize: 13, fontWeight: "700", color: MUTED },
   scopeBtnTextActive: { color: WHITE },
   classChipsRow: { marginTop: 12, flexGrow: 0 },
