@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { lecturerService } from '../services/lecturerService';
+import { getErrorMessage } from '../utils/errorMessages';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
 const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const WHITE = '#FFFFFF';
@@ -19,7 +20,7 @@ const quickActions = (navigation, lecturerService) => [
       let folderId = f[0]?.id;
       if (!folderId) { const nf = await lecturerService.createFolder('General', 'General documents'); folderId = nf.id; }
       navigation.navigate('ContentUpload', { folderId });
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
   }},
   { icon: 'help-circle', label: 'Create Quiz', color: YELLOW, onPress: async () => {
     try {
@@ -27,7 +28,7 @@ const quickActions = (navigation, lecturerService) => [
       let folderId = f[0]?.id;
       if (!folderId) { const nf = await lecturerService.createFolder('General', 'General quizzes'); folderId = nf.id; }
       navigation.navigate('QuizCreation', { folderId });
-    } catch (error) { Alert.alert('Error', error.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
   }},
 ];
 
@@ -35,6 +36,9 @@ export default function LecturerDashboardScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [folders, setFolders] = useState([]);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementBody, setAnnouncementBody] = useState('');
   const [folderName, setFolderName] = useState('');
   const [folderDescription, setFolderDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,7 +47,19 @@ export default function LecturerDashboardScreen({ navigation }) {
 
   const loadFolders = async () => {
     try { const data = await lecturerService.getFolders(); setFolders(data); }
-    catch (error) { Alert.alert('Error', error.message); }
+    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
+  };
+
+  const handlePostAnnouncement = async () => {
+    if (!announcementTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
+    setLoading(true);
+    try {
+      const { supabase } = await import('../config/supabase');
+      await supabase.from('announcements').insert({ title: announcementTitle, body: announcementBody });
+      setShowAnnouncement(false); setAnnouncementTitle(''); setAnnouncementBody('');
+      Alert.alert('Posted!', 'Announcement sent to all students.');
+    } catch (error) { Alert.alert('Error', error.message); }
+    finally { setLoading(false); }
   };
 
   const handleCreateFolder = async () => {
@@ -53,7 +69,8 @@ export default function LecturerDashboardScreen({ navigation }) {
       await lecturerService.createFolder(folderName, folderDescription);
       setShowCreateFolder(false); setFolderName(''); setFolderDescription('');
       loadFolders();
-    } catch (error) { Alert.alert('Error', error.message); }
+      Alert.alert('Success', 'Folder created successfully');
+    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
     finally { setLoading(false); }
   };
 
@@ -61,8 +78,8 @@ export default function LecturerDashboardScreen({ navigation }) {
     Alert.alert('Delete Folder', 'Are you sure? This will delete all content inside.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        try { await lecturerService.deleteFolder(folderId); loadFolders(); }
-        catch (error) { Alert.alert('Error', error.message); }
+        try { await lecturerService.deleteFolder(folderId); loadFolders(); Alert.alert('Success', 'Folder deleted'); }
+        catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
       }},
     ]);
   };
@@ -80,6 +97,10 @@ export default function LecturerDashboardScreen({ navigation }) {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
+        <TouchableOpacity style={[styles.createFolderBtn, { backgroundColor: '#7C3AED', marginBottom: 10 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowAnnouncement(true); }} activeOpacity={0.85}>
+          <Ionicons name="megaphone" size={20} color={WHITE} />
+          <Text style={styles.createFolderText}>Post Announcement</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.createFolderBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowCreateFolder(true); }} activeOpacity={0.85}>
           <Ionicons name="add-circle" size={20} color={WHITE} />
           <Text style={styles.createFolderText}>Create New Folder</Text>
@@ -121,6 +142,24 @@ export default function LecturerDashboardScreen({ navigation }) {
         ))}
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      <Modal visible={showAnnouncement} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Post Announcement 📢</Text>
+            <TextInput style={styles.input} placeholder="Title" placeholderTextColor={MUTED} value={announcementTitle} onChangeText={setAnnouncementTitle} />
+            <TextInput style={[styles.input, styles.textArea]} placeholder="Message to students..." placeholderTextColor={MUTED} value={announcementBody} onChangeText={setAnnouncementBody} multiline />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAnnouncement(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handlePostAnnouncement} disabled={loading}>
+                <Text style={styles.saveBtnText}>{loading ? 'Posting...' : 'Post'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showCreateFolder} animationType="slide" transparent>
         <View style={styles.modalOverlay}>

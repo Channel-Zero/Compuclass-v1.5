@@ -14,6 +14,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
 import { lecturerService } from '../services/lecturerService';
+import { getErrorMessage } from '../utils/errorMessages';
+import { openRemoteDocument } from '../utils/fileDownload';
 
 export default function ContentUploadScreen({ navigation, route }) {
   const { theme } = useTheme();
@@ -115,7 +117,7 @@ export default function ContentUploadScreen({ navigation, route }) {
         Alert.alert('Success', 'Document uploaded successfully');
       }, 500);
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', getErrorMessage(error, { context: 'ContentUpload' }));
     } finally {
       setLoading(false);
     }
@@ -175,17 +177,10 @@ export default function ContentUploadScreen({ navigation, route }) {
 
   const handleDownload = async (doc) => {
     try {
-      const FileSystem = await import('expo-file-system');
-      const Sharing = await import('expo-sharing');
-      const fileUri = FileSystem.documentDirectory + doc.file_name;
-      const downloadResult = await FileSystem.downloadAsync(doc.file_url, fileUri);
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(downloadResult.uri);
-      } else {
-        Alert.alert('Success', 'File downloaded to: ' + downloadResult.uri);
-      }
+      const outcome = await openRemoteDocument(doc.file_url, doc.file_name || `${doc.title}.pdf`);
+      if (outcome === 'downloaded') Alert.alert('Success', 'File downloaded');
     } catch (error) {
-      Alert.alert('Error', 'Failed to download file');
+      Alert.alert('Error', getErrorMessage(error, { context: 'ContentUpload', fallback: 'Failed to download file' }));
     }
   };
 
@@ -201,7 +196,7 @@ export default function ContentUploadScreen({ navigation, route }) {
             loadDocuments();
             Alert.alert('Success', 'Document deleted');
           } catch (error) {
-            Alert.alert('Error', error.message);
+            Alert.alert('Error', getErrorMessage(error, { context: 'ContentUpload' }));
           }
         }
       }

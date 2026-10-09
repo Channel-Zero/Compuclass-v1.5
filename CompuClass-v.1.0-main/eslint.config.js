@@ -10,9 +10,8 @@ module.exports = [
       'node_modules/**',
       'coverage/**',
       '**/*.glb',
-      // Orphaned experimental component, not imported anywhere in the app — has pre-existing
-      // undefined-variable bugs that are out of scope for the CI/CD setup task.
-      'components/WebAR.js',
+      // Deno (Supabase Edge Functions) code, not part of the RN bundle.
+      'supabase/functions/**',
     ],
   },
   {

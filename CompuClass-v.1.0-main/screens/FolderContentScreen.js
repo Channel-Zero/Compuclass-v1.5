@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
 import { lecturerService } from '../services/lecturerService';
 import { useTheme } from '../context/ThemeContext';
+import { getErrorMessage } from '../utils/errorMessages';
 
 export default function FolderContentScreen({ route, navigation }) {
   const { theme } = useTheme();
@@ -30,7 +31,7 @@ export default function FolderContentScreen({ route, navigation }) {
       setDocuments(docs);
       setQuizzes(quizData);
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
     }
   };
 
@@ -49,7 +50,7 @@ export default function FolderContentScreen({ route, navigation }) {
           setDocTitle('');
           await loadContent();
         } catch (error) {
-          Alert.alert('Error', error.message);
+          Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
         }
       }
     } catch (error) {
@@ -68,8 +69,9 @@ export default function FolderContentScreen({ route, navigation }) {
       setQuizTitle('');
       setQuestions([{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
       loadContent();
+      Alert.alert('Success', 'Quiz created successfully');
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
     }
   };
 

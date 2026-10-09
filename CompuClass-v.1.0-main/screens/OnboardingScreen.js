@@ -1,9 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, FlatList, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, FlatList, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const { width, height } = Dimensions.get('window');
 const WHITE = '#FFFFFF'; const TEXT = '#111827'; const MUTED = '#4B5563';
 
 const slides = [
@@ -13,6 +12,8 @@ const slides = [
 ];
 
 export default function OnboardingScreen({ onComplete }) {
+  // Live dimensions: each slide must be exactly one window wide, even after a resize.
+  const { width, height } = useWindowDimensions();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef(null);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -26,9 +27,9 @@ export default function OnboardingScreen({ onComplete }) {
   };
 
   const renderItem = ({ item }) => (
-    <View style={styles.slide}>
+    <View style={{ width, height }}>
       <LinearGradient colors={item.colors} style={styles.slideGradient}>
-        <View style={styles.iconWrap}>
+        <View style={[styles.iconWrap, { marginBottom: height * 0.06 }]}>
           <Ionicons name={item.icon} size={64} color={WHITE} />
         </View>
         <Text style={styles.slideTitle}>{item.title}</Text>
@@ -75,9 +76,8 @@ export default function OnboardingScreen({ onComplete }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: WHITE },
-  slide: { width, height },
   slideGradient: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  iconWrap: { width: 130, height: 130, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', marginBottom: height * 0.06 },
+  iconWrap: { width: 130, height: 130, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   slideTitle: { fontSize: 32, fontWeight: '900', color: WHITE, textAlign: 'center', marginBottom: 16 },
   slideSubtitle: { fontSize: 17, color: 'rgba(255,255,255,0.9)', textAlign: 'center', lineHeight: 26 },
   bottom: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: WHITE, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 28, paddingTop: 24, paddingBottom: 48 },

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIn
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { lecturerService } from '../services/lecturerService';
+import { getErrorMessage } from '../utils/errorMessages';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444'; const GREEN = '#22C55E';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827'; const MUTED = '#4B5563'; const BORDER = '#E5E7EB';
@@ -15,7 +16,7 @@ export default function QuizDetailScreen({ navigation, route }) {
 
   const loadQuiz = async () => {
     try { const data = await lecturerService.getQuizDetail(quizId); setQuiz(data); }
-    catch (error) { Alert.alert('Error', error.message); }
+    catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' })); }
   };
 
   const handleDeleteQuiz = () => {
@@ -23,7 +24,7 @@ export default function QuizDetailScreen({ navigation, route }) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try { await lecturerService.deleteQuiz(quizId); navigation.goBack(); Alert.alert('Success', 'Quiz deleted'); }
-        catch (error) { Alert.alert('Error', error.message); }
+        catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' })); }
       }},
     ]);
   };
