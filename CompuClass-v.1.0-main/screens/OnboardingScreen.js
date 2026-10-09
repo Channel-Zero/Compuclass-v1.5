@@ -69,8 +69,8 @@ export default function OnboardingScreen({ onComplete }) {
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.nextBtn, { backgroundColor: slides[currentIndex].colors[0] }]} onPress={handleNext} activeOpacity={0.85}>
-            <Text style={styles.nextText}>{currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}</Text>
-            <Ionicons name={currentIndex === slides.length - 1 ? 'checkmark' : 'arrow-forward'} size={18} color={currentIndex === 2 ? TEXT : WHITE} />
+            <Text style={[styles.nextText, currentIndex === slides.length - 1 && styles.nextTextDark]}>{currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}</Text>
+            <Ionicons name={currentIndex === slides.length - 1 ? 'checkmark' : 'arrow-forward'} size={18} color={currentIndex === slides.length - 1 ? TEXT : WHITE} />
           </TouchableOpacity>
         </View>
       </View>
@@ -92,4 +92,5 @@ const styles = StyleSheet.create({
   skipText: { color: MUTED, fontSize: 15, fontWeight: '600' },
   nextBtn: { flex: 1, marginLeft: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 54, borderRadius: 14, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   nextText: { fontSize: 16, fontWeight: '800', color: WHITE },
+  nextTextDark: { color: TEXT },
 });
