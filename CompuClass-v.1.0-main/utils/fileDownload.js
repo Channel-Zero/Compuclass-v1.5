@@ -9,20 +9,20 @@ import { createSignedFileUrl } from '../services/fileAccess';
 
 const isSafeRemoteUrl = (url) => typeof url === 'string' && /^https:\/\//i.test(url.trim());
 
-// Opens a document stored as an object path or an older public URL.
-// Signed URLs keep working after the documents bucket is made private.
-// If signing is not available yet, an existing https URL is opened as-is.
+// Opens a private documents-bucket object. file_url may be an object path or
+// an old public URL. The public URL no longer works, so a signing failure is
+// shown to the user instead of being opened as-is.
 export async function openStoredDocument(stored, fileName) {
-  if (!stored) throw new AppError('This document link is not valid.');
+  if (!stored) throw new AppError('This file could not be opened. Please try again.');
+  let signedUrl;
   try {
-    return openRemoteDocument(await createSignedFileUrl(stored), fileName);
+    signedUrl = await createSignedFileUrl(stored, 3600);
   } catch (error) {
-    if (typeof stored === 'string' && /^https:\/\//i.test(stored.trim())) {
-      return openRemoteDocument(stored, fileName);
-    }
     if (error instanceof AppError) throw error;
-    throw new AppError('This document link is not valid.');
+    console.error('Signed document URL error:', error?.message || error);
+    throw new AppError('This file could not be opened. Please try again.');
   }
+  return openRemoteDocument(signedUrl, fileName);
 }
 
 // Opens a stored document. Native: download, then open the share sheet so the
