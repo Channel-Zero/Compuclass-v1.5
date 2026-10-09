@@ -60,6 +60,9 @@ describe('getErrorMessage', () => {
 describe('screens show generic errors', () => {
   beforeEach(() => jest.spyOn(Alert, 'alert').mockImplementation(() => {}));
 
+  // ClassManagementScreen is the first React Native render in this file. On the
+  // GitHub Actions runner, with coverage on, that render (header, FlatList, and
+  // two Modals) uses up Jest's 5s default before waitFor can see the alert.
   it('ClassManagement shows a friendly message when the DB rejects the insert', async () => {
     lecturerService.createClass.mockRejectedValue({ code: '42501', message: 'new row violates row-level security policy for table "classes"' });
     const utils = render(<ClassManagementScreen navigation={{ navigate: jest.fn() }} />);
@@ -70,7 +73,7 @@ describe('screens show generic errors', () => {
 
     await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Error', "You don't have permission to do that."));
     expect(JSON.stringify(Alert.alert.mock.calls)).not.toMatch(/row-level|policy/);
-  });
+  }, 20000);
 });
 
 describe('ErrorBoundary', () => {
