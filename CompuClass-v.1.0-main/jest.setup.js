@@ -2,6 +2,27 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+// CI runs Node 20, which has no global WebSocket. @supabase/realtime-js looks
+// one up as soon as createClient() runs. Browsers and React Native already
+// provide WebSocket; this stub only fills the gap for the test runtime.
+if (typeof global.WebSocket === 'undefined') {
+  class WebSocket {
+    constructor(url) {
+      this.url = url;
+      this.readyState = WebSocket.CONNECTING;
+    }
+    close() {}
+    send() {}
+    addEventListener() {}
+    removeEventListener() {}
+  }
+  WebSocket.CONNECTING = 0;
+  WebSocket.OPEN = 1;
+  WebSocket.CLOSING = 2;
+  WebSocket.CLOSED = 3;
+  global.WebSocket = WebSocket;
+}
+
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
 process.env.EXPO_PUBLIC_GEMINI_API_KEY = 'test-gemini-key';
