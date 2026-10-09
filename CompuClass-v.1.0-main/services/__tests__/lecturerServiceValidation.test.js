@@ -25,6 +25,8 @@ jest.mock('../../config/supabase', () => {
 
 beforeEach(() => {
   supabase.__inserted.length = 0;
+  supabase.rpc.mockClear();
+  supabase.from.mockClear();
   jest.spyOn(console, 'error').mockImplementation(() => {});
   jest.spyOn(console, 'log').mockImplementation(() => {});
 });
