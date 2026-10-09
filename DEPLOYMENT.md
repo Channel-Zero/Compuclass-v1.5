@@ -174,9 +174,15 @@ never be one of those variables.
 ### Existing Supabase project
 
 Do **not** re-run `supabase-setup.sql` on a database that already has data. In the
-SQL editor, run the whole file:
+SQL editor, run the preflight `SELECT` block at the top of the migration by
+itself and read the result. Then run the whole file:
 
 `CompuClass-v.1.0-main/supabase/migrations/20261006140000_security_hardening.sql`
+
+The migration accepts either `quizzes.created_by` (the live project) or
+`quizzes.lecturer_id` (a database built from `supabase-setup.sql`). If a column
+or table it needs is missing, or a policy is not the shape it knows how to
+replace, the transaction stops and rolls back.
 
 ### Brand-new project
 
