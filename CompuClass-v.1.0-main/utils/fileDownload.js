@@ -5,8 +5,25 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { AppError } from './errorMessages';
 import { sanitizeFileName } from './inputValidation';
+import { createSignedFileUrl } from '../services/fileAccess';
 
 const isSafeRemoteUrl = (url) => typeof url === 'string' && /^https:\/\//i.test(url.trim());
+
+// Opens a document stored as an object path or an older public URL.
+// Signed URLs keep working after the documents bucket is made private.
+// If signing is not available yet, an existing https URL is opened as-is.
+export async function openStoredDocument(stored, fileName) {
+  if (!stored) throw new AppError('This document link is not valid.');
+  try {
+    return openRemoteDocument(await createSignedFileUrl(stored), fileName);
+  } catch (error) {
+    if (typeof stored === 'string' && /^https:\/\//i.test(stored.trim())) {
+      return openRemoteDocument(stored, fileName);
+    }
+    if (error instanceof AppError) throw error;
+    throw new AppError('This document link is not valid.');
+  }
+}
 
 // Opens a stored document. Native: download, then open the share sheet so the
 // user can view/save it. Web: expo-file-system has no web support, so open the

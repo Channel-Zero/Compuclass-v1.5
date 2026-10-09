@@ -1,71 +1,58 @@
+import { supabase } from '../../config/supabase';
 import { aiService } from '../aiService';
+
+jest.mock('../../config/supabase', () => ({
+  supabase: { functions: { invoke: jest.fn() } },
+}));
 
 describe('aiService.chatWithAI', () => {
   beforeEach(() => {
     global.fetch = jest.fn();
+    supabase.functions.invoke.mockReset();
   });
 
-  afterEach(() => {
-    jest.resetAllMocks();
-  });
-
-  it('returns the assistant reply text from a successful Gemini response', async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: 'RAM is short-term memory.' }] } }],
-      }),
-    });
+  it('returns the assistant reply from the gemini-proxy function and never calls Gemini', async () => {
+    supabase.functions.invoke.mockResolvedValue({ data: { text: 'RAM is short-term memory.' }, error: null });
 
     const reply = await aiService.chatWithAI([{ role: 'user', text: 'What is RAM?' }]);
 
     expect(reply).toBe('RAM is short-term memory.');
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-    const [url, options] = global.fetch.mock.calls[0];
-    expect(url).toContain('generativelanguage.googleapis.com');
-    expect(JSON.parse(options.body).contents.at(-1)).toEqual({
-      role: 'user',
-      parts: [{ text: 'What is RAM?' }],
+    expect(supabase.functions.invoke).toHaveBeenCalledWith('gemini-proxy', {
+      body: { action: 'chat', messages: [{ role: 'user', text: 'What is RAM?' }] },
     });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('throws with the API status and body when Gemini responds with an error', async () => {
-    global.fetch.mockResolvedValue({
-      ok: false,
-      status: 429,
-      text: async () => 'Rate limit exceeded',
-    });
+  it('throws when the Edge Function returns an error', async () => {
+    const failure = new Error('The AI service is unavailable right now. Please try again later.');
+    supabase.functions.invoke.mockResolvedValue({ data: null, error: failure });
 
-    await expect(aiService.chatWithAI([{ role: 'user', text: 'Hi' }])).rejects.toThrow(
-      'Gemini API error: 429 - Rate limit exceeded'
-    );
+    await expect(aiService.chatWithAI([{ role: 'user', text: 'Hi' }])).rejects.toBe(failure);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 
 describe('aiService.generateQuizFromText', () => {
   beforeEach(() => {
     global.fetch = jest.fn();
+    supabase.functions.invoke.mockReset();
   });
 
-  afterEach(() => {
-    jest.resetAllMocks();
-  });
-
-  it('parses the JSON quiz payload returned by Gemini into question objects', async () => {
-    const quizJson = JSON.stringify({
-      questions: [
-        { question: 'What does CPU stand for?', options: ['A', 'B', 'C', 'D'], correctAnswer: 1 },
-      ],
-    });
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: '```json\n' + quizJson + '\n```' }] } }],
-      }),
+  it('maps the Edge Function quiz payload into question objects', async () => {
+    supabase.functions.invoke.mockResolvedValue({
+      data: {
+        questions: [
+          { question: 'What does CPU stand for?', options: ['A', 'B', 'C', 'D'], correctAnswer: 1 },
+        ],
+      },
+      error: null,
     });
 
     const quiz = await aiService.generateQuizFromText('CPU lesson content', 'CPU Basics', 1);
 
+    expect(supabase.functions.invoke).toHaveBeenCalledWith('gemini-proxy', {
+      body: { action: 'quiz', title: 'CPU Basics', questionCount: 1, text: 'CPU lesson content' },
+    });
     expect(quiz.title).toBe('CPU Basics');
     expect(quiz.aiGenerated).toBe(true);
     expect(quiz.questions).toHaveLength(1);
@@ -75,13 +62,12 @@ describe('aiService.generateQuizFromText', () => {
       correctAnswer: 1,
       type: 'multiple-choice',
     });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('throws when Gemini returns no candidates', async () => {
-    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ candidates: [] }) });
+  it('throws when the Edge Function returns an error', async () => {
+    supabase.functions.invoke.mockResolvedValue({ data: null, error: new Error('Gemini returned no text') });
 
-    await expect(aiService.generateQuizFromText('text', 'Title', 3)).rejects.toThrow(
-      'No response from Gemini API'
-    );
+    await expect(aiService.generateQuizFromText('notes', 'Notes', 1)).rejects.toThrow('Gemini returned no text');
   });
 });

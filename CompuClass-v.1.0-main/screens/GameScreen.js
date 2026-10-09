@@ -483,6 +483,15 @@ export default function GameScreen({ navigation, route }) {
 
   const loadLeaderboard = async () => {
     try {
+      // Prefer the leaderboard function from the security migration. The table
+      // select still works before that function is deployed.
+      if (typeof supabase.rpc === 'function') {
+        const rpc = await supabase.rpc('get_runner_leaderboard');
+        if (!rpc.error && Array.isArray(rpc.data)) {
+          setLeaderboard(rpc.data.map((row) => ({ score: row.score, profiles: { full_name: row.full_name } })));
+          return;
+        }
+      }
       const { data } = await supabase.from('game_scores').select('score, profiles(full_name)').order('score', { ascending: false }).limit(5);
       setLeaderboard(data || []);
     } catch {}

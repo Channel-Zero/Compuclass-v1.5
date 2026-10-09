@@ -5,9 +5,8 @@ user's Supabase session. The function checks that a real user is signed in,
 validates and rate-limits the request (chat: 10/min per user, quiz: 5 per
 10 min per user), and calls Gemini with a secret key.
 
-Until you switch it on, the app keeps calling Gemini directly with
-`EXPO_PUBLIC_GEMINI_API_KEY`, which is compiled into the APK and the web
-bundle, where anyone can extract it.
+The app always calls this function. It does not read `EXPO_PUBLIC_GEMINI_API_KEY`.
+AI chat and quiz generation fail until the function is deployed with `GEMINI_API_KEY`.
 
 ## Switch-over (in this order)
 
@@ -27,12 +26,10 @@ Run these from `CompuClass-v.1.0-main/`. They need the
    ```sh
    supabase functions deploy gemini-proxy --project-ref qdtbmdsssjmapodladcs
    ```
-4. **Turn on proxy mode** by setting `EXPO_PUBLIC_USE_AI_PROXY=true` in `.env`,
-   EAS environment variables, Vercel env vars, and the GitHub Actions secrets
-   used by the workflows. Test the chatbot and AI quiz generation.
-5. **Remove `EXPO_PUBLIC_GEMINI_API_KEY`** from all of those places and from
-   the workflow files, then rebuild.
-6. **Revoke the old key** in Google Cloud.
+4. **Remove `EXPO_PUBLIC_GEMINI_API_KEY` and `EXPO_PUBLIC_USE_AI_PROXY`** from
+   `.env`, EAS, Vercel, and GitHub Actions if they are still set. The app does
+   not read them. Test the chatbot and AI quiz generation after the deploy.
+5. **Revoke the old key** in Google Cloud.
 
 ## Logs
 

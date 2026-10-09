@@ -24,6 +24,7 @@ const menuItems = [
   { icon: 'help-circle', title: 'Quiz',               screen: 'Quiz',         color: YELLOW },
   { icon: 'podium',      title: 'Leaderboard',        screen: 'Leaderboard',  color: PURPLE },
   { icon: 'bug',         title: 'Troubleshooting',    screen: 'Troubleshoot', color: RED    },
+  { icon: 'chatbubble-ellipses', title: 'AI Assistant', screen: 'Chatbot',   color: PURPLE },
   { icon: 'settings',    title: 'Settings',           screen: 'Settings',     color: MUTED  },
 ];
 

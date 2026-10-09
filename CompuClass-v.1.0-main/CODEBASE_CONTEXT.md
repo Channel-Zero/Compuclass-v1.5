@@ -54,7 +54,7 @@ CompuClass-v.1.0-main/
 ├── utils/
 │   └── logger.js
 ├── assets/                 # Images, 3D models (.glb, .gltf)
-├── .env                    # EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_GEMINI_API_KEY
+├── .env                    # EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
 ├── supabase-setup.sql      # Full DB schema + RLS + triggers
 └── app.json                # Expo config (bundle IDs, permissions)
 ```
@@ -146,7 +146,7 @@ Covers all lecturer CRUD operations:
 - **AI**: `generateAIQuiz(file, title, questionCount)` — delegates to `aiService`
 
 ### `aiService.js`
-Uses Google Gemini 1.5 Flash (`EXPO_PUBLIC_GEMINI_API_KEY`):
+Uses Google Gemini through the `gemini-proxy` Edge Function (`GEMINI_API_KEY` secret):
 - `generateQuizFromFile(file, title, questionCount)` — routes to PDF or text path
 - `generateQuizFromPDF(file, title, questionCount)` — sends base64 PDF inline to Gemini
 - `generateQuizFromText(text, title, questionCount)` — sends extracted text to Gemini
@@ -277,7 +277,7 @@ Single public bucket: `documents` — used for both course files and user avatar
 ```
 EXPO_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co      # base URL only, no /rest/v1/
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon_key>
-EXPO_PUBLIC_GEMINI_API_KEY=<gemini_key>
+# Gemini key is a Supabase secret (GEMINI_API_KEY), not an EXPO_PUBLIC_ variable
 ```
 
 ---

@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { aiService } from './aiService';
 import { cleanText, cleanEmail, sanitizeFileName, ValidationError, LIMITS } from '../utils/inputValidation';
+import { assertUploadAllowed, storagePathFromStoredValue } from './fileAccess';
 import { AppError } from '../utils/errorMessages';
 
 const MAX_QUESTIONS_PER_QUIZ = 100;
@@ -72,6 +73,7 @@ export const lecturerService = {
   async uploadDocument(folderId, file, title) {
     try {
       title = cleanText(title, { field: 'Document title', maxLength: LIMITS.title, required: true, allowMarkup: false });
+      assertUploadAllowed(file);
       const safeFileName = sanitizeFileName(file?.name, 'document');
       const { data: { user } } = await supabase.auth.getUser();
       const fileName = `${user.id}/${Date.now()}_${safeFileName}`;
@@ -94,17 +96,13 @@ export const lecturerService = {
         throw uploadError;
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
-
-      // Insert document record
+      // Store the object path. Readers request a signed URL; the bucket is private
+      // after the security migration, so a public URL would stop working.
       const { data, error } = await supabase
         .from('documents')
         .insert({
           title,
-          file_url: urlData.publicUrl,
+          file_url: fileName,
           file_name: safeFileName,
           file_type: file.mimeType,
           file_size: file.size,
@@ -274,19 +272,16 @@ export const lecturerService = {
       }
       
       if (doc?.file_url) {
-        // Extract file path from URL
-        const urlParts = doc.file_url.split('/documents/');
-        if (urlParts[1]) {
-          const filePath = urlParts[1].split('?')[0];
-          
-          // Delete from storage
+        try {
+          const filePath = storagePathFromStoredValue(doc.file_url);
           const { error: storageError } = await supabase.storage
             .from('documents')
             .remove([filePath]);
-          
           if (storageError) {
             console.error('❌ Delete from storage error:', storageError.message);
           }
+        } catch (pathError) {
+          console.error('❌ Delete from storage error:', pathError.message);
         }
       }
       
@@ -398,18 +393,21 @@ export const lecturerService = {
     return data || [];
   },
 
-  async addStudent(email) {
+  async addStudent(email, classId) {
     try {
       email = cleanEmail(email);
-      // Look up the user by email via the RPC function
+      if (!classId) throw new AppError('Create a class before adding a student');
+      // Look up the user by email via the RPC function. Lecturers only:
+      // get_students_with_emails checks the caller inside the database.
       const { data: students, error } = await supabase.rpc('get_students_with_emails');
       if (error) {
         console.error('❌ Add student lookup error:', error.message);
         throw error;
       }
       const found = (students || []).find(s => s.email?.toLowerCase() === email.toLowerCase());
-      if (!found) throw new AppError(`No registered user found with email: ${email}`);
-      console.log('✅ Student found:', email);
+      if (!found) throw new AppError(`No registered student found with email: ${email}`);
+      await this.assignStudentsToClass(classId, [found.id]);
+      console.log('✅ Student enrolled:', email);
       return found;
     } catch (error) {
       console.error('❌ Add student exception:', error);

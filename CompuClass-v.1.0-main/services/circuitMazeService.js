@@ -57,13 +57,24 @@ export const circuitMazeService = {
   async joinRoom(code) {
     try {
       const user = await authService.getCurrentUser();
-      const { data: room, error } = await supabase
-        .from('circuit_maze_rooms')
-        .select('*')
-        .eq('code', code.toUpperCase())
-        .eq('status', 'waiting')
-        .single();
-      if (error || !room) throw new AppError('Room not found or already started');
+      const cleanCode = code.toUpperCase();
+      // After the security migration, room rows are hidden unless you are in
+      // the room. The join function reveals one waiting room by code. Until
+      // that function exists, fall back to the direct lookup.
+      let room = null;
+      const rpc = await supabase.rpc('join_circuit_maze_room', { p_code: cleanCode });
+      if (!rpc.error && rpc.data?.id) {
+        room = rpc.data;
+      } else {
+        const direct = await supabase
+          .from('circuit_maze_rooms')
+          .select('*')
+          .eq('code', cleanCode)
+          .eq('status', 'waiting')
+          .single();
+        if (direct.error || !direct.data) throw new AppError('Room not found or already started');
+        room = direct.data;
+      }
 
       const { error: joinErr } = await supabase.from('circuit_maze_players').insert({
         room_id: room.id,

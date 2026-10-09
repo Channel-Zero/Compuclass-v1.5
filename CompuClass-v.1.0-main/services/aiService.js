@@ -5,19 +5,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../config/supabase';
 import { limiters, RateLimitError } from '../utils/rateLimiter';
 
-// When EXPO_PUBLIC_USE_AI_PROXY=true, AI requests go through the gemini-proxy
-// Supabase Edge Function, which holds the Gemini key server-side. Once that is
-// deployed and switched on, remove EXPO_PUBLIC_GEMINI_API_KEY from every
-// environment so the key is no longer compiled into the app.
+// Every AI call goes through the gemini-proxy Edge Function. The Gemini key
+// lives in the GEMINI_API_KEY secret and is never read by the app.
 // See supabase/functions/gemini-proxy/README.md.
-const USE_AI_PROXY = process.env.EXPO_PUBLIC_USE_AI_PROXY === 'true';
 const PROXY_MAX_TEXT_CHARS = 100_000;
 const PROXY_MAX_MESSAGES = 30;
-
-// Legacy direct mode: Google Gemini API configuration (key ships in the app bundle)
-const GEMINI_API_KEY = USE_AI_PROXY ? undefined : process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
-const GEMINI_MODEL = 'gemini-3.6-flash';
 
 async function invokeAiProxy(body) {
   const { data, error } = await supabase.functions.invoke('gemini-proxy', { body });
@@ -86,91 +78,13 @@ export const aiService = {
 
   // Generate quiz using Google Gemini (FREE)
   async generateQuizFromText(text, title, questionCount = 5) {
-    if (USE_AI_PROXY) {
-      const { questions } = await invokeAiProxy({ action: 'quiz', title, questionCount, text: String(text).slice(0, PROXY_MAX_TEXT_CHARS) });
-      return toQuiz(title, questions);
-    }
-    try {
-      console.log('=== AI QUIZ GENERATION START ===');
-      console.log('Text length:', text.length);
-      console.log('Question count:', questionCount);
-      
-      const prompt = `Create exactly ${questionCount} multiple choice questions based on this content:
-
-"${text}"
-
-Return ONLY valid JSON in this exact format (no markdown, no extra text):
-{
-  "questions": [
-    {
-      "question": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": 0
-    }
-  ]
-}
-
-IMPORTANT: Generate exactly ${questionCount} questions. Make them educational and test understanding of key concepts.`;
-
-      const url = `${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-      console.log('API URL:', url.replace(GEMINI_API_KEY, 'KEY_HIDDEN'));
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }]
-        }),
-      });
-      
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API ERROR RESPONSE:', errorText);
-        throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('API Response:', JSON.stringify(data, null, 2));
-      
-      if (!data.candidates || !data.candidates[0]) {
-        console.error('No candidates in response');
-        throw new Error('No response from Gemini API');
-      }
-      
-      const aiResponse = data.candidates[0].content.parts[0].text;
-      console.log('AI Response text:', aiResponse);
-      
-      // Clean response and parse JSON
-      const cleanResponse = aiResponse.replace(/```json\n?|```\n?/g, '').trim();
-      console.log('Cleaned response:', cleanResponse);
-      
-      const parsedQuiz = JSON.parse(cleanResponse);
-      console.log('Parsed quiz:', parsedQuiz);
-      
-      console.log('=== AI QUIZ GENERATION SUCCESS ===');
-      return {
-        title,
-        questions: parsedQuiz.questions.map((q, index) => ({
-          id: Date.now() + index,
-          question: q.question,
-          options: q.options,
-          correctAnswer: q.correctAnswer,
-          type: 'multiple-choice'
-        })),
-        aiGenerated: true
-      };
-    } catch (error) {
-      console.error('=== AI QUIZ GENERATION ERROR ===');
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      throw error;
-    }
+    const { questions } = await invokeAiProxy({
+      action: 'quiz',
+      title,
+      questionCount,
+      text: String(text).slice(0, PROXY_MAX_TEXT_CHARS),
+    });
+    return toQuiz(title, questions);
   },
 
   // Main function to generate quiz from file
@@ -185,81 +99,21 @@ IMPORTANT: Generate exactly ${questionCount} questions. Make them educational an
   },
 
   // Chat with AI assistant
-  async chatWithAI(messages, context = null, imageBase64 = null, retries = 3) {
+  async chatWithAI(messages, context = null, imageBase64 = null) {
     await limiters.aiChat.consume('device');
 
-    if (USE_AI_PROXY) {
-      // The proxy builds its own system prompt and accepts text only, so the
-      // screen context rides along on the last user message. Image chat has no
-      // proxy equivalent yet; see supabase/functions/gemini-proxy/logic.ts.
-      if (imageBase64) {
-        throw new Error('Image questions are not available while the AI proxy is enabled.');
-      }
-      const recent = messages.slice(-PROXY_MAX_MESSAGES).map((m) => ({
-        role: m.role === 'user' ? 'user' : 'ai',
-        text: m.text,
-      }));
-      if (context && recent.length > 0) {
-        const last = recent[recent.length - 1];
-        last.text = `${last.text}\n\n(The user is currently viewing: ${context})`;
-      }
-      const { text } = await invokeAiProxy({ action: 'chat', messages: recent });
-      return text;
-    }
-
-    const systemPrompt = `You are CompuBot, a helpful AI assistant for CompuClass — a computer hardware and software learning platform for students.
-You help students understand PC components (CPU, GPU, RAM, storage, motherboard, PSU), troubleshoot hardware issues, prepare for quizzes, and learn about computer science concepts.
-Keep responses clear, concise, and educational. Use simple language suitable for students.
-Always respond in the same language the user writes in.${
-  context ? `\nThe user is currently viewing: ${context}. Use this as context if relevant.` : ''
-}`;
-
-    const mappedMessages = messages.map((m, i) => {
-      const isLast = i === messages.length - 1;
-      const parts = [];
-      if (m.text) parts.push({ text: m.text });
-      if (isLast && imageBase64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageBase64 } });
-      return { role: m.role === 'user' ? 'user' : 'model', parts };
-    });
-
-    const contents = [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      { role: 'model', parts: [{ text: 'Understood! I am CompuBot, your CompuClass AI assistant. How can I help you today?' }] },
-      ...mappedMessages,
-    ];
-
-    const url = `${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents }),
-        });
-
-        if (response.status === 503 && attempt < retries) {
-          await new Promise(res => setTimeout(res, attempt * 2000));
-          continue;
-        }
-
-        if (!response.ok) {
-          const errorBody = await response.text();
-          const apiError = new Error(`Gemini API error: ${response.status} - ${errorBody}`);
-          // A rejected request (bad key, quota, malformed body) returns the same
-          // answer however often it is repeated, so it must not be retried.
-          apiError.noRetry = true;
-          throw apiError;
-        }
-
-        const data = await response.json();
-        return data.candidates[0].content.parts[0].text;
-      } catch (error) {
-        // Only transport-level failures are worth another attempt.
-        if (error.noRetry || attempt === retries) throw error;
-        await new Promise(res => setTimeout(res, attempt * 2000));
-      }
-    }
+    const recent = messages.slice(-PROXY_MAX_MESSAGES).map((m) => ({
+      role: m.role === 'user' ? 'user' : 'ai',
+      text: String(m.text || '').trim(),
+    })).filter((m, index, all) => m.text || index === all.length - 1);
+    if (recent.length === 0) throw new Error('Invalid conversation.');
+    const last = recent[recent.length - 1];
+    if (!last.text) last.text = 'Please look at the attached image.';
+    if (context) last.text = `${last.text}\n\n(The user is currently viewing: ${context})`;
+    const body = { action: 'chat', messages: recent };
+    if (imageBase64) body.imageBase64 = imageBase64;
+    const { text } = await invokeAiProxy(body);
+    return text;
   },
 
   async generateQuizFromPDF(file, title, questionCount = 5) {
@@ -271,66 +125,9 @@ Always respond in the same language the user writes in.${
       
       console.log('PDF converted to base64, length:', base64Data.length);
 
-      if (USE_AI_PROXY) {
-        const { questions } = await invokeAiProxy({ action: 'quiz', title, questionCount, pdfBase64: base64Data });
-        return toQuiz(title, questions);
-      }
-      
-      const prompt = `Analyze this PDF document and create exactly ${questionCount} multiple choice questions based on its content.
-
-Return ONLY valid JSON in this exact format (no markdown, no extra text):
-{
-  "questions": [
-    {
-      "question": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": 0
-    }
-  ]
-}
-
-IMPORTANT: Generate exactly ${questionCount} questions that test understanding of the key concepts in the document.`;
-
-      const url = `${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-      
-      const apiResponse = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: 'application/pdf', data: base64Data } }
-            ]
-          }]
-        }),
-      });
-      
-      console.log('Response status:', apiResponse.status);
-      
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        console.error('API ERROR:', errorText);
-        throw new Error(`Gemini API error: ${apiResponse.status}`);
-      }
-
-      const data = await apiResponse.json();
-      const aiResponse = data.candidates[0].content.parts[0].text;
-      const cleanResponse = aiResponse.replace(/```json\n?|```\n?/g, '').trim();
-      const parsedQuiz = JSON.parse(cleanResponse);
-      
+      const { questions } = await invokeAiProxy({ action: 'quiz', title, questionCount, pdfBase64: base64Data });
       console.log('=== PDF QUIZ GENERATION SUCCESS ===');
-      return {
-        title,
-        questions: parsedQuiz.questions.map((q, index) => ({
-          id: Date.now() + index,
-          question: q.question,
-          options: q.options,
-          correctAnswer: q.correctAnswer,
-          type: 'multiple-choice'
-        })),
-        aiGenerated: true
-      };
+      return toQuiz(title, questions);
     } catch (error) {
       console.error('=== PDF QUIZ GENERATION ERROR ===');
       console.error('Error:', error.message);

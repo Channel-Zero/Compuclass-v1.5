@@ -89,6 +89,25 @@ describe('authService session lifecycle (integration)', () => {
   });
 });
 
+describe('authService.signUp', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  it('stores the name only and does not send a client-supplied role', async () => {
+    supabase.auth.signUp.mockResolvedValue({ data: { user: { id: 'new' }, session: null }, error: null });
+
+    await authService.signUp('new.student@compuclass.test', 'Violet-Kettle-Orbit-47', 'Test Student');
+
+    expect(supabase.auth.signUp).toHaveBeenCalledWith({
+      email: 'new.student@compuclass.test',
+      password: 'Violet-Kettle-Orbit-47',
+      options: { data: { full_name: 'Test Student' } },
+    });
+  });
+});
+
 describe('authService.getOfflineUser', () => {
   it('returns the parsed cached user when present', async () => {
     const user = { id: 'user-2', email: 'lecturer@compuclass.test' };

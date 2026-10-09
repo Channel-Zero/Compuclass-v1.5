@@ -36,15 +36,24 @@ export const gameRunnerService = {
     try {
       const user = await authService.getCurrentUser();
       const cleanCode = code.trim().toUpperCase();
-      const { data: room, error } = await supabase
-        .from('game_runner_rooms')
-        .select('*')
-        .eq('code', cleanCode)
-        .eq('status', 'waiting')
-        .single();
-      if (error || !room) {
-        console.error('joinRoom lookup failed:', { cleanCode, error, userId: user?.id });
-        throw new AppError('Room not found or already started');
+      // Same pattern as circuitMazeService.joinRoom: prefer the code lookup
+      // function, and fall back while that function is not deployed.
+      let room = null;
+      const rpc = await supabase.rpc('join_game_runner_room', { p_code: cleanCode });
+      if (!rpc.error && rpc.data?.id) {
+        room = rpc.data;
+      } else {
+        const direct = await supabase
+          .from('game_runner_rooms')
+          .select('*')
+          .eq('code', cleanCode)
+          .eq('status', 'waiting')
+          .single();
+        if (direct.error || !direct.data) {
+          console.error('joinRoom lookup failed:', { cleanCode, error: rpc.error || direct.error, userId: user?.id });
+          throw new AppError('Room not found or already started');
+        }
+        room = direct.data;
       }
 
       const { error: joinErr } = await supabase.from('game_runner_players').insert({

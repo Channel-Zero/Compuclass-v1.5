@@ -86,13 +86,20 @@ export default function ForgotPasswordScreen({ onBackToLogin }) {
     finally { setLoading(false); }
   };
 
+  const leave = async () => {
+    if (step >= 3) {
+      try { await supabase.auth.signOut(); } catch { /* still return to login */ }
+    }
+    onBackToLogin();
+  };
+
   const stepLabels = ['Enter your email to receive a reset code', 'Enter the 6-digit code sent to your email', 'Enter your new password'];
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={[BLUE, '#1D4ED8']} style={styles.topBanner}>
-          <TouchableOpacity style={styles.backBtn} onPress={onBackToLogin}>
+          <TouchableOpacity style={styles.backBtn} onPress={leave}>
             <Ionicons name="arrow-back" size={20} color={WHITE} />
           </TouchableOpacity>
           <View style={styles.iconWrap}>
