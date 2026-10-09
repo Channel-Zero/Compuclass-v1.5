@@ -68,14 +68,15 @@ Do not put a Gemini API key in `.env`. The app calls the `gemini-proxy` Edge Fun
 ## Database Setup
 
 - **New Supabase project:** run `supabase-setup.sql` once in the SQL editor, then the migrations in `supabase/migrations/` in timestamp order.
-- **Live project:** `20261006140000_security_hardening.sql` and `20261009150000_room_host_read_fix.sql` are already applied. Do not run them again. They turned on row level security for `announcements` and `game_scores`. The security migration does not rewrite `custom_access_token_hook`. Confirm in Authentication > Hooks whether that hook is enabled.
+- **Live project:** the migrations below are already applied, in this order. Do not run them again. `20261006140000` turned on row level security for `announcements` and `game_scores`. It does not rewrite `custom_access_token_hook`. Confirm in Authentication > Hooks whether that hook is enabled.
 
-These migrations are **not** applied yet. Run them in this order, and stop if one rolls back:
-
-1. `supabase/migrations/20261009160000_join_class.sql`
-2. `supabase/migrations/20261009170000_class_scope_materials.sql`
-3. `supabase/migrations/20261009180000_documents_upload_lecturer_only.sql`
-4. `supabase/migrations/20261009190000_user_progress.sql`
+1. `supabase/migrations/20261006140000_security_hardening.sql`
+2. `supabase/migrations/20261009150000_room_host_read_fix.sql`
+3. `supabase/migrations/20261009160000_join_class.sql`
+4. `supabase/migrations/20261009170000_class_scope_materials.sql`
+5. `supabase/migrations/20261009180000_documents_upload_lecturer_only.sql`
+6. `supabase/migrations/20261009190000_user_progress.sql`
+7. `supabase/migrations/20261009200000_classes_lecturer_only.sql`
 
 Every signup is a student. Promote a lecturer from the SQL editor:
 
