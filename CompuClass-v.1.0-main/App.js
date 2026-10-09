@@ -6,6 +6,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity, PanResponder, Animated, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -56,6 +57,7 @@ const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 // Web only: the app is served entirely from "/", so any other path is a 404.
+const ONBOARDING_KEY = 'onboardingComplete';
 const KNOWN_WEB_PATHS = ['', '/', '/index.html'];
 const isUnknownWebPath = () =>
   Platform.OS === 'web' && typeof window !== 'undefined' && !KNOWN_WEB_PATHS.includes(window.location.pathname);
@@ -237,6 +239,8 @@ function AppContent() {
 
   const checkUser = async () => {
     try {
+      const seenOnboarding = await AsyncStorage.getItem(ONBOARDING_KEY);
+      if (seenOnboarding === '1') setIsFirstLaunch(false);
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const user = await authService.getCurrentUser();
@@ -253,6 +257,11 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const finishOnboarding = async () => {
+    try { await AsyncStorage.setItem(ONBOARDING_KEY, '1'); } catch {}
+    setIsFirstLaunch(false);
   };
 
   const handleLogin = async () => {
@@ -291,7 +300,7 @@ function AppContent() {
   if (isFirstLaunch) return (
     <>
       <StatusBar style="light" />
-      <OnboardingScreen onComplete={() => setIsFirstLaunch(false)} />
+      <OnboardingScreen onComplete={finishOnboarding} />
     </>
   );
 
