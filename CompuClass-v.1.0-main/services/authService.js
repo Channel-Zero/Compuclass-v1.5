@@ -38,7 +38,6 @@ export const authService = {
       if (data.session) {
         await rememberSignedInUser(data.user);
       }
-      console.log('✅ Sign up successful:', email);
       return data;
     } catch (error) {
       console.error('❌ Sign up exception:', error);
@@ -59,7 +58,6 @@ export const authService = {
       }
       
       await rememberSignedInUser(data.user);
-      console.log('✅ Sign in successful:', email);
       return data;
     } catch (error) {
       console.error('❌ Sign in exception:', error);
@@ -141,7 +139,6 @@ export const authService = {
         console.error('❌ Reset password error:', error.message);
         throw error;
       }
-      console.log('✅ Password reset email sent to:', email);
     } catch (error) {
       console.error('❌ Reset password exception:', error);
       throw error;
@@ -189,7 +186,6 @@ export const authService = {
         user_metadata: { ...data.user?.user_metadata, avatar_url: signedAvatar },
       };
       await AsyncStorage.setItem('user', JSON.stringify(storedUser));
-      console.log('✅ Profile updated successfully');
       return { ...data, user: storedUser };
     } catch (error) {
       console.error('❌ Update profile exception:', error);
@@ -215,7 +211,6 @@ export const authService = {
         throw error;
       }
       await this.touchSession();
-      console.log('✅ Password updated successfully');
     } catch (error) {
       console.error('❌ Update password exception:', error);
       throw error;

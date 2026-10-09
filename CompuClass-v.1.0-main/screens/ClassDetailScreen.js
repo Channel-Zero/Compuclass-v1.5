@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,16 +21,15 @@ export default function ClassDetailScreen({ navigation, route }) {
   const { classId } = route.params;
   const [classData, setClassData] = useState(null);
   const [students, setStudents] = useState([]);
+  const loadClassDetailRef = useRef(() => {});
 
   useEffect(() => {
-    loadClassDetail();
+    loadClassDetailRef.current();
   }, []);
 
   const loadClassDetail = async () => {
     try {
-      console.log('Loading class detail for:', classId);
       const data = await lecturerService.getClassDetail(classId);
-      console.log('Class detail loaded:', data);
       setClassData(data.class);
       setStudents(data.students);
     } catch (error) {
@@ -38,6 +37,7 @@ export default function ClassDetailScreen({ navigation, route }) {
       Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
     }
   };
+  loadClassDetailRef.current = loadClassDetail;
 
   const handleRemoveStudent = (studentId) => {
     Alert.alert('Remove Student', 'Remove this student from the class?', [
@@ -47,7 +47,6 @@ export default function ClassDetailScreen({ navigation, route }) {
         style: 'destructive',
         onPress: async () => {
           try {
-            console.log('Removing student:', studentId, 'from class:', classId);
             await lecturerService.removeStudentFromClass(classId, studentId);
             loadClassDetail();
             Alert.alert('Success', 'Student removed');

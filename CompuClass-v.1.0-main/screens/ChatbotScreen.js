@@ -42,7 +42,7 @@ function TypingDots() {
     animate(dot1, 0);
     animate(dot2, 150);
     animate(dot3, 300);
-  }, []);
+  }, [dot1, dot2, dot3]);
 
   return (
     <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', paddingVertical: 4 }}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,9 +29,10 @@ export default function ContentUploadScreen({ navigation, route }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [classes, setClasses] = useState([]);
   const [classId, setClassId] = useState(null);
+  const initializeFolderRef = useRef(() => {});
 
   useEffect(() => {
-    initializeFolder();
+    initializeFolderRef.current();
     lecturerService.getClasses().then((data) => setClasses(Array.isArray(data) ? data : [])).catch(() => setClasses([]));
   }, []);
 
@@ -58,6 +59,7 @@ export default function ContentUploadScreen({ navigation, route }) {
     
     loadDocuments(currentFolderId);
   };
+  initializeFolderRef.current = initializeFolder;
 
   const loadDocuments = async (folderIdToUse = folderId) => {
     try {

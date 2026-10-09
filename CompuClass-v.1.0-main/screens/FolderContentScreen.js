@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -20,9 +20,10 @@ export default function FolderContentScreen({ route, navigation }) {
   const [classId, setClassId] = useState(null);
   const [quizTitle, setQuizTitle] = useState('');
   const [questions, setQuestions] = useState([{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
+  const loadContentRef = useRef(() => {});
 
   useEffect(() => {
-    loadContent();
+    loadContentRef.current();
     lecturerService.getClasses().then((data) => setClasses(Array.isArray(data) ? data : [])).catch(() => setClasses([]));
   }, []);
 
@@ -38,6 +39,7 @@ export default function FolderContentScreen({ route, navigation }) {
       Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
     }
   };
+  loadContentRef.current = loadContent;
 
   const handlePickDocument = async () => {
     try {

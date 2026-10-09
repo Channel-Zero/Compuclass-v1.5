@@ -20,11 +20,15 @@ export default function Windows11SimulatorScreen() {
   const [sessionId, setSessionId] = useState(null);
   const [sessionStart, setSessionStart] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const startSessionRef = useRef(() => {});
+  const endSessionRef = useRef(() => {});
 
   useEffect(() => {
-    startSession();
-    // unlockAsync rejects on web (no orientation lock outside fullscreen), so ignore failures like the other calls do.
-    return () => { endSession(); ScreenOrientation.unlockAsync().catch(() => {}); };
+    const end = endSessionRef.current;
+    startSessionRef.current();
+    // The mount-time endSession still sees an empty session. Using the latest
+    // one here, or listing it as a dependency, would write a second session.
+    return () => { end(); ScreenOrientation.unlockAsync().catch(() => {}); };
   }, []);
 
   const startSession = async () => {
@@ -47,6 +51,8 @@ export default function Windows11SimulatorScreen() {
       } catch {}
     }
   };
+  startSessionRef.current = startSession;
+  endSessionRef.current = endSession;
 
   const handleRefresh = () => { setLoading(true); webViewRef.current?.reload(); };
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -35,10 +35,12 @@ export default function StudentProgressScreen({ navigation }) {
     await loadProgressData();
     await loadClasses();
   };
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData;
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      loadDataRef.current();
     }, [])
   );
 

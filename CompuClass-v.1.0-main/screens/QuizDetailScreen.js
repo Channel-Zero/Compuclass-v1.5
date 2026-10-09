@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,13 +11,15 @@ const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827'; const MUT
 export default function QuizDetailScreen({ navigation, route }) {
   const { quizId } = route.params;
   const [quiz, setQuiz] = useState(null);
+  const loadQuizRef = useRef(() => {});
 
-  useEffect(() => { loadQuiz(); }, []);
+  useEffect(() => { loadQuizRef.current(); }, []);
 
   const loadQuiz = async () => {
     try { const data = await lecturerService.getQuizDetail(quizId); setQuiz(data); }
     catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'QuizDetail' })); }
   };
+  loadQuizRef.current = loadQuiz;
 
   const handleDeleteQuiz = () => {
     Alert.alert('Delete Quiz', 'Are you sure you want to delete this quiz?', [

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -34,10 +34,12 @@ export default function QuizCreationScreen({ navigation, route }) {
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [classes, setClasses] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
+  const loadQuizzesRef = useRef(() => {});
+  const loadClassesRef = useRef(() => {});
 
   useEffect(() => {
-    loadQuizzes();
-    loadClasses();
+    loadQuizzesRef.current();
+    loadClassesRef.current();
   }, []);
 
   const loadQuizzes = async () => {
@@ -57,6 +59,8 @@ export default function QuizCreationScreen({ navigation, route }) {
       console.error('Classes error:', error);
     }
   };
+  loadQuizzesRef.current = loadQuizzes;
+  loadClassesRef.current = loadClasses;
 
   const handleShareQuiz = (quiz) => {
     setSelectedQuiz(quiz);

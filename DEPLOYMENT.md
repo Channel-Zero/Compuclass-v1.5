@@ -173,31 +173,39 @@ never be one of those variables.
 
 ### Existing Supabase project
 
-Do **not** re-run `supabase-setup.sql` on a database that already has data. In the
-SQL editor, run the preflight `SELECT` block at the top of the migration by
-itself and read the result. Then run the whole file:
+Do **not** re-run `supabase-setup.sql` on a database that already has data.
 
-`CompuClass-v.1.0-main/supabase/migrations/20261006140000_security_hardening.sql`
+These migrations are already applied on the live project, in this order. Do not run them again:
 
-The migration accepts either `quizzes.created_by` (the live project) or
+1. `CompuClass-v.1.0-main/supabase/migrations/20261006140000_security_hardening.sql`
+2. `CompuClass-v.1.0-main/supabase/migrations/20261009150000_room_host_read_fix.sql`
+
+`20261006140000` accepts either `quizzes.created_by` (the live project) or
 `quizzes.lecturer_id` (a database built from `supabase-setup.sql`). If a column
 or table it needs is missing, the transaction stops and rolls back. A policy
 it does not recognise is left in place so a stricter rule is not widened.
+It turned row level security on for `announcements` and `game_scores`. It does
+not replace `custom_access_token_hook`, because live policies read
+`auth.jwt()->>'role'`. A human still has to check Authentication > Hooks to
+see whether that hook is enabled. SQL cannot see that setting.
+`game_scores.user_id` is not given a new unique key; if it is not unique, the
+runner screen's upsert on that column can fail.
 
-The live `announcements` and `game_scores` tables have row level security
-turned off and grants for the anon key. The migration turns row level security
-on for both. It does not replace `custom_access_token_hook`, because live
-policies read `auth.jwt()->>'role'`. After it runs, a human still has to
-check Authentication > Hooks to see whether that hook is enabled. SQL cannot
-see that setting. `game_scores.user_id` is not given a new unique key; if it
-is not unique, the runner screen's upsert on that column can fail.
+These later migrations are **not** applied yet. Run them in this order, each as
+its own script, and stop if one rolls back:
+
+1. `CompuClass-v.1.0-main/supabase/migrations/20261009160000_join_class.sql`
+2. `CompuClass-v.1.0-main/supabase/migrations/20261009170000_class_scope_materials.sql`
+3. `CompuClass-v.1.0-main/supabase/migrations/20261009180000_documents_upload_lecturer_only.sql`
+4. `CompuClass-v.1.0-main/supabase/migrations/20261009190000_user_progress.sql`
 
 ### Brand-new project
 
 Run `CompuClass-v.1.0-main/supabase-setup.sql`, then the maze, runner, and Windows
-simulator scripts, then the security migration above. `supabase-setup.sql` still
-creates the pre-hardening policies. The migration is what locks them down. It has
-not been executed against any database.
+simulator scripts, then every file in `supabase/migrations/` in timestamp order.
+`supabase-setup.sql` still creates the pre-hardening policies. The migrations
+are what lock them down. On the live project only the first two migration files
+have been applied; the four files listed above have not.
 
 ### Promote a lecturer
 

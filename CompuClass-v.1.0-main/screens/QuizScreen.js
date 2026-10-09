@@ -38,6 +38,7 @@ export default function QuizScreen({ route, navigation }) {
   // Refs so the timer's interval callback always sees fresh values
   // without having to restart the interval every render.
   const timerRef = useRef(null);
+  const loadQuizRef = useRef(() => {});
   const selectedAnswerRef = useRef(null);
   const answersRef = useRef([]);
   const questionsRef = useRef([]);
@@ -48,7 +49,7 @@ export default function QuizScreen({ route, navigation }) {
   useEffect(() => { questionsRef.current = questions; }, [questions]);
   useEffect(() => { currentIndexRef.current = currentQuestion; }, [currentQuestion]);
 
-  useEffect(() => { if (quizId) loadQuiz(); }, [quizId]);
+  useEffect(() => { if (quizId) loadQuizRef.current(); }, [quizId]);
   useFocusEffect(useCallback(() => { if (!quizId) loadAvailableQuizzes(); }, [quizId]));
 
   // Starts (or restarts) the countdown whenever the active question changes.
@@ -117,6 +118,7 @@ export default function QuizScreen({ route, navigation }) {
       navigation.goBack();
     } finally { setLoading(false); }
   };
+  loadQuizRef.current = loadQuiz;
 
   const advanceQuestion = useCallback((finalAnswer, finalTimeLeft) => {
     const qs = questionsRef.current;

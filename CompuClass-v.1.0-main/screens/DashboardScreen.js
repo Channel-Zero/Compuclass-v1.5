@@ -77,7 +77,7 @@ function SkeletonBlock({ width, height: h, style }) {
         Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [shimmer]);
   const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.85] });
   return <Animated.View style={[{ width, height: h, borderRadius: 10, backgroundColor: '#E5E7EB', opacity }, style]} />;
 }
