@@ -36,6 +36,7 @@ export default function ProfileScreen({ onLogout }) {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [fullName, setFullName] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,15 +82,16 @@ export default function ProfileScreen({ onLogout }) {
   };
 
   const handleChangePassword = async () => {
-    if (!newPassword || !confirmPassword) { Alert.alert("Error", "All fields are required"); return; }
+    if (!currentPassword || !newPassword || !confirmPassword) { Alert.alert("Error", "All fields are required"); return; }
     if (newPassword !== confirmPassword) { Alert.alert("Error", "Passwords do not match"); return; }
     setLoading(true);
     try {
       const passwordProblems = await validateNewPassword(newPassword, { email: user?.email });
       if (passwordProblems.length > 0) { Alert.alert("Choose a stronger password", passwordProblems.join("\n")); return; }
-      await authService.updatePassword(null, newPassword);
+      await authService.updatePassword(currentPassword, newPassword);
       Alert.alert("Success", "Password changed successfully");
       setShowPasswordModal(false);
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
@@ -202,6 +204,7 @@ export default function ProfileScreen({ onLogout }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: CARD }]}>
             <Text style={[styles.modalTitle, { color: TEXT }]}>Change Password 🔒</Text>
+            <TextInput style={[styles.input, { backgroundColor: BG, borderColor: BORDER, color: TEXT }]} placeholder="Current Password" placeholderTextColor={MUTED} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry autoCapitalize="none" />
             <TextInput style={[styles.input, { backgroundColor: BG, borderColor: BORDER, color: TEXT }]} placeholder="New Password" placeholderTextColor={MUTED} value={newPassword} onChangeText={setNewPassword} secureTextEntry maxLength={PASSWORD_MAX_LENGTH} />
             <Text style={[styles.passwordHint, { color: MUTED }]}>{PASSWORD_HINT}</Text>
             <TextInput style={[styles.input, { backgroundColor: BG, borderColor: BORDER, color: TEXT }]} placeholder="Confirm New Password" placeholderTextColor={MUTED} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />

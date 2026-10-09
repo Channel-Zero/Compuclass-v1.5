@@ -8,6 +8,8 @@ jest.mock('../../config/supabase', () => ({
       signUp: jest.fn(),
       signInWithPassword: jest.fn(),
       signOut: jest.fn(),
+      getUser: jest.fn(),
+      updateUser: jest.fn(),
     },
   },
 }));
@@ -39,6 +41,42 @@ describe('authService.signIn', () => {
       message: 'Invalid login credentials',
     });
     expect(await AsyncStorage.getItem('user')).toBeNull();
+  });
+});
+
+describe('authService.updatePassword', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('checks the current password before changing it', async () => {
+    const order = [];
+    supabase.auth.getUser.mockResolvedValue({ data: { user: { email: 'student@compuclass.test' } } });
+    supabase.auth.signInWithPassword.mockImplementation(async () => {
+      order.push('signIn');
+      return { error: null };
+    });
+    supabase.auth.updateUser.mockImplementation(async () => {
+      order.push('update');
+      return { error: null };
+    });
+
+    await authService.updatePassword('current-secret', 'Violet-Kettle-Orbit-47');
+
+    expect(order).toEqual(['signIn', 'update']);
+    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
+      email: 'student@compuclass.test',
+      password: 'current-secret',
+    });
+    expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: 'Violet-Kettle-Orbit-47' });
+  });
+
+  it('does not change the password when the current one is wrong', async () => {
+    supabase.auth.getUser.mockResolvedValue({ data: { user: { email: 'student@compuclass.test' } } });
+    supabase.auth.signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+
+    await expect(authService.updatePassword('wrong', 'Violet-Kettle-Orbit-47')).rejects.toThrow('Current password is incorrect');
+    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
   });
 });
 
