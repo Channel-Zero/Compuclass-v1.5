@@ -56,28 +56,30 @@ export default function PCLabScreen({ navigation }) {
     ]).start(onDone);
   };
 
+  const openComponentViewer = (id) => {
+    if (id === 'motherboard') setShowMotherboardFullscreen(true);
+    else if (id === 'cpu') setShowCPUFullscreen(true);
+    else if (id === 'ram') setShowRAMFullscreen(true);
+    else if (id === 'gpu') setShowGPUFullscreen(true);
+    else if (id === 'storage') setShowStorageFullscreen(true);
+    else if (id === 'psu') setShowPSUFullscreen(true);
+  };
+
   const handleComponentPress = (id, index) => {
     animateCard(index, () => {
-      if (id === 'motherboard') { setShowMotherboardFullscreen(true); return; }
-      if (id === 'cpu')         { setShowCPUFullscreen(true);         return; }
-      if (id === 'ram')         { setShowRAMFullscreen(true);         return; }
-      if (id === 'gpu')         { setShowGPUFullscreen(true);         return; }
-      if (id === 'storage')     { setShowStorageFullscreen(true);     return; }
-      if (id === 'psu')         { setShowPSUFullscreen(true);         return; }
-      if (currentStep < steps.length) {
-        if (id === components[currentStep].id) {
-          setSelectedComponents([...selectedComponents, id]);
-          setCurrentStep(currentStep + 1);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          if (currentStep === steps.length - 1) {
-            Alert.alert('Congratulations! 🎉', 'You have successfully assembled your PC!', [
-              { text: 'Start New Build', onPress: () => { setSelectedComponents([]); setCurrentStep(0); } },
-            ]);
-          }
-        } else {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert('Wrong Component', `Next step: ${steps[currentStep]}`);
+      if (currentStep >= steps.length) return;
+      if (id === components[currentStep].id) {
+        setSelectedComponents([...selectedComponents, id]);
+        setCurrentStep(currentStep + 1);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (currentStep === steps.length - 1) {
+          Alert.alert('Congratulations! 🎉', 'You have successfully assembled your PC!', [
+            { text: 'Start New Build', onPress: () => { setSelectedComponents([]); setCurrentStep(0); } },
+          ]);
         }
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('Wrong Component', `Next step: ${steps[currentStep]}`);
       }
     });
   };
@@ -156,7 +158,10 @@ export default function PCLabScreen({ navigation }) {
         <View style={[styles.arContainer, { height: arHeight }]}><RealAR /></View>
 
         {/* Components */}
-        <Text style={[styles.sectionTitle, { marginTop: 20, marginBottom: 12 }]}>Available Components</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 20, marginBottom: 4 }]}>Available Components</Text>
+        <Text style={styles.stepHint}>
+          {currentStep < steps.length ? `Next step: ${steps[currentStep]}` : 'Build complete'}
+        </Text>
         <View style={styles.componentsGrid}>
           {components.map((component, index) => {
             const installed = selectedComponents.includes(component.id);
@@ -177,6 +182,14 @@ export default function PCLabScreen({ navigation }) {
                       <Ionicons name="checkmark" size={12} color={WHITE} />
                     </View>
                   )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => openComponentViewer(component.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${component.name} model`}
+                  style={styles.viewModelBtn}
+                >
+                  <Text style={styles.viewModelText}>View model</Text>
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -206,6 +219,9 @@ const styles = StyleSheet.create({
   componentInstalled: { opacity: 0.5 },
   componentIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   componentName: { fontSize: 13, fontWeight: '700', color: TEXT, textAlign: 'center' },
+  stepHint: { fontSize: 14, fontWeight: '700', color: MUTED, marginBottom: 12 },
+  viewModelBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  viewModelText: { fontSize: 13, fontWeight: '700', color: '#2563EB' },
   componentNameInstalled: { color: MUTED },
   installedBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: GREEN, borderRadius: 10, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },

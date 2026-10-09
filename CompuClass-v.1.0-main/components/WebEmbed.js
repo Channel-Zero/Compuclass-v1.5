@@ -19,6 +19,7 @@ export default function WebEmbed(props) {
         style={{ width: '100%', height: '100%', border: 'none' }}
         allow="autoplay; fullscreen; xr-spatial-tracking; accelerometer; gyroscope"
         allowFullScreen
+        onError={props.onError}
       />
     </View>
   );
