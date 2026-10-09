@@ -28,6 +28,27 @@ function cleanQuestions(questions) {
   });
 }
 
+// save_quiz's return shape is not in the repo. Use question ids only when the
+// payload actually includes them, so timer settings are not sent with a guess.
+function questionRowsFromSaveQuiz(data) {
+  const rows = Array.isArray(data)
+    ? data
+    : data?.questions || data?.quiz_questions || data?.p_questions || [];
+  return Array.isArray(rows) ? rows.filter((row) => row && typeof row === 'object') : [];
+}
+
+function quizFromSaveQuiz(data, title, folderId) {
+  if (data && typeof data === 'object' && !Array.isArray(data) && data.id) return data;
+  if (typeof data === 'string') return { id: data, title, folder_id: folderId, type: 'practice' };
+  const first = questionRowsFromSaveQuiz(data)[0];
+  return {
+    id: first?.quiz_id || null,
+    title,
+    folder_id: folderId,
+    type: 'practice',
+  };
+}
+
 export const lecturerService = {
   async createFolder(name, description = '') {
     try {
@@ -143,51 +164,41 @@ export const lecturerService = {
     try {
       title = cleanText(title, { field: 'Quiz title', maxLength: LIMITS.title, required: true, allowMarkup: false });
       questions = cleanQuestions(questions);
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from('quizzes')
-        .insert({
-          title,
-          description: '',
-          passing_score: 70,
-          folder_id: folderId,
-          lecturer_id: user.id
-        })
-        .select()
-        .single();
+      // Live quizzes are owned by created_by and written by save_quiz.
+      // p_questions carries the columns the live quiz_questions table has.
+      // points, type, and image_url are included only when the caller set them.
+      const p_questions = questions.map((q, idx) => {
+        const row = {
+          question: q.question,
+          options: q.options,
+          correct_answer: q.options[q.correctAnswer],
+          order_index: idx,
+        };
+        if (q.points != null) row.points = q.points;
+        if (q.type) row.type = q.type;
+        if (q.image_url) row.image_url = q.image_url;
+        return row;
+      });
+
+      const { data, error } = await supabase.rpc('save_quiz', {
+        p_quiz_id: null,
+        p_title: title,
+        p_type: 'practice',
+        p_questions,
+        p_folder_id: folderId,
+      });
       if (error) {
         console.error('❌ Create quiz error:', error.message);
         throw error;
       }
 
-      const questionInserts = questions.map((q, idx) => ({
-        quiz_id: data.id,
-        question: q.question,
-        options: q.options,
-        correct_answer: q.options[q.correctAnswer],
-        order_index: idx
-      }));
-
-      const { data: insertedQuestions, error: qError } = await supabase
-        .from('quiz_questions')
-        .insert(questionInserts)
-        .select();
-      if (qError) {
-        console.error('❌ Insert quiz questions error:', qError.message);
-        throw qError;
-      }
-
-      // Attach per-question timer/difficulty where the lecturer customized
-      // them (defaults are no time limit + medium difficulty, so most
-      // questions skip this entirely). Match by order_index rather than
-      // array position — insert return order isn't guaranteed to match
-      // the input array.
+      const savedQuestions = questionRowsFromSaveQuiz(data);
       const byOrderIndex = {};
-      (insertedQuestions || []).forEach((row) => { byOrderIndex[row.order_index] = row; });
+      savedQuestions.forEach((row) => { byOrderIndex[row.order_index] = row; });
 
       const settingsCalls = questions
         .map((q, idx) => ({ q, inserted: byOrderIndex[idx] }))
-        .filter(({ q, inserted }) => inserted && (q.timeLimitSeconds || (q.difficulty && q.difficulty !== 'medium')))
+        .filter(({ q, inserted }) => inserted?.id && (q.timeLimitSeconds || (q.difficulty && q.difficulty !== 'medium')))
         .map(({ q, inserted }) =>
           supabase.rpc('set_question_gamification_settings', {
             p_question_id: inserted.id,
@@ -203,7 +214,7 @@ export const lecturerService = {
       }
 
       console.log('✅ Quiz created:', title, 'with', questions.length, 'questions');
-      return data;
+      return quizFromSaveQuiz(data, title, folderId);
     } catch (error) {
       console.error('❌ Create quiz exception:', error);
       throw error;
@@ -357,16 +368,13 @@ export const lecturerService = {
 
   async shareQuizToClasses(quizId, classIds) {
     try {
-      // Insert quiz assignments for each class
-      const assignments = classIds.map(classId => ({
-        quiz_id: quizId,
-        class_id: classId,
-        assigned_at: new Date().toISOString()
-      }));
-      
-      const { error } = await supabase
-        .from('quiz_assignments')
-        .insert(assignments);
+      // Live quiz_assignments.created_by is filled by assign_quiz_to_classes.
+      // The argument names match the live function's table (quiz id + class ids).
+      // The function body is not in the repo, so this is the call the app makes.
+      const { error } = await supabase.rpc('assign_quiz_to_classes', {
+        p_quiz_id: quizId,
+        p_class_ids: classIds,
+      });
       
       if (error) {
         console.error('❌ Share quiz error:', error.message);

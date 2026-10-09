@@ -63,8 +63,25 @@ describe('lecturerService input validation', () => {
     await lecturerService.createQuiz('f1', 'HTML basics', [
       { question: ' What does <p> do? ', options: ['Paragraph ', 'Picture', 'Port', 'Page'], correctAnswer: 0 },
     ]);
-    const questionRows = supabase.__inserted.find((i) => i.table === 'quiz_questions').row;
-    expect(questionRows[0]).toMatchObject({ question: 'What does <p> do?', correct_answer: 'Paragraph' });
+    expect(supabase.from).not.toHaveBeenCalledWith('quizzes');
+    expect(supabase.from).not.toHaveBeenCalledWith('quiz_questions');
+    expect(supabase.rpc).toHaveBeenCalledWith('save_quiz', {
+      p_quiz_id: null,
+      p_title: 'HTML basics',
+      p_type: 'practice',
+      p_folder_id: 'f1',
+      p_questions: [
+        expect.objectContaining({
+          question: 'What does <p> do?',
+          correct_answer: 'Paragraph',
+          order_index: 0,
+          options: ['Paragraph', 'Picture', 'Port', 'Page'],
+        }),
+      ],
+    });
+    const payload = supabase.rpc.mock.calls.find((call) => call[0] === 'save_quiz')[1].p_questions[0];
+    expect(payload).not.toHaveProperty('lecturer_id');
+    expect(payload).not.toHaveProperty('points');
   });
 
   it('sanitises uploaded file names so they cannot escape the user folder', async () => {
