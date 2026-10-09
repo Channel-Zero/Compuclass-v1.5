@@ -6,6 +6,7 @@ import { lecturerService } from '../services/lecturerService';
 import { useTheme } from '../context/ThemeContext';
 import { getErrorMessage } from '../utils/errorMessages';
 import { openStoredDocument } from '../utils/fileDownload';
+import ClassScopePicker from '../components/ClassScopePicker';
 
 export default function FolderContentScreen({ route, navigation }) {
   const { theme } = useTheme();
@@ -15,11 +16,14 @@ export default function FolderContentScreen({ route, navigation }) {
   const [showUploadDoc, setShowUploadDoc] = useState(false);
   const [showCreateQuiz, setShowCreateQuiz] = useState(false);
   const [docTitle, setDocTitle] = useState('');
+  const [classes, setClasses] = useState([]);
+  const [classId, setClassId] = useState(null);
   const [quizTitle, setQuizTitle] = useState('');
   const [questions, setQuestions] = useState([{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
 
   useEffect(() => {
     loadContent();
+    lecturerService.getClasses().then((data) => setClasses(Array.isArray(data) ? data : [])).catch(() => setClasses([]));
   }, []);
 
   const loadContent = async () => {
@@ -44,10 +48,11 @@ export default function FolderContentScreen({ route, navigation }) {
       if (!result.canceled && result.assets[0]) {
         const file = result.assets[0];
         try {
-          await lecturerService.uploadDocument(folder.id, file, docTitle || file.name);
+          await lecturerService.uploadDocument(folder.id, file, docTitle || file.name, classId);
           Alert.alert('Success', 'Document uploaded!');
           setShowUploadDoc(false);
           setDocTitle('');
+          setClassId(null);
           await loadContent();
         } catch (error) {
           Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
@@ -144,6 +149,14 @@ export default function FolderContentScreen({ route, navigation }) {
               placeholderTextColor={theme.textTertiary}
               value={docTitle}
               onChangeText={setDocTitle}
+            />
+            <ClassScopePicker
+              classes={classes}
+              value={classId}
+              onChange={setClassId}
+              textColor={theme.text}
+              mutedColor={theme.textSecondary}
+              accent={theme.primary}
             />
             <TouchableOpacity style={[styles.pickButton, { backgroundColor: theme.primary }]} onPress={handlePickDocument}>
               <Text style={styles.pickButtonText}>Pick PDF or PowerPoint</Text>

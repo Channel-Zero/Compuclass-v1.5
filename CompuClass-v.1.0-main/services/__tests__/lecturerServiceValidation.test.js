@@ -58,6 +58,11 @@ describe('lecturerService input validation', () => {
     expect(supabase.__inserted[0].row).toEqual({ name: "x'; DROP TABLE folders;--", description: 'desc', lecturer_id: 'lecturer-1' });
   });
 
+  it('stores a class id only when the lecturer picked a class', async () => {
+    await lecturerService.createFolder('Notes', 'desc', 'class-1');
+    expect(supabase.__inserted[0].row).toEqual({ name: 'Notes', description: 'desc', lecturer_id: 'lecturer-1', class_id: 'class-1' });
+  });
+
   it('rejects blank quiz questions instead of saving an empty quiz', async () => {
     await expect(
       lecturerService.createQuiz('f1', 'Quiz', [{ question: '', options: ['', '', '', ''], correctAnswer: 0 }])

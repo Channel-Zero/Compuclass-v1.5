@@ -7,6 +7,8 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
 import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
+import { classService } from '../services/classService';
+import { filterByClassScope } from '../utils/classScope';
 const YELLOW = '#FACC15'; const PURPLE = '#8B5CF6';
 const WHITE = '#FFFFFF'; const BG = '#F3F4F6'; const TEXT = '#111827';
 const MUTED = '#4B5563'; const CARD = '#FFFFFF';
@@ -24,9 +26,10 @@ export default function StudentMaterialsScreen({ navigation }) {
 
   const loadFolders = async () => {
     try {
+      const scope = await classService.classScopeForCurrentUser();
       const { data, error } = await supabase.from('folders').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      setFolders(data);
+      setFolders(filterByClassScope(data, scope));
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'StudentMaterials' })); }
   };
 
@@ -50,7 +53,8 @@ export default function StudentMaterialsScreen({ navigation }) {
           counts = Object.fromEntries(countRes.data.map((row) => [row.quiz_id, row.question_count]));
         }
       }
-      setDocuments(docsRes.data);
+      const scope = await classService.classScopeForCurrentUser();
+      setDocuments(filterByClassScope(docsRes.data, scope));
       setQuizzes(counts
         ? quizzes.map((quiz) => ({ ...quiz, quiz_questions: Array.from({ length: counts[quiz.id] || 0 }) }))
         : quizzes);

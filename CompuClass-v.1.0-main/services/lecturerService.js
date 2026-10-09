@@ -38,14 +38,16 @@ function quizIdFromSaveQuiz(data) {
 }
 
 export const lecturerService = {
-  async createFolder(name, description = '') {
+  async createFolder(name, description = '', classId = null) {
     try {
       name = cleanName(name, 'Folder name');
       description = cleanDescription(description);
       const { data: { user } } = await supabase.auth.getUser();
+      const row = { name, description, lecturer_id: user.id };
+      if (classId) row.class_id = classId;
       const { data, error } = await supabase
         .from('folders')
-        .insert({ name, description, lecturer_id: user.id })
+        .insert(row)
         .select()
         .single();
       if (error) {
@@ -79,7 +81,7 @@ export const lecturerService = {
     }
   },
 
-  async uploadDocument(folderId, file, title) {
+  async uploadDocument(folderId, file, title, classId = null) {
     try {
       title = cleanText(title, { field: 'Document title', maxLength: LIMITS.title, required: true, allowMarkup: false });
       assertUploadAllowed(file);
@@ -107,17 +109,19 @@ export const lecturerService = {
 
       // Store the object path. Readers request a signed URL; the bucket is private
       // after the security migration, so a public URL would stop working.
+      const documentRow = {
+        title,
+        file_url: fileName,
+        file_name: safeFileName,
+        file_type: file.mimeType,
+        file_size: file.size,
+        folder_id: folderId,
+        lecturer_id: user.id,
+      };
+      if (classId) documentRow.class_id = classId;
       const { data, error } = await supabase
         .from('documents')
-        .insert({
-          title,
-          file_url: fileName,
-          file_name: safeFileName,
-          file_type: file.mimeType,
-          file_size: file.size,
-          folder_id: folderId,
-          lecturer_id: user.id
-        })
+        .insert(documentRow)
         .select()
         .single();
       

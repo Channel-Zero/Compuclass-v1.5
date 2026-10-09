@@ -3,6 +3,8 @@ import { AppError } from '../utils/errorMessages';
 import { classCodeError, normalizeClassCode } from '../utils/classCode';
 import { limiters } from '../utils/rateLimiter';
 
+const emptyScope = { ready: false, userId: null, enrolledClassIds: [], teachingClassIds: [] };
+
 function joinError(error) {
   const message = error?.message || '';
   if (/only students can join/i.test(message)) return new AppError('Only students can join a class.');
@@ -32,6 +34,26 @@ export const classService = {
     const { data, error } = await supabase.rpc('regenerate_class_code', { p_class_id: classId });
     if (error) throw new AppError('Could not make a new class code. Please try again.');
     return data;
+  },
+
+  async classScopeForCurrentUser() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return emptyScope;
+      const [enrolled, teaching] = await Promise.all([
+        supabase.from('class_students').select('class_id').eq('student_id', user.id),
+        supabase.from('classes').select('id').eq('lecturer_id', user.id),
+      ]);
+      if (enrolled.error || teaching.error) return { ...emptyScope, userId: user.id };
+      return {
+        ready: true,
+        userId: user.id,
+        enrolledClassIds: (enrolled.data || []).map((row) => row.class_id).filter(Boolean),
+        teachingClassIds: (teaching.data || []).map((row) => row.id).filter(Boolean),
+      };
+    } catch {
+      return emptyScope;
+    }
   },
 
   async myClasses() {

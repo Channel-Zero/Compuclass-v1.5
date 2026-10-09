@@ -16,6 +16,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { supabase } from "../config/supabase";
 import { authService } from "../services/authService";
+import { classService } from "../services/classService";
+import { filterByClassScope } from "../utils/classScope";
 
 const BLUE = '#2563EB';
 const YELLOW = '#FACC15';
@@ -186,7 +188,8 @@ export default function DashboardScreen({ navigation }) {
 
       const { data: announcementsData } = await supabase
         .from('announcements').select('*').order('created_at', { ascending: false }).limit(3);
-      setAnnouncements(announcementsData || []);
+      const scope = await classService.classScopeForCurrentUser();
+      setAnnouncements(filterByClassScope(announcementsData || [], scope));
     } catch {}
     finally { setLoading(false); }
   };

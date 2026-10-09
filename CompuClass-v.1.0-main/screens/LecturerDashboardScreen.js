@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
+import ClassScopePicker from '../components/ClassScopePicker';
 
 const BLUE = '#2563EB'; const YELLOW = '#FACC15'; const RED = '#EF4444';
 const GREEN = '#22C55E'; const PURPLE = '#8B5CF6'; const WHITE = '#FFFFFF';
@@ -42,6 +43,14 @@ export default function LecturerDashboardScreen({ navigation }) {
   const [folderName, setFolderName] = useState('');
   const [folderDescription, setFolderDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [classes, setClasses] = useState([]);
+  const [announcementClassId, setAnnouncementClassId] = useState(null);
+  const [folderClassId, setFolderClassId] = useState(null);
+
+  const loadClasses = async () => {
+    const data = await lecturerService.getClasses();
+    setClasses(Array.isArray(data) ? data : []);
+  };
 
   useEffect(() => { loadFolders(); }, []);
 
@@ -55,9 +64,12 @@ export default function LecturerDashboardScreen({ navigation }) {
     setLoading(true);
     try {
       const { supabase } = await import('../config/supabase');
-      await supabase.from('announcements').insert({ title: announcementTitle, body: announcementBody });
-      setShowAnnouncement(false); setAnnouncementTitle(''); setAnnouncementBody('');
-      Alert.alert('Posted!', 'Announcement sent to all students.');
+      const row = { title: announcementTitle, body: announcementBody };
+      if (announcementClassId) row.class_id = announcementClassId;
+      const { error } = await supabase.from('announcements').insert(row);
+      if (error) throw error;
+      setShowAnnouncement(false); setAnnouncementTitle(''); setAnnouncementBody(''); setAnnouncementClassId(null);
+      Alert.alert('Posted!', announcementClassId ? 'Announcement sent to that class.' : 'Announcement sent to all students.');
     } catch (error) { Alert.alert('Error', error.message); }
     finally { setLoading(false); }
   };
@@ -66,8 +78,8 @@ export default function LecturerDashboardScreen({ navigation }) {
     if (!folderName.trim()) { Alert.alert('Error', 'Please enter a folder name'); return; }
     setLoading(true);
     try {
-      await lecturerService.createFolder(folderName, folderDescription);
-      setShowCreateFolder(false); setFolderName(''); setFolderDescription('');
+      await lecturerService.createFolder(folderName, folderDescription, folderClassId);
+      setShowCreateFolder(false); setFolderName(''); setFolderDescription(''); setFolderClassId(null);
       loadFolders();
       Alert.alert('Success', 'Folder created successfully');
     } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'LecturerDashboard' })); }
@@ -97,11 +109,11 @@ export default function LecturerDashboardScreen({ navigation }) {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
-        <TouchableOpacity style={[styles.createFolderBtn, { backgroundColor: '#7C3AED', marginBottom: 10 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowAnnouncement(true); }} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.createFolderBtn, { backgroundColor: '#7C3AED', marginBottom: 10 }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setAnnouncementClassId(null); loadClasses(); setShowAnnouncement(true); }} activeOpacity={0.85}>
           <Ionicons name="megaphone" size={20} color={WHITE} />
           <Text style={styles.createFolderText}>Post Announcement</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.createFolderBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowCreateFolder(true); }} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.createFolderBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setFolderClassId(null); loadClasses(); setShowCreateFolder(true); }} activeOpacity={0.85}>
           <Ionicons name="add-circle" size={20} color={WHITE} />
           <Text style={styles.createFolderText}>Create New Folder</Text>
         </TouchableOpacity>
@@ -149,6 +161,7 @@ export default function LecturerDashboardScreen({ navigation }) {
             <Text style={styles.modalTitle}>Post Announcement 📢</Text>
             <TextInput style={styles.input} placeholder="Title" placeholderTextColor={MUTED} value={announcementTitle} onChangeText={setAnnouncementTitle} />
             <TextInput style={[styles.input, styles.textArea]} placeholder="Message to students..." placeholderTextColor={MUTED} value={announcementBody} onChangeText={setAnnouncementBody} multiline />
+            <ClassScopePicker classes={classes} value={announcementClassId} onChange={setAnnouncementClassId} />
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAnnouncement(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -169,6 +182,7 @@ export default function LecturerDashboardScreen({ navigation }) {
               value={folderName} onChangeText={setFolderName} />
             <TextInput style={[styles.input, styles.textArea]} placeholder="Description (optional)" placeholderTextColor={MUTED}
               value={folderDescription} onChangeText={setFolderDescription} multiline />
+            <ClassScopePicker classes={classes} value={folderClassId} onChange={setFolderClassId} />
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowCreateFolder(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
