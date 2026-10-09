@@ -24,6 +24,7 @@ export const PAGE_META = {
   Quiz: { title: 'Quizzes', description: 'Take quizzes assigned by your lecturer and test your computer knowledge.' },
   Troubleshoot: { title: 'Troubleshooting Guide', description: 'Step-by-step guides for diagnosing and fixing common computer problems.' },
   Leaderboard: { title: 'Leaderboard', description: 'See how your XP and streak compare with other CompuClass learners.' },
+  JoinClass: { title: 'Join a Class', description: 'Enter the class code from your lecturer to join a CompuClass class and see its quizzes.' },
   Materials: { title: 'Learning Materials', description: 'Download learning materials and open quizzes shared by your lecturers.' },
   Settings: { title: 'Settings', description: 'Manage your CompuClass preferences and export your data.' },
   Chatbot: { title: 'CompuBot AI Assistant', description: 'Ask CompuBot questions about computer hardware, software and troubleshooting.' },

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIn
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
@@ -47,7 +48,8 @@ export default function QuizScreen({ route, navigation }) {
   useEffect(() => { questionsRef.current = questions; }, [questions]);
   useEffect(() => { currentIndexRef.current = currentQuestion; }, [currentQuestion]);
 
-  useEffect(() => { quizId ? loadQuiz() : loadAvailableQuizzes(); }, [quizId]);
+  useEffect(() => { if (quizId) loadQuiz(); }, [quizId]);
+  useFocusEffect(useCallback(() => { if (!quizId) loadAvailableQuizzes(); }, [quizId]));
 
   // Starts (or restarts) the countdown whenever the active question changes.
   // Untimed questions (time_limit_seconds is null) just skip the timer.
@@ -198,7 +200,10 @@ export default function QuizScreen({ route, navigation }) {
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={64} color={BORDER} />
             <Text style={[styles.emptyText, { color: TEXT }]}>No quizzes assigned yet</Text>
-            <Text style={[styles.emptySubtext, { color: MUTED }]}>Your lecturer will assign quizzes to your class</Text>
+            <Text style={[styles.emptySubtext, { color: MUTED }]}>Join a class to see quizzes from your lecturer</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('JoinClass')} style={styles.retryBtn} accessibilityRole="button" accessibilityLabel="Join a class">
+              <Text style={styles.retryText}>Join a class</Text>
+            </TouchableOpacity>
           </View>
         ) : availableQuizzes.map((q) => (
           <TouchableOpacity key={q.id} style={[styles.quizCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: q.id }); }} activeOpacity={0.75}>

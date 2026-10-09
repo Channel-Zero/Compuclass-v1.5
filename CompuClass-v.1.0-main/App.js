@@ -40,6 +40,7 @@ import CircuitMazeLobbyScreen from './screens/CircuitMazeLobbyScreen';
 import CircuitMazeTopicScreen from './screens/CircuitMazeTopicScreen';
 import GameScreen from './screens/GameScreen';
 import GameRunnerLobbyScreen from './screens/GameRunnerLobbyScreen';
+import JoinClassScreen from './screens/JoinClassScreen';
 import NotFoundScreen from './screens/NotFoundScreen';
 import Sidebar, { getSidebarHiddenX } from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -373,6 +374,7 @@ function AppContent() {
               <Tab.Screen name="Windows 11" component={Windows11SimulatorScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="Troubleshoot" component={TroubleshootingScreen} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Leaderboard" component={LeaderboardScreen} options={{ tabBarButton: () => null, headerShown: false }} />
+              <Tab.Screen name="JoinClass" component={JoinClassScreen} options={{ tabBarButton: () => null, headerShown: false }} />
               <Tab.Screen name="Materials" component={StudentMaterialsScreen} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Chatbot" component={ChatbotScreen} options={{ tabBarButton: () => null, headerShown: false }} />

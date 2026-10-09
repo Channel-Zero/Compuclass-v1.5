@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { supabase } from "../config/supabase";
 import { authService } from "../services/authService";
@@ -36,9 +37,7 @@ export default function LeaderboardScreen({ navigation }) {
   const [rows, setRows] = useState([]);
   const [myId, setMyId] = useState(null);
 
-  useEffect(() => {
-    init();
-  }, []);
+  useFocusEffect(useCallback(() => { init(); }, []));
 
   // Fires once init() finishes (loading -> false) and again whenever
   // the person switches scope or picks a different class.
@@ -153,7 +152,9 @@ export default function LeaderboardScreen({ navigation }) {
         </TouchableOpacity>
       </View>
       {classes.length === 0 && (
-        <Text style={styles.scopeHint}>Join a class to see this</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('JoinClass')} accessibilityRole="button" accessibilityLabel="Join a class">
+          <Text style={styles.scopeHint}>Join a class to see this</Text>
+        </TouchableOpacity>
       )}
 
       {scope === "class" && classes.length > 1 && (

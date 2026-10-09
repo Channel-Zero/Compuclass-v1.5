@@ -6,11 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Share,
+  Clipboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { lecturerService } from '../services/lecturerService';
+import { classService } from '../services/classService';
 import { getErrorMessage } from '../utils/errorMessages';
 
 export default function ClassDetailScreen({ navigation, route }) {
@@ -83,6 +86,42 @@ export default function ClassDetailScreen({ navigation, route }) {
             <Ionicons name="school" size={32} color="#fff" />
           </View>
           <Text style={[styles.className, { color: theme.text }]}>{classData.name}</Text>
+          <Text style={[styles.classDescription, { color: theme.textSecondary }]}>Class code</Text>
+          <Text style={[styles.className, { color: theme.text, letterSpacing: 3 }]} accessibilityLabel={`Class code ${classData.join_code || 'not available'}`}>
+            {classData.join_code || 'Not available yet'}
+          </Text>
+          {classData.join_code ? (
+            <View style={styles.classMeta}>
+              <TouchableOpacity
+                onPress={() => { Clipboard.setString(classData.join_code); Alert.alert('Copied', 'Class code copied.'); }}
+                accessibilityRole="button"
+                accessibilityLabel="Copy class code"
+              >
+                <Text style={[styles.metaText, { color: theme.primary }]}>Copy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => Share.share({ message: `Join my CompuClass class with code ${classData.join_code}` })}
+                accessibilityRole="button"
+                accessibilityLabel="Share class code"
+              >
+                <Text style={[styles.metaText, { color: theme.primary }]}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    const next = await classService.regenerateClassCode(classId);
+                    setClassData((prev) => ({ ...prev, join_code: next }));
+                  } catch (error) {
+                    Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Regenerate class code"
+              >
+                <Text style={[styles.metaText, { color: theme.primary }]}>New code</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {classData.description && (
             <Text style={[styles.classDescription, { color: theme.textSecondary }]}>
               {classData.description}
