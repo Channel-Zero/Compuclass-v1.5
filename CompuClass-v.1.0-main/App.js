@@ -51,6 +51,7 @@ import GameRunnerLobbyScreen from './screens/GameRunnerLobbyScreen';
 import JoinClassScreen from './screens/JoinClassScreen';
 import NotFoundScreen from './screens/NotFoundScreen';
 import Sidebar from './components/Sidebar';
+import HeaderSearch from './components/HeaderSearch';
 import { EdgeSwipeCatcher, PhoneMenuButton, usePhoneDrawer } from './components/PhoneDrawer';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Icon } from './components/ui/Icon';
@@ -177,10 +178,13 @@ function TopBar({ laptop, phone, menuOpen, onMenu, hidden, user, onSearch, onBel
         </>
       )}
       {laptop && (
-        <Pressable onPress={onSearch} accessibilityRole="button" accessibilityLabel="Search lessons, quizzes, games" style={[styles.searchPill, { borderColor: theme.border, backgroundColor: 'rgba(255,255,255,0.8)' }]}>
-          <Icon name="search" size={18} color={theme.textTertiary} />
-          <Text style={[{ fontSize: 14, color: theme.textTertiary }, font(theme, 'body')]}>Search lessons, quizzes, games</Text>
-        </Pressable>
+        <HeaderSearch
+          onSubmit={onSearch}
+          color={theme.text}
+          placeholderColor={theme.textTertiary}
+          borderColor={theme.border}
+          backgroundColor="rgba(255,255,255,0.8)"
+        />
       )}
       <IconButton name="bell" label="Announcements" onPress={onBell} dot={dot} />
       {laptop && (
@@ -489,7 +493,10 @@ function AppContent() {
                     hidden={hideChrome}
                     user={account}
                     dot={announcements.length > 0}
-                    onSearch={() => handleNavigate('Search')}
+                    onSearch={(query) => {
+                      if (typeof query === 'string' && query.trim()) handleNavigate({ screen: 'Search', params: { query: query.trim() } });
+                      else handleNavigate('Search');
+                    }}
                     onBell={() => setShowAnnouncements(true)}
                     onAvatar={() => handleNavigate('Profile')}
                   />
@@ -567,7 +574,6 @@ const styles = StyleSheet.create({
   backBar: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 4, zIndex: 6, alignItems: 'flex-start' },
   stage: { flex: 1, overflow: 'hidden', position: 'relative' },
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 5 },
-  searchPill: { flex: 1, maxWidth: 400, height: 44, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 'auto' },
   me: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   offlineGate: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
   offlineBtn: { minHeight: 48, minWidth: 44, paddingHorizontal: 24, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

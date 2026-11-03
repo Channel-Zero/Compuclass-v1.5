@@ -85,6 +85,7 @@ export default function TroubleshootingScreen({ navigation }) {
   const [attempt, setAttempt] = useState(null);
   const [choosing, setChoosing] = useState(false);
   const [xpAwarded, setXpAwarded] = useState(0);
+  const [savedOnAccount, setSavedOnAccount] = useState(false);
 
   useEffect(() => {
     loadTroubleshootingProgress().then(setProgress).catch(() => {});
@@ -95,6 +96,7 @@ export default function TroubleshootingScreen({ navigation }) {
     setAttempt(startAttempt(item));
     setChoosing(false);
     setXpAwarded(0);
+    setSavedOnAccount(false);
   };
 
   const finish = async (diagnosisId) => {
@@ -111,8 +113,10 @@ export default function TroubleshootingScreen({ navigation }) {
       });
       setProgress(saved.progress);
       setXpAwarded(saved.xpAwarded);
+      setSavedOnAccount(!!saved.savedToAccount);
     } catch {
       setXpAwarded(0);
+      setSavedOnAccount(false);
     }
   };
 
@@ -216,8 +220,11 @@ export default function TroubleshootingScreen({ navigation }) {
             {xpAwarded > 0 ? (
               <Text style={[{ color: theme.successInk, fontSize: 15, marginTop: 8 }, font(theme, 'semibold')]}>+{xpAwarded} XP saved to your account</Text>
             ) : (
-              <Body variant="small" style={{ marginTop: 8 }}>Your score is saved on this device.</Body>
+              <Body variant="small" style={{ marginTop: 8 }}>{savedOnAccount ? 'Your score is saved to your account.' : 'Your score is saved on this device.'}</Body>
             )}
+            {attempt.log.map((entry, index) => (
+              <Body key={`${entry.checkId}-${index}`}>{entry.label}: {entry.feedback}</Body>
+            ))}
             <Text style={[styles.blockLabel, { color: theme.text }, font(theme, 'semibold')]}>Cause</Text>
             <Body>{scenario.rootCause}</Body>
             <Text style={[styles.blockLabel, { color: theme.text }, font(theme, 'semibold')]}>Fix</Text>
@@ -277,8 +284,7 @@ export default function TroubleshootingScreen({ navigation }) {
             <View style={[styles.readout, { backgroundColor: theme.text, borderColor: theme.text }]}>
               {attempt.log.map((entry, index) => (
                 <View key={`${entry.checkId}-${index}`} style={index > 0 ? [styles.logEntry, { borderTopColor: theme.glassBorder }] : styles.logEntryFirst}>
-                  <Text style={[{ color: theme.secondary, fontSize: 14, marginBottom: 4 }, font(theme, 'semibold')]}>{entry.label}</Text>
-                  <Text style={[{ color: theme.surface, fontSize: 15, lineHeight: 22 }, font(theme, 'body')]}>{entry.feedback}</Text>
+                  <Text style={[{ color: theme.secondary, fontSize: 14 }, font(theme, 'semibold')]}>{entry.label}</Text>
                 </View>
               ))}
             </View>

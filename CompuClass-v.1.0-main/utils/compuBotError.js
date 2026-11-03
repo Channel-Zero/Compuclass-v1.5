@@ -3,6 +3,7 @@ import { RateLimitError } from './rateLimiter';
 export const COMPUBOT_MAX_CHARS = 500;
 
 export function compuBotErrorMessage(error) {
+  if (error?.userMessage) return error.userMessage;
   if (error instanceof RateLimitError) return error.userMessage;
   const text = `${error?.name || ''} ${error?.message || ''}`.toLowerCase();
   const status = error?.context?.status || error?.status;

@@ -185,6 +185,8 @@ These migrations are already applied on the live project, in this order. Do not 
 6. `CompuClass-v.1.0-main/supabase/migrations/20261009190000_user_progress.sql`
 7. `CompuClass-v.1.0-main/supabase/migrations/20261009200000_classes_lecturer_only.sql`
 
+`CompuClass-v.1.0-main/supabase/migrations/20261103120000_topic_performance.sql` is **not** applied yet. Run it once so Circuit Maze can save topic stats through `public.get_topic_performance()` and `public.record_answer_result(text, text, boolean)`. Do not expose the `gamification` schema on the Data API.
+
 `20261006140000` accepts either `quizzes.created_by` (the live project) or
 `quizzes.lecturer_id` (a database built from `supabase-setup.sql`). If a column
 or table it needs is missing, the transaction stops and rolls back. A policy
