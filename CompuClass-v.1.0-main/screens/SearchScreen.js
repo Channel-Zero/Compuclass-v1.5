@@ -38,7 +38,7 @@ function SkeletonCard() {
   );
 }
 
-export default function SearchScreen({ navigation }) {
+export default function SearchScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +49,13 @@ export default function SearchScreen({ navigation }) {
   const inputRef = useRef(null);
 
   const latestSearch = useRef(0);
+
+  useEffect(() => {
+    const incoming = route?.params?.query;
+    if (typeof incoming === 'string' && incoming.trim()) {
+      setSearchQuery(incoming.trim().slice(0, LIMITS.search));
+    }
+  }, [route?.params?.query]);
 
   // Debounced: previously every keystroke fired two Supabase queries.
   useEffect(() => {
@@ -113,7 +120,7 @@ export default function SearchScreen({ navigation }) {
       <LinearGradient colors={[BLUE, '#1D4ED8']} style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.topTitle}>Search 🔍</Text>
         <Text style={styles.topSubtitle}>Find quizzes, documents and more</Text>
-        <View style={[styles.searchBar, { backgroundColor: CARD }]}>
+        <View style={[styles.searchBar, { backgroundColor: CARD }]} pointerEvents="box-none">
           <Ionicons name="search-outline" size={18} color={MUTED} />
           <TextInput
             ref={inputRef}
@@ -123,6 +130,10 @@ export default function SearchScreen({ navigation }) {
             value={searchQuery}
             onChangeText={setSearchQuery}
             maxLength={LIMITS.search}
+            editable
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSearchQuery(''); }} activeOpacity={0.75}>
@@ -214,7 +225,7 @@ const styles = StyleSheet.create({
   topTitle: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', marginBottom: 2 },
   topSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 14 },
   searchBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14, height: 48, gap: 10 },
-  searchInput: { flex: 1, fontSize: 15, fontWeight: '600' },
+  searchInput: { flex: 1, height: 44, fontSize: 15, fontWeight: '600', paddingVertical: 0 },
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
   emptyState: { alignItems: 'center', paddingVertical: 48 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },

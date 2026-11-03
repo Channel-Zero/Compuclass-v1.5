@@ -43,6 +43,7 @@ import GameRunnerLobbyScreen from './screens/GameRunnerLobbyScreen';
 import JoinClassScreen from './screens/JoinClassScreen';
 import NotFoundScreen from './screens/NotFoundScreen';
 import Sidebar, { getSidebarHiddenX } from './components/Sidebar';
+import HeaderSearch from './components/HeaderSearch';
 import ErrorBoundary from './components/ErrorBoundary';
 import { installWebAlert } from './utils/webAlert';
 import { setPageMeta } from './utils/pageMeta';
@@ -142,10 +143,12 @@ function CustomTabBar({ state, descriptors, navigation }) {
   );
 }
 
-function CustomHeader({ onMenuPress, onLogoPress }) {
+function CustomHeader({ onMenuPress, onLogoPress, onSearch }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const showSearch = width >= 900;
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+    <View style={[styles.header, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
       <TouchableOpacity
         style={styles.headerLeft}
         onPress={onLogoPress}
@@ -161,6 +164,7 @@ function CustomHeader({ onMenuPress, onLogoPress }) {
           <Text style={[styles.headerTagline, { color: MUTED }]}>Computer Learning Platform</Text>
         </View>
       </TouchableOpacity>
+      {showSearch ? <HeaderSearch onSubmit={onSearch} /> : <View style={styles.headerSpacer} pointerEvents="none" />}
       <TouchableOpacity
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onMenuPress(); }}
         style={styles.menuBtn}
@@ -354,7 +358,11 @@ function AppContent() {
               tabBar={props => <CustomTabBar {...props} />}
               screenOptions={({ route }) => ({
                 header: () => MAZE_ROUTES.includes(route.name) ? null : (
-                  <CustomHeader onMenuPress={() => setSidebarVisible(true)} onLogoPress={goHome} />
+                  <CustomHeader
+                    onMenuPress={() => setSidebarVisible(true)}
+                    onLogoPress={goHome}
+                    onSearch={(query) => navigationRef.current?.navigate('Search', { query })}
+                  />
                 ),
                 headerShown: !MAZE_ROUTES.includes(route.name),
               })}
@@ -449,7 +457,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
+    zIndex: 20,
   },
+  headerSpacer: { flex: 1 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerLogoWrap: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   headerAppName: { fontSize: 17, fontWeight: '900', color: TEXT },

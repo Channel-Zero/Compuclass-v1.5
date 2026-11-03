@@ -1,9 +1,9 @@
 import { PROGRESS_KEYS, progressService } from '../progressService';
-import { awardTroubleshootingXp, saveScenarioResult } from '../troubleshootingProgress';
+import { awardTroubleshootingXp, loadTroubleshootingProgress, saveScenarioResult } from '../troubleshootingProgress';
 
 jest.mock('../progressService', () => ({
   PROGRESS_KEYS: { troubleshooting: 'troubleshooting_lab' },
-  progressService: { get: jest.fn(), set: jest.fn() },
+  progressService: { get: jest.fn(), set: jest.fn(), readRemoteValue: jest.fn() },
 }));
 
 jest.mock('../../config/supabase', () => ({
@@ -13,7 +13,8 @@ jest.mock('../../config/supabase', () => ({
 describe('saveScenarioResult', () => {
   beforeEach(() => {
     progressService.get.mockResolvedValue(null);
-    progressService.set.mockResolvedValue(undefined);
+    progressService.readRemoteValue.mockResolvedValue(null);
+    progressService.set.mockResolvedValue({ remoteOk: true });
     awardTroubleshootingXp._rpc = jest.fn(async () => ({ error: null }));
   });
 
@@ -28,7 +29,8 @@ describe('saveScenarioResult', () => {
     expect(first.progress.streak).toBe(1);
     expect(first.xpAwarded).toBe(80);
     expect(awardTroubleshootingXp._rpc).toHaveBeenCalledWith('award_maze_xp', { p_xp: 80 });
-    expect(progressService.set).toHaveBeenCalledWith(PROGRESS_KEYS.troubleshooting, first.progress);
+    expect(progressService.set).toHaveBeenCalledWith(PROGRESS_KEYS.troubleshooting, first.progress, { immediate: true });
+    expect(first.savedToAccount).toBe(true);
 
     awardTroubleshootingXp._rpc.mockClear();
     const second = await saveScenarioResult({
@@ -53,6 +55,22 @@ describe('saveScenarioResult', () => {
     expect(result.progress.scenarios['beep-ram'].completed).toBe(true);
     expect(result.xpAwarded).toBe(0);
     expect(progressService.set).toHaveBeenCalled();
+  });
+
+  it('merges this device with the account copy', async () => {
+    progressService.get.mockResolvedValue({
+      scenarios: { 'desktop-no-power': { completed: true, bestScore: 20, lastPlayed: '2026-10-01T00:00:00.000Z' } },
+      streak: 1,
+      lastPlayed: '2026-10-01T00:00:00.000Z',
+    });
+    progressService.readRemoteValue.mockResolvedValue({
+      scenarios: { 'desktop-no-power': { completed: true, bestScore: 80, lastPlayed: '2026-10-09T00:00:00.000Z' } },
+      streak: 2,
+      lastPlayed: '2026-10-09T00:00:00.000Z',
+    });
+    const loaded = await loadTroubleshootingProgress();
+    expect(loaded.scenarios['desktop-no-power'].bestScore).toBe(80);
+    expect(loaded.scenarios['desktop-no-power'].completed).toBe(true);
   });
 
   it('resets the streak after a wrong diagnosis and does not award XP', async () => {

@@ -76,7 +76,9 @@ export async function handler(req: Request): Promise<Response> {
 
     const apiKey = Deno.env.get('GEMINI_API_KEY');
     if (!apiKey) throw new Error('GEMINI_API_KEY secret is not set');
-    const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-1.5-flash';
+    // gemini-1.5-flash no longer answers. A request to it can sit until the
+    // function's own deadline, which leaves the chat on the typing indicator.
+    const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
 
     const geminiResponse = await fetch(`${GEMINI_BASE_URL}/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',

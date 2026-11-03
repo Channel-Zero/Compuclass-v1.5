@@ -103,15 +103,17 @@ async function currentUserId() {
 
 async function writeRemote(key, value, updatedAt) {
   const stored = accountValue(key, value);
-  if (!fitsAccountProgress(stored) || !updatedAt) return;
+  if (!fitsAccountProgress(stored) || !updatedAt) return false;
   const userId = await currentUserId();
-  if (!userId) return;
-  await client().from('user_progress').upsert({
+  if (!userId) return false;
+  const { error } = await client().from('user_progress').upsert({
     user_id: userId,
     key,
     value: stored,
     updated_at: updatedAt,
   }, { onConflict: 'user_id,key' });
+  if (error) throw error;
+  return true;
 }
 
 function scheduleRemote(key, value, updatedAt) {
@@ -167,15 +169,52 @@ export const progressService = {
     }
   },
 
-  async set(key, value) {
+  async readRemoteValue(key) {
+    if (!remoteAllowed()) return null;
+    try {
+      const userId = await currentUserId();
+      if (!userId) return null;
+      const { data, error } = await client()
+        .from('user_progress')
+        .select('value, updated_at')
+        .eq('user_id', userId)
+        .eq('key', key)
+        .maybeSingle();
+      if (error || !data) return null;
+      return data.value;
+    } catch {
+      return null;
+    }
+  },
+
+  // immediate writes the account row before returning. A reload then still
+  // has the score when this device's storage does not.
+  async set(key, value, options = {}) {
     const updatedAt = new Date().toISOString();
+    const pending = timers.get(key);
+    if (pending) {
+      clearTimeout(pending);
+      timers.delete(key);
+    }
+    let localOk = false;
     try {
       await AsyncStorage.setItem(key, JSON.stringify(value));
       await writeMeta(key, updatedAt);
+      localOk = true;
     } catch {
-      return;
+      localOk = false;
+    }
+    if (!remoteAllowed()) return { remoteOk: false };
+    if (options.immediate || !localOk) {
+      try {
+        const remoteOk = await writeRemote(key, value, updatedAt);
+        return { remoteOk: !!remoteOk };
+      } catch {
+        return { remoteOk: false };
+      }
     }
     scheduleRemote(key, value, updatedAt);
+    return { remoteOk: false };
   },
 };
 

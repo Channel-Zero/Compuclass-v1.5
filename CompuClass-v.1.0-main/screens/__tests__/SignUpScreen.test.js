@@ -50,7 +50,8 @@ describe('SignUpScreen password policy', () => {
     fill(utils, { password: 'password123' });
 
     // Generous timeout: validation is async and CI machines running suites in parallel can be slow.
-    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Choose a stronger password', expect.stringContaining('uppercase')), { timeout: 5000 });
+    await waitFor(() => expect(utils.getByTestId('form-error').props.children).toEqual(expect.stringContaining('uppercase')), { timeout: 5000 });
+    expect(Alert.alert).not.toHaveBeenCalled();
     expect(authService.signUp).not.toHaveBeenCalled();
   });
 
@@ -79,6 +80,15 @@ describe('SignUpScreen password policy', () => {
 
     await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Success', 'Account created!', [{ text: 'OK', onPress: onSignUp }]), { timeout: 5000 });
     expect(onBackToLogin).not.toHaveBeenCalled();
+  });
+
+  it('shows a sign-up failure on the form', async () => {
+    authService.signUp.mockRejectedValue(new Error('User already registered'));
+    const utils = renderScreen(<SignUpScreen onSignUp={jest.fn()} onBackToLogin={jest.fn()} />);
+    fill(utils, { password: 'Violet-Kettle-Orbit-47' });
+
+    await waitFor(() => expect(utils.getByTestId('form-error').props.children).toMatch(/already exists/), { timeout: 5000 });
+    expect(Alert.alert).not.toHaveBeenCalled();
   });
 
   it('shows the password requirements up front', () => {

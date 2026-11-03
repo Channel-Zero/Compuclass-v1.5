@@ -55,6 +55,7 @@ export default function TroubleshootingScreen({ navigation }) {
   const [attempt, setAttempt] = useState(null);
   const [choosing, setChoosing] = useState(false);
   const [xpAwarded, setXpAwarded] = useState(0);
+  const [savedOnAccount, setSavedOnAccount] = useState(false);
 
   useEffect(() => {
     loadTroubleshootingProgress().then(setProgress).catch(() => {});
@@ -65,6 +66,7 @@ export default function TroubleshootingScreen({ navigation }) {
     setAttempt(startAttempt(item));
     setChoosing(false);
     setXpAwarded(0);
+    setSavedOnAccount(false);
   };
 
   const finish = async (diagnosisId) => {
@@ -81,8 +83,10 @@ export default function TroubleshootingScreen({ navigation }) {
       });
       setProgress(saved.progress);
       setXpAwarded(saved.xpAwarded);
+      setSavedOnAccount(!!saved.savedToAccount);
     } catch {
       setXpAwarded(0);
+      setSavedOnAccount(false);
     }
   };
 
@@ -155,7 +159,10 @@ export default function TroubleshootingScreen({ navigation }) {
           <Text style={styles.resultHeading}>{attempt.correct ? 'Diagnosis correct' : 'Diagnosis missed'}</Text>
           <Text style={styles.score}>{attempt.score} points</Text>
           <Text style={styles.cardSummary}>{attempt.checksUsed} checks, {attempt.hintsTaken} hints.</Text>
-          {xpAwarded > 0 ? <Text style={styles.xp}>+{xpAwarded} XP saved to your account</Text> : <Text style={styles.cardSummary}>Your score is saved on this device.</Text>}
+          {xpAwarded > 0 ? <Text style={styles.xp}>+{xpAwarded} XP saved to your account</Text> : <Text style={styles.cardSummary}>{savedOnAccount ? 'Your score is saved to your account.' : 'Your score is saved on this device.'}</Text>}
+          {attempt.log.map((entry, index) => (
+            <Text key={`${entry.checkId}-${index}`} style={styles.body}>{entry.label}: {entry.feedback}</Text>
+          ))}
           <Text style={styles.blockLabel}>Cause</Text>
           <Text style={styles.body}>{scenario.rootCause}</Text>
           <Text style={styles.blockLabel}>Fix</Text>
@@ -208,7 +215,6 @@ export default function TroubleshootingScreen({ navigation }) {
       {attempt.log.map((entry, index) => (
         <View key={`${entry.checkId}-${index}`} style={styles.feedback}>
           <Text style={styles.feedbackLabel}>{entry.label}</Text>
-          <Text style={styles.body}>{entry.feedback}</Text>
         </View>
       ))}
       {choosing ? (

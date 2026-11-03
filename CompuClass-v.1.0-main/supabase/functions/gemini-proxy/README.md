@@ -19,7 +19,7 @@ Run these from `CompuClass-v.1.0-main/`. They need the
 2. **Store it as a function secret:**
    ```sh
    supabase secrets set GEMINI_API_KEY=<new key> --project-ref qdtbmdsssjmapodladcs
-   # optional; defaults to gemini-1.5-flash, which the app used before
+   # optional; defaults to gemini-2.5-flash
    supabase secrets set GEMINI_MODEL=<model name> --project-ref qdtbmdsssjmapodladcs
    ```
 3. **Deploy:**

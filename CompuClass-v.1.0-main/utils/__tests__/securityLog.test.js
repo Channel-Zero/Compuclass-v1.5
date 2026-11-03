@@ -1,5 +1,4 @@
 import React from 'react';
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import LoginScreen from '../../screens/LoginScreen';
@@ -19,7 +18,6 @@ beforeEach(async () => {
   __resetErrorTrackingForTests();
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   jest.spyOn(console, 'error').mockImplementation(() => {});
-  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
 afterEach(() => jest.restoreAllMocks());
 
@@ -29,11 +27,10 @@ describe('suspicious activity logging', () => {
     const utils = render(<LoginScreen onLogin={jest.fn()} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />, { wrapper: ThemeProvider });
 
     for (let i = 0; i < 5; i++) {
-      Alert.alert.mockClear();
       fireEvent.changeText(utils.getByPlaceholderText('Email address'), 'lecturer.smith@compuclass.test');
       fireEvent.changeText(utils.getByPlaceholderText('Password'), `Wrong-Guess-${i}`);
       fireEvent.press(utils.getByText('Sign In'));
-      await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
+      await waitFor(() => expect(utils.getByTestId('form-error').props.children).toBe('Invalid login credentials'));
     }
 
     const lines = securityLines();

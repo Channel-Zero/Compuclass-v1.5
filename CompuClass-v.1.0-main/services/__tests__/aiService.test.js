@@ -1,5 +1,5 @@
 import { supabase } from '../../config/supabase';
-import { aiService } from '../aiService';
+import { aiService, setAiRequestTimeoutForTests } from '../aiService';
 
 jest.mock('../../config/supabase', () => ({
   supabase: { functions: { invoke: jest.fn() } },
@@ -29,6 +29,38 @@ describe('aiService.chatWithAI', () => {
 
     await expect(aiService.chatWithAI([{ role: 'user', text: 'Hi' }])).rejects.toBe(failure);
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('shows the proxy error instead of a generic non-2xx message', async () => {
+    supabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        name: 'FunctionsHttpError',
+        message: 'Edge Function returned a non-2xx status code',
+        context: {
+          status: 502,
+          json: async () => ({ error: 'The AI service is unavailable right now. Please try again later.' }),
+        },
+      },
+    });
+
+    await expect(aiService.chatWithAI([{ role: 'user', text: 'Hi' }])).rejects.toMatchObject({
+      userMessage: 'The AI service is unavailable right now. Please try again later.',
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('stops waiting when the proxy never answers', async () => {
+    setAiRequestTimeoutForTests(30);
+    supabase.functions.invoke.mockReturnValue(new Promise(() => {}));
+    try {
+      await expect(aiService.chatWithAI([{ role: 'user', text: 'Hi' }])).rejects.toMatchObject({
+        userMessage: 'CompuBot took too long to answer. Please try again.',
+      });
+      expect(global.fetch).not.toHaveBeenCalled();
+    } finally {
+      setAiRequestTimeoutForTests(0);
+    }
   });
 });
 

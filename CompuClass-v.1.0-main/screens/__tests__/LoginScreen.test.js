@@ -18,11 +18,12 @@ describe('LoginScreen', () => {
   });
 
   it('warns instead of calling signIn when email or password is missing', () => {
-    const { getByText } = renderScreen(<LoginScreen onLogin={jest.fn()} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />);
+    const { getByText, getByTestId } = renderScreen(<LoginScreen onLogin={jest.fn()} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />);
 
     fireEvent.press(getByText('Sign In'));
 
-    expect(Alert.alert).toHaveBeenCalledWith('Error', 'Please enter email and password');
+    expect(getByTestId('form-error').props.children).toBe('Please enter email and password');
+    expect(Alert.alert).not.toHaveBeenCalled();
     expect(authService.signIn).not.toHaveBeenCalled();
   });
 
@@ -44,7 +45,7 @@ describe('LoginScreen', () => {
   it('shows the Supabase error message and does not call onLogin on failure', async () => {
     authService.signIn.mockRejectedValue(new Error('Invalid login credentials'));
     const onLogin = jest.fn();
-    const { getByText, getByPlaceholderText } = renderScreen(
+    const { getByText, getByPlaceholderText, getByTestId } = renderScreen(
       <LoginScreen onLogin={onLogin} onSignUp={jest.fn()} onForgotPassword={jest.fn()} />
     );
 
@@ -53,19 +54,27 @@ describe('LoginScreen', () => {
     fireEvent.press(getByText('Sign In'));
 
     await waitFor(() =>
-      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Invalid login credentials')
+      expect(getByTestId('form-error').props.children).toBe('Invalid login credentials')
     );
+    expect(Alert.alert).not.toHaveBeenCalled();
     expect(onLogin).not.toHaveBeenCalled();
   });
 
   describe('brute-force throttling', () => {
     const attempt = async (utils, email, password) => {
-      Alert.alert.mockClear();
+      const callsBefore = authService.signIn.mock.calls.length;
+      const loginsBefore = utils.onLogin.mock.calls.length;
       fireEvent.changeText(utils.getByPlaceholderText('Email address'), email);
       fireEvent.changeText(utils.getByPlaceholderText('Password'), password);
       fireEvent.press(utils.getByText('Sign In'));
-      await waitFor(() => expect(Alert.alert.mock.calls.length + utils.onLogin.mock.calls.length).toBeGreaterThan(0));
-      return Alert.alert.mock.calls[0]?.[1];
+      await waitFor(() => {
+        const errorText = utils.queryByTestId('form-error')?.props?.children || '';
+        const signedIn = utils.onLogin.mock.calls.length > loginsBefore;
+        const failed = authService.signIn.mock.calls.length > callsBefore && !!errorText;
+        const blocked = /Too many attempts/.test(errorText);
+        expect(signedIn || failed || blocked).toBe(true);
+      });
+      return utils.queryByTestId('form-error')?.props?.children || '';
     };
 
     const renderLogin = () => {

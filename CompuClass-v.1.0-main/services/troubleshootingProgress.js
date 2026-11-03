@@ -19,12 +19,21 @@ export async function awardTroubleshootingXp(xp) {
 }
 
 export async function loadTroubleshootingProgress() {
+  let local = null;
+  let remote = null;
   try {
-    const saved = await progressService.get(PROGRESS_KEYS.troubleshooting);
-    return mergeTroubleshootingProgress(saved, null);
+    local = await progressService.get(PROGRESS_KEYS.troubleshooting);
   } catch {
-    return mergeTroubleshootingProgress(null, null);
+    local = null;
   }
+  try {
+    if (typeof progressService.readRemoteValue === 'function') {
+      remote = await progressService.readRemoteValue(PROGRESS_KEYS.troubleshooting);
+    }
+  } catch {
+    remote = null;
+  }
+  return mergeTroubleshootingProgress(local, remote);
 }
 
 export async function saveScenarioResult({ scenarioId, correct, score, previous }) {
@@ -45,7 +54,7 @@ export async function saveScenarioResult({ scenarioId, correct, score, previous 
     streak: correct ? (current.streak || 0) + 1 : 0,
     lastPlayed: now,
   };
-  await progressService.set(PROGRESS_KEYS.troubleshooting, next);
+  const saved = await progressService.set(PROGRESS_KEYS.troubleshooting, next, { immediate: true });
   const xpAwarded = await awardTroubleshootingXp(xpTarget);
-  return { progress: next, xpAwarded };
+  return { progress: next, xpAwarded, savedToAccount: !!saved?.remoteOk };
 }

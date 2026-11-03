@@ -185,6 +185,8 @@ These migrations are already applied on the live project, in this order. Do not 
 6. `CompuClass-v.1.0-main/supabase/migrations/20261009190000_user_progress.sql`
 7. `CompuClass-v.1.0-main/supabase/migrations/20261009200000_classes_lecturer_only.sql`
 
+`CompuClass-v.1.0-main/supabase/migrations/20261103120000_topic_performance.sql` is **not** applied yet. Run it once (SQL editor or `supabase db push`) so Circuit Maze can save topic stats. It adds `public.get_topic_performance()` and `public.record_answer_result(text, text, boolean)`. Do not add the `gamification` schema to the Data API exposed schemas.
+
 `20261006140000` accepts either `quizzes.created_by` (the live project) or
 `quizzes.lecturer_id` (a database built from `supabase-setup.sql`). If a column
 or table it needs is missing, the transaction stops and rolls back. A policy
@@ -222,6 +224,8 @@ From `CompuClass-v.1.0-main/`:
 ```bash
 supabase link --project-ref <project-ref>
 supabase secrets set GEMINI_API_KEY=<rotated key>
+# optional; the function defaults to gemini-2.5-flash
+supabase secrets set GEMINI_MODEL=gemini-2.5-flash
 supabase functions deploy gemini-proxy
 ```
 
@@ -229,6 +233,8 @@ Create a new key in Google AI Studio, put that value in the Supabase secret, dep
 the function, then delete the old key. Remove `EXPO_PUBLIC_GEMINI_API_KEY` from
 GitHub Actions secrets and from Vercel. The app calls `supabase.functions.invoke('gemini-proxy')`
 and has no direct Gemini path. AI features fail until this function is deployed.
+The secret name is `GEMINI_API_KEY` on the Supabase project (Edge Function secrets),
+not a Vercel env var. `GEMINI_MODEL` is optional.
 
 CI and the EAS workflows use Node 20, which is what Expo SDK 57 is verified on.
 

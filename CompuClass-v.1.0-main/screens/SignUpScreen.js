@@ -26,16 +26,20 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const showError = (message) => setFormError(message || 'Something went wrong. Please try again.');
 
   const handleSignUp = async () => {
-    if (!fullName || !email || !password || !confirmPassword) { Alert.alert('Error', 'Please fill in all fields'); return; }
-    if (password !== confirmPassword) { Alert.alert('Error', 'Passwords do not match'); return; }
+    if (!fullName || !email || !password || !confirmPassword) { showError('Please fill in all fields'); return; }
+    if (password !== confirmPassword) { showError('Passwords do not match'); return; }
+    setFormError('');
     setLoading(true);
     try {
       const cleanName = cleanText(fullName, { field: 'Full name', maxLength: LIMITS.name, required: true, allowMarkup: false });
       const cleanedEmail = cleanEmail(email);
       const passwordProblems = await validateNewPassword(password, { email: cleanedEmail });
-      if (passwordProblems.length > 0) { Alert.alert('Choose a stronger password', passwordProblems.join('\n')); return; }
+      if (passwordProblems.length > 0) { showError(passwordProblems.join('\n')); return; }
       await limiters.signUp.consume('device');
       // Role is not sent. handle_new_user ignores a client role and creates a student.
       const { session } = await authService.signUp(cleanedEmail, password, cleanName);
@@ -44,7 +48,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
       } else {
         Alert.alert('Verify your email', 'Account created! Check your email to verify it, then sign in.', [{ text: 'OK', onPress: onBackToLogin }]);
       }
-    } catch (error) { Alert.alert('Error', getErrorMessage(error, { context: 'signUp' })); }
+    } catch (error) { showError(getErrorMessage(error, { context: 'signUp' })); }
     finally { setLoading(false); }
   };
 
@@ -73,13 +77,13 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
             <View key={i} style={[styles.inputWrap, { backgroundColor: BG, borderColor: BORDER }]}>
               <Ionicons name={f.icon} size={18} color={MUTED} />
               <TextInput style={[styles.input, { color: TEXT }]} placeholder={f.placeholder} placeholderTextColor={MUTED}
-                value={f.value} onChangeText={f.onChange} keyboardType={f.keyboard} autoCapitalize={f.caps} />
+                value={f.value} onChangeText={(value) => { f.onChange(value); if (formError) setFormError(''); }} keyboardType={f.keyboard} autoCapitalize={f.caps} />
             </View>
           ))}
 
           <View style={[styles.inputWrap, { backgroundColor: BG, borderColor: BORDER }]}>
             <Ionicons name="lock-closed-outline" size={18} color={MUTED} />
-            <TextInput style={[styles.input, { color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} maxLength={PASSWORD_MAX_LENGTH} />
+            <TextInput style={[styles.input, { color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={password} onChangeText={(value) => { setPassword(value); if (formError) setFormError(''); }} secureTextEntry={!showPassword} maxLength={PASSWORD_MAX_LENGTH} />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={18} color={MUTED} />
             </TouchableOpacity>
@@ -88,11 +92,13 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }) {
 
           <View style={[styles.inputWrap, { backgroundColor: BG, borderColor: BORDER }]}>
             <Ionicons name="lock-closed-outline" size={18} color={MUTED} />
-            <TextInput style={[styles.input, { color: TEXT }]} placeholder="Confirm Password" placeholderTextColor={MUTED} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showConfirm} />
+            <TextInput style={[styles.input, { color: TEXT }]} placeholder="Confirm Password" placeholderTextColor={MUTED} value={confirmPassword} onChangeText={(value) => { setConfirmPassword(value); if (formError) setFormError(''); }} secureTextEntry={!showConfirm} />
             <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
               <Ionicons name={showConfirm ? 'eye-outline' : 'eye-off-outline'} size={18} color={MUTED} />
             </TouchableOpacity>
           </View>
+
+          {formError ? <Text testID="form-error" accessibilityRole="alert" style={styles.formError}>{formError}</Text> : null}
 
           <TouchableOpacity style={styles.signUpBtn} onPress={handleSignUp} disabled={loading} activeOpacity={0.85}>
             <Text style={styles.signUpBtnText}>{loading ? 'Creating Account...' : 'Sign Up'}</Text>
@@ -126,6 +132,7 @@ const styles = StyleSheet.create({
   inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderRadius: 14, paddingHorizontal: 14, height: 54, marginBottom: 12, gap: 10 },
   input: { flex: 1, fontSize: 15 },
   passwordHint: { fontSize: 12, marginTop: -4, marginBottom: 12, marginLeft: 4, lineHeight: 16 },
+  formError: { color: '#B91C1C', fontSize: 14, fontWeight: '700', marginBottom: 12, lineHeight: 20 },
   signUpBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2563EB', height: 54, borderRadius: 14, marginTop: 6, marginBottom: 14, gap: 8, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   signUpBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
   termsText: { fontSize: 11, textAlign: 'center', marginBottom: 16, lineHeight: 16 },

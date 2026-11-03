@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert, Dimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { authService } from '../services/authService';
@@ -28,16 +28,20 @@ export default function LoginScreen({ onLogin, onSignUp, onForgotPassword }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const showError = (message) => setFormError(message || 'Something went wrong. Please try again.');
 
   const handleLogin = async () => {
-    if (!email || !password) { Alert.alert('Error', 'Please enter email and password'); return; }
+    if (!email || !password) { showError('Please enter email and password'); return; }
     let trimmedEmail;
     try {
       trimmedEmail = cleanEmail(email);
     } catch (error) {
-      Alert.alert('Error', getErrorMessage(error, { context: 'login' }));
+      showError(getErrorMessage(error, { context: 'login' }));
       return;
     }
+    setFormError('');
     setLoading(true);
     try {
       const { allowed, retryAfterMs } = await limiters.login.check(trimmedEmail);
@@ -56,7 +60,7 @@ export default function LoginScreen({ onLogin, onSignUp, onForgotPassword }) {
           logSecurityEvent('login_lockout', { email: maskEmail(trimmedEmail), lockoutSeconds: Math.ceil(result.retryAfterMs / 1000), lockoutNumber: result.lockouts });
         }
       }
-      Alert.alert('Error', getErrorMessage(error, { context: 'login' }));
+      showError(getErrorMessage(error, { context: 'login' }));
     }
     finally { setLoading(false); }
   };
@@ -80,17 +84,19 @@ export default function LoginScreen({ onLogin, onSignUp, onForgotPassword }) {
           <View style={[styles.inputWrap, { backgroundColor: BG, borderColor: BORDER }]}>
             <Ionicons name="mail-outline" size={18} color={MUTED} style={styles.inputIcon} />
             <TextInput style={[styles.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED}
-              value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+              value={email} onChangeText={(value) => { setEmail(value); if (formError) setFormError(''); }} keyboardType="email-address" autoCapitalize="none" />
           </View>
 
           <View style={[styles.inputWrap, { backgroundColor: BG, borderColor: BORDER }]}>
             <Ionicons name="lock-closed-outline" size={18} color={MUTED} style={styles.inputIcon} />
             <TextInput style={[styles.input, { color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED}
-              value={password} onChangeText={setPassword} secureTextEntry={!showPassword} />
+              value={password} onChangeText={(value) => { setPassword(value); if (formError) setFormError(''); }} secureTextEntry={!showPassword} />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={18} color={MUTED} />
             </TouchableOpacity>
           </View>
+
+          {formError ? <Text testID="form-error" accessibilityRole="alert" style={styles.formError}>{formError}</Text> : null}
 
           <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading} activeOpacity={0.85}>
             <Text style={styles.loginBtnText}>{loading ? 'Signing In...' : 'Sign In'}</Text>
@@ -127,6 +133,7 @@ const styles = StyleSheet.create({
   inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderRadius: 14, paddingHorizontal: 14, height: 54, marginBottom: 14, gap: 10 },
   inputIcon: {},
   input: { flex: 1, fontSize: 15 },
+  formError: { color: '#B91C1C', fontSize: 14, fontWeight: '700', marginTop: -4, marginBottom: 12, lineHeight: 20 },
   loginBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2563EB', height: 54, borderRadius: 14, marginTop: 6, marginBottom: 16, gap: 8, shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   loginBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
   forgotBtn: { alignItems: 'center', marginBottom: 20 },
