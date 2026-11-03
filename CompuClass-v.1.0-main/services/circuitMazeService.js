@@ -161,11 +161,10 @@ export const circuitMazeService = {
     try {
       const user = await authService.getCurrentUser();
       if (!user) return null;
-      const { data, error } = await supabase
-        .from('gamification.topic_performance')
-        .select('topic, difficulty, correct_count, wrong_count')
-        .eq('user_id', user.id);
-      if (error) return null;
+      // public.get_topic_performance() reads gamification.topic_performance.
+      // A schema-qualified .from() is a public table name PostgREST does not have.
+      const { data, error } = await supabase.rpc('get_topic_performance');
+      if (error || !Array.isArray(data)) return null;
       // Shape: { [topic]: { [difficulty]: { correct_count, wrong_count } } }
       const map = {};
       for (const row of data) {

@@ -29,6 +29,7 @@ module.exports = [
       'react-hooks/static-components': 'off',
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/purity': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
     },
   },
   {

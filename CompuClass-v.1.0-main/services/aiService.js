@@ -12,6 +12,13 @@ import { AppError } from '../utils/errorMessages';
 // is unset. The app never reads it. See supabase/functions/gemini-proxy/README.md.
 const PROXY_MAX_TEXT_CHARS = 100_000;
 const PROXY_MAX_MESSAGES = 30;
+export const AI_REQUEST_TIMEOUT_MS = 20_000;
+let timeoutOverride = 0;
+
+// Tests set a short deadline. Production leaves this at 0 and uses AI_REQUEST_TIMEOUT_MS.
+export function setAiRequestTimeoutForTests(ms) {
+  timeoutOverride = ms;
+}
 
 // supabase-js hides a non-2xx body behind FunctionsHttpError.context, which is
 // the Response. The message on the error itself is only "non-2xx status code".
@@ -31,7 +38,7 @@ async function messageFromProxyError(error) {
   return null;
 }
 
-async function invokeAiProxy(body) {
+async function requestAiProxy(body) {
   const { data, error } = await supabase.functions.invoke('gemini-proxy', { body });
   if (error) {
     const status = error.context?.status ?? error.status;
@@ -43,6 +50,28 @@ async function invokeAiProxy(body) {
     throw error;
   }
   return data;
+}
+
+// The Edge Function waits up to 60s on Gemini. Without a client deadline the
+// chat stays on the typing indicator and never shows an error.
+async function invokeAiProxy(body) {
+  const timeoutMs = timeoutOverride || AI_REQUEST_TIMEOUT_MS;
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ timedOut: true }), timeoutMs);
+  });
+  const request = requestAiProxy(body).then(
+    (value) => ({ timedOut: false, value }),
+    (error) => ({ timedOut: false, error }),
+  );
+  try {
+    const result = await Promise.race([request, timeout]);
+    if (result.timedOut) throw new AppError('CompuBot took too long to answer. Please try again.');
+    if (result.error) throw result.error;
+    return result.value;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Reads a file chosen with expo-document-picker. expo-file-system has no web
@@ -96,13 +125,16 @@ export const aiService = {
 
   // Generate quiz using Google Gemini (FREE)
   async generateQuizFromText(text, title, questionCount = 5) {
-    const { questions } = await invokeAiProxy({
+    const data = await invokeAiProxy({
       action: 'quiz',
       title,
       questionCount,
       text: String(text).slice(0, PROXY_MAX_TEXT_CHARS),
     });
-    return toQuiz(title, questions);
+    if (!Array.isArray(data?.questions)) {
+      throw new AppError('CompuBot is unavailable right now. Please try again in a moment.');
+    }
+    return toQuiz(title, data.questions);
   },
 
   // Main function to generate quiz from file
@@ -130,7 +162,9 @@ export const aiService = {
     if (context) last.text = `${last.text}\n\n(The user is currently viewing: ${context})`;
     const body = { action: 'chat', messages: recent };
     if (imageBase64) body.imageBase64 = imageBase64;
-    const { text } = await invokeAiProxy(body);
+    const data = await invokeAiProxy(body);
+    const text = typeof data?.text === 'string' ? data.text.trim() : '';
+    if (!text) throw new AppError('CompuBot is unavailable right now. Please try again in a moment.');
     return text;
   },
 
@@ -138,8 +172,11 @@ export const aiService = {
     try {
       // Read PDF as base64 using expo-file-system (React Native compatible)
       const base64Data = await readPickedFile(file, { base64: true });
-      const { questions } = await invokeAiProxy({ action: 'quiz', title, questionCount, pdfBase64: base64Data });
-      return toQuiz(title, questions);
+      const data = await invokeAiProxy({ action: 'quiz', title, questionCount, pdfBase64: base64Data });
+      if (!Array.isArray(data?.questions)) {
+        throw new AppError('CompuBot is unavailable right now. Please try again in a moment.');
+      }
+      return toQuiz(title, data.questions);
     } catch (error) {
       console.error('=== PDF QUIZ GENERATION ERROR ===');
       console.error('Error:', error.message);

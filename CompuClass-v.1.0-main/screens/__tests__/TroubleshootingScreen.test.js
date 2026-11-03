@@ -43,7 +43,9 @@ describe('TroubleshootingScreen', () => {
     const commit = getByLabelText('Commit a diagnosis');
     expect(commit.props.accessibilityState.disabled).toBe(true);
     fireEvent.press(getByLabelText('Reseat the RAM'));
-    expect(getByText('Still no lights. Memory cannot light the power supply if power never arrives.')).toBeTruthy();
+    expect(queryByText(/Still no lights/)).toBeNull();
+    expect(queryByText(CAUSE)).toBeNull();
+    expect(queryByText(FIX)).toBeNull();
     fireEvent.press(getByLabelText('Show hint'));
     expect(getByText('No lights and no fan usually means power is not reaching the supply.')).toBeTruthy();
 
@@ -54,6 +56,7 @@ describe('TroubleshootingScreen', () => {
 
     await waitFor(() => expect(getByText(FIX)).toBeTruthy());
     expect(getByText(CAUSE)).toBeTruthy();
+    expect(getByText(/Still no lights/)).toBeTruthy();
     expect(getByText('+80 XP saved to your account')).toBeTruthy();
     expect(saveScenarioResult).toHaveBeenCalledWith(expect.objectContaining({
       scenarioId: 'desktop-no-power',

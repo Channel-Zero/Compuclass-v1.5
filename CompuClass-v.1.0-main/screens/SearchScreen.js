@@ -38,7 +38,7 @@ function SkeletonCard() {
   );
 }
 
-export default function SearchScreen({ navigation }) {
+export default function SearchScreen({ navigation, route }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -50,6 +50,13 @@ export default function SearchScreen({ navigation }) {
   const inputRef = useRef(null);
 
   const latestSearch = useRef(0);
+
+  useEffect(() => {
+    const incoming = route?.params?.query;
+    if (typeof incoming === 'string' && incoming.trim()) {
+      setSearchQuery(incoming.trim().slice(0, LIMITS.search));
+    }
+  }, [route?.params?.query]);
 
   // Debounced: previously every keystroke fired two Supabase queries.
   useEffect(() => {
@@ -114,7 +121,7 @@ export default function SearchScreen({ navigation }) {
       <View style={[styles.topBar, { paddingTop: insets.top + 12, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <Text style={styles.topTitle} accessibilityRole="header">Search</Text>
         <Text style={styles.topSubtitle}>Find quizzes, documents and more</Text>
-        <View style={[styles.searchBar, { backgroundColor: CARD, borderColor: '#C9D6E3' }]}>
+        <View style={[styles.searchBar, { backgroundColor: CARD, borderColor: '#C9D6E3' }]} pointerEvents="box-none">
           <Ionicons name="search-outline" size={18} color={MUTED} />
           <TextInput
             ref={inputRef}
@@ -124,6 +131,10 @@ export default function SearchScreen({ navigation }) {
             value={searchQuery}
             onChangeText={setSearchQuery}
             maxLength={LIMITS.search}
+            editable
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSearchQuery(''); }} style={styles.clearBtn} accessibilityRole="button" accessibilityLabel="Clear search" activeOpacity={0.75}>
