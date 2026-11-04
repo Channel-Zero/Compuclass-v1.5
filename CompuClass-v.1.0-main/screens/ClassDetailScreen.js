@@ -92,10 +92,39 @@ export default function ClassDetailScreen({ navigation, route }) {
     }
   };
 
+  const handleDeleteClass = async () => {
+    const name = classData?.name || 'this class';
+    const ok = await confirmNamed({
+      title: `Delete ${name}?`,
+      message: 'This removes the class, its enrolments, and quiz assignments. This cannot be undone.',
+      confirmLabel: 'Delete class',
+    });
+    if (!ok) return;
+    try {
+      await lecturerService.deleteClass(classId);
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, { context: 'ClassDetail' }));
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <Page maxWidth={LECTURER_COLUMN}>
-        <ScreenHeading navigation={navigation} title="Class details" subtitle="Enrolment and join code" />
+        <ScreenHeading
+          navigation={navigation}
+          title="Class details"
+          subtitle="Enrolment and join code"
+          trailing={classData ? (
+            <ActionMenu
+              label={`Actions for ${classData.name}`}
+              items={[
+                { label: `New code for ${classData.name}`, destructive: true, onPress: handleNewCode },
+                { label: `Delete ${classData.name}`, destructive: true, onPress: handleDeleteClass },
+              ]}
+            />
+          ) : null}
+        />
         {status === 'loading' ? (
           <View accessibilityRole="progressbar">
             <Skeleton height={180} radius={24} />
@@ -131,10 +160,6 @@ export default function ClassDetailScreen({ navigation, route }) {
                     variant="secondary"
                     fit
                     onPress={() => Share.share({ message: `Join my CompuClass class ${classData.name} with code ${classData.join_code}` })}
-                  />
-                  <ActionMenu
-                    label={`Actions for ${classData.name}`}
-                    items={[{ label: `New code for ${classData.name}`, destructive: true, onPress: handleNewCode }]}
                   />
                 </View>
               ) : null}

@@ -444,6 +444,14 @@ export const lecturerService = {
         console.error('❌ Share quiz error:', error.message);
         throw error;
       }
+      const { error: publishError } = await supabase
+        .from('quiz_assignments')
+        .update({ is_published: true })
+        .eq('quiz_id', quizId);
+      if (publishError) {
+        console.error('❌ Publish shared quiz error:', publishError.message);
+        throw publishError;
+      }
       
       return { success: true, assignedTo: classIds.length };
     } catch (error) {
@@ -713,6 +721,16 @@ export const lecturerService = {
       console.error('❌ Create class exception:', error);
       throw error;
     }
+  },
+
+  async deleteClass(classId) {
+    if (!classId) throw new ValidationError('A class is required.');
+    const { error } = await supabase.rpc('delete_class', { p_class_id: classId });
+    if (error) {
+      console.error('❌ Delete class error:', error.message);
+      throw error;
+    }
+    return { success: true };
   },
 
   async getClasses() {

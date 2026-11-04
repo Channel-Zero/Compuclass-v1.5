@@ -601,7 +601,7 @@ export default function QuizCreationScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.createContent} contentContainerStyle={{ paddingBottom: CREATE_QUIZ_FOOTER_HEIGHT }} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.createContent} contentContainerStyle={styles.createContentContainer} keyboardShouldPersistTaps="handled">
               <TextInput
                 style={[styles.input, { backgroundColor: theme.borderLight, color: theme.text }]}
                 placeholder="Quiz Title"
@@ -825,7 +825,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.1)',
   },
-  createContent: { maxHeight: 400, padding: 20 },
+  createContent: { flex: 1, maxHeight: 400, paddingHorizontal: 20 },
+  createContentContainer: { paddingTop: 20, paddingBottom: CREATE_QUIZ_FOOTER_HEIGHT + 32 },
   questionCard: { padding: 16, borderRadius: 12, marginBottom: 16 },
   questionHeader: {
     flexDirection: 'row',

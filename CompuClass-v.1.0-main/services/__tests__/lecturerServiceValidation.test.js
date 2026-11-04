@@ -208,6 +208,12 @@ describe('lecturerService input validation', () => {
       p_late_penalty_percent: 10,
       p_time_limit_seconds: null,
     });
+    expect(supabase.__inserted).toContainEqual({ table: 'quiz_assignments', op: 'update', row: { is_published: true } });
+  });
+
+  it('deletes a class through the ownership-checked RPC', async () => {
+    await lecturerService.deleteClass('class-1');
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_class', { p_class_id: 'class-1' });
   });
 
   it('rejects an invalid student email before querying', async () => {
