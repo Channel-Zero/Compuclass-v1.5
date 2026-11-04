@@ -1,6 +1,7 @@
 import {
   COMBO_WINDOW_MS,
   HARDWARE_FACTS,
+  INITIAL_SPAWN_DISTANCE,
   INITIAL_SPEED,
   JUMP_APEX,
   JUMP_MS,
@@ -185,6 +186,12 @@ describe('the run loop', () => {
     expect(result.state.lane).toBe(1);
     expect(result.state.distance).toBeGreaterThan(0);
     expect(result.state.score).toBe(distancePoints(result.state.distance));
+  });
+
+  it('puts the first wave close enough to reach the player promptly', () => {
+    const run = createRun(1920);
+    const spawned = planSpawn({ ...run, elapsed: 16 }, () => 0.9);
+    expect(spawned.entities[0].x).toBe(playerXFor(1920) + INITIAL_SPAWN_DISTANCE);
   });
 
   it('does not advance a paused run', () => {

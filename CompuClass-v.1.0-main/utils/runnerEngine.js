@@ -70,6 +70,7 @@ export const PLUG_MS = 8000;
 export const SPEED_BOOST = 1.35;
 export const BONUS_POINTS = 200;
 export const WORLD_STORAGE_KEY = 'compurunner_world';
+export const INITIAL_SPAWN_DISTANCE = 620;
 
 export function normalizeWorld(value) {
   return value === 'dark' ? 'dark' : 'light';
@@ -434,7 +435,11 @@ function clearSpawnX(existing, x) {
 export function planSpawn(state, rng) {
   const difficulty = difficultyForDistance(state.distance);
   const viewWidth = state.viewWidth || 800;
-  const baseX = clearSpawnX(state.entities || [], viewWidth + 40);
+  const firstWave = state.elapsed < 100 && !(state.entities || []).length;
+  const baseX = clearSpawnX(
+    state.entities || [],
+    firstWave ? playerXFor(viewWidth) + INITIAL_SPAWN_DISTANCE : viewWidth + 40
+  );
   let nextId = state.nextId || 1;
   const takeId = () => {
     const id = nextId;
@@ -597,7 +602,7 @@ export function createRun(viewWidth = 800) {
     lastPickupAt: -100000,
     invincibleUntil: 0,
     entities: [],
-    nextSpawnAt: 520,
+    nextSpawnAt: 0,
     nextId: 1,
     chips: [],
     milestonesHit: [],
