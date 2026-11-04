@@ -4,6 +4,7 @@ import {
   Animated, PanResponder, StatusBar, Platform, ScrollView,
 } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -251,13 +252,20 @@ export default function GameScreen({ navigation, route }) {
   roomRef.current = roomId;
   overStepRef.current = overStep;
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (Platform.OS === 'web') return undefined;
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+    let active = true;
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE)
+      .then(() => {
+        if (!active) return ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        return undefined;
+      })
+      .catch(() => {});
     return () => {
+      active = false;
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     };
-  }, []);
+  }, []));
 
   useEffect(() => {
     let live = true;
