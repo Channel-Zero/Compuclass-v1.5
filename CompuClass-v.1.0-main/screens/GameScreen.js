@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, useWindowDimensions, Pressable, Image,
   Animated, PanResponder, StatusBar, Platform, ScrollView,
 } from 'react-native';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,7 +26,7 @@ import {
   factForRun,
   keyAction,
   normalizeWorld,
-  playfieldBox,
+  landscapePlayfield,
   playerCenterFor,
   runnerDisplayName,
   runnerFrame,
@@ -195,7 +196,7 @@ export default function GameScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const coarse = useCoarsePointer();
   const { width, height } = useWindowDimensions();
-  const field = playfieldBox(Math.max(320, width), Math.max(180, height - insets.top));
+  const field = landscapePlayfield(width, height, insets.top);
   const groundY = field.groundY;
 
   const [phase, setPhase] = useState('start');
@@ -249,6 +250,14 @@ export default function GameScreen({ navigation, route }) {
   multiRef.current = isMulti;
   roomRef.current = roomId;
   overStepRef.current = overStep;
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return undefined;
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;

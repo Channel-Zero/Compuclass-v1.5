@@ -12,12 +12,13 @@ import { getErrorMessage } from '../utils/errorMessages';
 import { useTheme } from '../context/ThemeContext';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
-import { font } from '../components/ui/kit';
+import { font, useLayout } from '../components/ui/kit';
 import { runnerArt } from '../assets/runner/art';
 import { WORLD_STORAGE_KEY, normalizeWorld } from '../utils/runnerEngine';
 
 export default function GameRunnerLobbyScreen({ navigation }) {
   const { theme } = useTheme();
+  const { bottom, phone } = useLayout();
   const shellBack = useShellBack();
   const [mode, setMode] = useState(null); // null | 'host' | 'join'
   const [joinCode, setJoinCode] = useState('');
@@ -183,7 +184,7 @@ export default function GameRunnerLobbyScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[s.scroll, phone ? { paddingBottom: bottom } : null]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={s.header}>
           {shellBack ? <View style={{ width: 44 }} /> : (
             <TouchableOpacity onPress={() => leaveScreen(navigation)} style={glassBack} accessibilityRole="button" accessibilityLabel="Go back">

@@ -36,18 +36,22 @@ export default function ClassManagementScreen({ navigation }) {
     }
   };
 
-  const loadStudents = async () => {
+  const loadClassRoster = async (item) => {
+    setSelectedClass(item);
+    setSelectedStudents([]);
+    setStudents([]);
+    setStudentError(false);
+    setShowAssignStudents(true);
     try {
-      const data = await lecturerService.getStudents();
+      const data = await lecturerService.getClassStudents(item.id);
       setStudents(data || []);
-      setStudentError(false);
     } catch {
       setStudents([]);
       setStudentError(true);
     }
   };
 
-  const loadAll = () => { loadClasses(); loadStudents(); };
+  const loadAll = () => { loadClasses(); };
   loadRef.current = loadAll;
   useEffect(() => { loadRef.current(); }, []);
 
@@ -136,7 +140,7 @@ export default function ClassManagementScreen({ navigation }) {
               </TouchableOpacity>
             ) : null}
             <View style={styles.classActions}>
-              <Button label="Assign" variant="secondary" fit onPress={() => { setSelectedClass(item); setSelectedStudents([]); setShowAssignStudents(true); }} accessibilityLabel={`Assign students to ${item.name}`} />
+              <Button label="Assign" variant="secondary" fit onPress={() => loadClassRoster(item)} accessibilityLabel={`Assign students to ${item.name}`} />
               <Button label="View" variant="secondary" fit onPress={() => navigation.navigate('ClassDetail', { classId: item.id })} accessibilityLabel={`View ${item.name}`} />
             </View>
           </Glass>
@@ -144,7 +148,7 @@ export default function ClassManagementScreen({ navigation }) {
       </Page>
       <ToastBanner toast={toast} />
 
-      <Modal visible={showCreateClass} animationType="slide" transparent>
+      <Modal visible={showCreateClass} animationType="slide" transparent onRequestClose={() => setShowCreateClass(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <Glass strong radius={24} style={styles.modalCard}>
             <Heading level={2}>Create class</Heading>
@@ -158,7 +162,7 @@ export default function ClassManagementScreen({ navigation }) {
         </View>
       </Modal>
 
-      <Modal visible={showAssignStudents} animationType="slide" transparent>
+      <Modal visible={showAssignStudents} animationType="slide" transparent onRequestClose={() => setShowAssignStudents(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <Glass strong radius={24} style={styles.assignModal}>
             <View style={styles.assignHeader}>
@@ -168,7 +172,7 @@ export default function ClassManagementScreen({ navigation }) {
             {studentError ? (
               <Body style={{ padding: 16 }}>Could not load the student directory. Close this and try again.</Body>
             ) : students.length === 0 ? (
-              <Body style={{ padding: 16 }}>No registered students yet. They need a CompuClass account before you can assign them.</Body>
+              <Body style={{ padding: 16 }}>No students in this class yet. They appear here after they join with the class code.</Body>
             ) : students.map((item) => {
               const selected = selectedStudents.includes(item.id);
               return (
@@ -183,7 +187,7 @@ export default function ClassManagementScreen({ navigation }) {
                   <Avatar label={initials(item.full_name)} tone={selected ? 'blue' : 'neutral'} />
                   <View style={{ flex: 1 }}>
                     <Text style={[{ color: theme.text }, font(theme, 'semibold')]}>{item.full_name || 'Unknown student'}</Text>
-                    <Body variant="caption">{item.email}</Body>
+                    {item.email ? <Body variant="caption">{item.email}</Body> : null}
                   </View>
                   {selected ? <Badge label="Selected" kind="neutral" /> : null}
                 </TouchableOpacity>

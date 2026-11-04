@@ -8,7 +8,9 @@ import {
   passingMark,
   plural,
   prepareQuestionsForSave,
+  editorQuestionsFromStored,
   questionsPayloadForSave,
+  withQuestionType,
   progressFromAttempts,
   questionCount,
   spreadCorrectAnswer,
@@ -62,6 +64,26 @@ describe('quiz authoring', () => {
       },
     ]);
     expect(payload.questions[0]).not.toHaveProperty('correct_answer');
+  });
+
+  it('turns a stored true/false row into the editor shape', () => {
+    const [question] = editorQuestionsFromStored([{
+      id: 'q1',
+      question: 'RAM is volatile.',
+      type: 'true_false',
+      options: ['True', 'False'],
+      correct_answer: 'False',
+      topic: 'Memory',
+    }]);
+    expect(question).toMatchObject({
+      id: 'q1',
+      type: 'true_false',
+      options: ['True', 'False'],
+      correctAnswer: 1,
+      topic: 'Memory',
+    });
+    expect(withQuestionType(question, 'multiple-choice').type).toBe('multiple-choice');
+    expect(withQuestionType(question, 'multiple-choice').options).toHaveLength(4);
   });
 
   it('rejects a question type a practice quiz cannot store', () => {

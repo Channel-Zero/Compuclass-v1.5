@@ -500,7 +500,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
   const renderQuestion = () => {
     const isHard = question?.difficulty === 'hard';
     return (
-      <Modal visible={phase==='question'} transparent animationType="slide">
+      <Modal visible={phase==='question'} transparent animationType="slide" onRequestClose={() => { if (selectedOpt === null) setPhase('move'); }}>
         <View style={st.modalOverlay}>
           <View style={[st.questionCard, { borderTopColor: theme.trace }]}>
             <View style={st.qHeader}>
@@ -573,7 +573,7 @@ export default function CircuitMazeScreen({ navigation, route }) {
 
   // ── Render: end modal ───────────────────────────────────────────────────────
   const renderEndModal = () => (
-    <Modal visible={(phase==='win'||phase==='gameover') && !showReview} transparent animationType="fade">
+    <Modal visible={(phase==='win'||phase==='gameover') && !showReview} transparent animationType="fade" onRequestClose={() => leaveScreen(navigation)}>
       <View style={st.modalOverlay}>
         <LinearGradient colors={phase==='win'?['#0A3D1A','#0D1B2A']:['#3D0A0A','#0D1B2A']} style={st.endCard}>
           <Text style={st.endEmoji}>{phase==='win'?'':''}</Text>

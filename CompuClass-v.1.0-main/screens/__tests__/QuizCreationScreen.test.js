@@ -2,6 +2,14 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as DocumentPicker from 'expo-document-picker';
+jest.mock('@react-navigation/native', () => {
+  const actual = jest.requireActual('@react-navigation/native');
+  return {
+    ...actual,
+    useFocusEffect: (callback) => require('react').useEffect(callback, [callback]),
+  };
+});
+
 import QuizCreationScreen from '../QuizCreationScreen';
 import { lecturerService } from '../../services/lecturerService';
 import { AppError } from '../../utils/errorMessages';

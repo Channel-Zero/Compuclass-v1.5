@@ -38,7 +38,7 @@ export default function Windows11SimulatorScreen() {
     return () => {
       end();
       setSimulatorFullscreen(false);
-      ScreenOrientation.unlockAsync().catch(() => {});
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     };
   }, [setSimulatorFullscreen]);
 
@@ -99,7 +99,7 @@ export default function Windows11SimulatorScreen() {
       }, 100);
       return;
     }
-    ScreenOrientation.unlockAsync().catch(() => {});
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     setIsFullscreen(false);
     setSimulatorFullscreen(false);
   };

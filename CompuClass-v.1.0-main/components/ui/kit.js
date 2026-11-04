@@ -9,6 +9,8 @@ import { Icon } from './Icon';
 
 export const LAPTOP = 1024;
 export const TABLET = 600;
+// Floating phone tab bar: pill, vertical padding, and a little air above it.
+export const PHONE_TAB_BAR_HEIGHT = 120;
 
 let webStylesInstalled = false;
 export function installWebStyles() {
@@ -37,7 +39,9 @@ export function useLayout() {
     tablet,
     phone: width < TABLET,
     horizontal: laptop ? 40 : 20,
-    bottom: laptop ? 64 : 128,
+    // Phones: clear the floating tab bar plus the system inset. Wider layouts
+    // have no tab bar, so they keep the previous padding.
+    bottom: laptop ? 64 : (width < TABLET ? PHONE_TAB_BAR_HEIGHT + insets.bottom : 128),
     contentMax: 1200,
     insets,
   };

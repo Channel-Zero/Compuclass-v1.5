@@ -283,7 +283,7 @@ export default function ContentUploadScreen({ navigation, route }) {
       <ToastBanner toast={toast} />
 
       {/* Upload Modal */}
-      <Modal visible={showUpload} animationType="slide" transparent>
+      <Modal visible={showUpload} animationType="slide" transparent onRequestClose={() => setShowUpload(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Upload Document</Text>

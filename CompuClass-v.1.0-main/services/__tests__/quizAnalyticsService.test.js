@@ -55,7 +55,7 @@ describe('lecturer quiz analytics reads', () => {
         return chain({ data: [{ student_id: 's1', joined_at: '2026-10-01' }], error: null });
       }
       if (table === 'profiles') {
-        return chain({ data: { id: 's1', full_name: 'Thandi Nkosi' }, error: null });
+        return chain({ data: [{ id: 's1', full_name: 'Thandi Nkosi' }], error: null });
       }
       if (table === 'quizzes') {
         return chain({ data: [{ id: 'quiz-1', title: 'CPU', passing_score: 70 }], error: null });

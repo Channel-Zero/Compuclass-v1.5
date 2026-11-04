@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 // The download/read/write functions were moved to the legacy entry point in
 // expo-file-system 54+; importing them from 'expo-file-system' throws at runtime.
 import * as FileSystem from 'expo-file-system/legacy';
@@ -25,11 +25,10 @@ export async function openStoredDocument(stored, fileName) {
   return openRemoteDocument(signedUrl, fileName);
 }
 
-// Opens a stored document. Native: download, then open the share sheet so the
-// user can view/save it. Web: expo-file-system has no web support, so open the
-// file in a new browser tab.
-// Returns 'opened' (web), 'shared', or 'downloaded' (native, no share sheet).
-export async function openRemoteDocument(url, fileName) {
+// Opens a stored document in a viewer. Web: a new tab. Native: the signed https
+// URL via the system browser, which shows the PDF instead of the share sheet.
+// Returns 'opened'.
+export async function openRemoteDocument(url, _fileName) {
   // file_url comes from the database; only ever open real https links
   // (a "javascript:" URL here would run script on the web build).
   if (!isSafeRemoteUrl(url)) throw new AppError('This document link is not valid.');
@@ -40,14 +39,13 @@ export async function openRemoteDocument(url, fileName) {
     return 'opened';
   }
 
-  const target = `${FileSystem.documentDirectory}${sanitizeFileName(fileName, 'document.pdf')}`;
-  const result = await FileSystem.downloadAsync(url, target);
-  if (result.status !== 200) throw new AppError('Download failed. Please try again.');
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(result.uri);
-    return 'shared';
+  try {
+    await Linking.openURL(url);
+  } catch (error) {
+    console.error('Open document error:', error?.message || error);
+    throw new AppError('This file could not be opened. Please try again.');
   }
-  return 'downloaded';
+  return 'opened';
 }
 
 // Saves generated text (e.g. a JSON data export). Web: browser download.

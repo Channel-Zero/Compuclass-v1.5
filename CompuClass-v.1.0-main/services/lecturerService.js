@@ -223,6 +223,31 @@ export const lecturerService = {
     }
   },
 
+  async updateQuiz(quizId, title, questions, type = 'practice') {
+    try {
+      title = cleanText(title, { field: 'Quiz title', maxLength: LIMITS.title, required: true, allowMarkup: false });
+      const built = questionsPayloadForSave(questions);
+      if (!built.ok) throw new ValidationError(built.message);
+      const p_type = type === 'class' ? 'class' : 'practice';
+      const { data, error } = await supabase.rpc('save_quiz', {
+        p_quiz_id: quizId,
+        p_title: title,
+        p_type,
+        p_questions: built.questions,
+        p_folder_id: null,
+      });
+      if (error) {
+        console.error('❌ Update quiz error:', error.message);
+        throw error;
+      }
+      const savedId = quizIdFromSaveQuiz(data) || quizId;
+      return { id: savedId, title, type: p_type };
+    } catch (error) {
+      console.error('❌ Update quiz exception:', error);
+      throw error;
+    }
+  },
+
   async getQuizzes(folderId) {
     try {
       // Validate folderId is a valid UUID
@@ -389,6 +414,18 @@ export const lecturerService = {
 
   async shareQuizToClasses(quizId, classIds) {
     try {
+      // assign_quiz_to_classes rejects anything that is not a class quiz
+      // ("Not authorized, or not a class quiz"). The repo's SQL grants the
+      // function but does not include its body, and save_quiz will not change
+      // type (the update matches on type). Mark the row as a class quiz first.
+      const { error: typeError } = await supabase
+        .from('quizzes')
+        .update({ type: 'class' })
+        .eq('id', quizId);
+      if (typeError) {
+        console.error('❌ Share quiz type error:', typeError.message);
+        throw typeError;
+      }
       // Live signature:
       // assign_quiz_to_classes(p_quiz_id, p_class_ids uuid[], p_due_at, p_closes_at,
       //   p_attempt_limit default 3, p_late_penalty_percent default 10, p_time_limit_seconds)
@@ -586,41 +623,36 @@ export const lecturerService = {
     }
   },
 
-  async getStudentProgress() {
+  async getStudentProgress(studentIds) {
     try {
-      const students = await this.getStudents();
-      
-      if (!students || !Array.isArray(students)) {
-        return {};
-      }
-      
+      const idList = Array.isArray(studentIds)
+        ? [...new Set(studentIds.filter(Boolean))]
+        : (await this.getStudents() || []).map((student) => student?.id).filter(Boolean);
+      if (idList.length === 0) return {};
+
+      const [attemptsRes, viewsRes] = await Promise.all([
+        supabase.from('quiz_attempts').select('user_id, quiz_id, score, completed_at').in('user_id', idList),
+        supabase.from('material_views').select('user_id').in('user_id', idList),
+      ]);
+      if (attemptsRes.error) console.error('❌ Quiz attempts error:', attemptsRes.error.message);
+      if (viewsRes.error) console.error('❌ Material views error:', viewsRes.error.message);
+
+      const attemptsByUser = {};
+      (attemptsRes.data || []).forEach((row) => {
+        if (!row?.user_id) return;
+        if (!attemptsByUser[row.user_id]) attemptsByUser[row.user_id] = [];
+        attemptsByUser[row.user_id].push(row);
+      });
+      const viewsByUser = {};
+      (viewsRes.data || []).forEach((row) => {
+        if (!row?.user_id) return;
+        viewsByUser[row.user_id] = (viewsByUser[row.user_id] || 0) + 1;
+      });
+
       const progressData = {};
-      
-      for (const student of students) {
-        if (!student || !student.id) continue;
-        
-        
-        // Get quiz attempts
-        const { data: quizAttempts, error: attemptsError } = await supabase
-          .from('quiz_attempts')
-          .select('quiz_id, score, completed_at')
-          .eq('user_id', student.id);
-        
-        if (attemptsError) {
-          console.error('❌ Quiz attempts error for', student.email, ':', attemptsError.message);
-        }
-        
-        
-        // Get material views
-        const { data: materialViews } = await supabase
-          .from('material_views')
-          .select('created_at')
-          .eq('user_id', student.id);
-        
-        progressData[student.id] = progressFromAttempts(quizAttempts, materialViews?.length || 0);
-        
-      }
-      
+      idList.forEach((id) => {
+        progressData[id] = progressFromAttempts(attemptsByUser[id] || [], viewsByUser[id] || 0);
+      });
       return progressData;
     } catch (error) {
       console.error('❌ Progress error:', error);
@@ -749,23 +781,24 @@ export const lecturerService = {
         return [];
       }
       
-      const students = await Promise.all(
-        (enrollments || []).map(async (e) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id, full_name')
-            .eq('id', e.student_id)
-            .single();
-          
-          return {
-            id: e.student_id,
-            full_name: profile?.full_name || 'Unknown',
-            joined_at: e.joined_at
-          };
-        })
-      );
-      
-      return students;
+      const ids = (enrollments || []).map((row) => row.student_id).filter(Boolean);
+      let profiles = [];
+      if (ids.length > 0) {
+        const { data, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', ids);
+        if (profileError) console.error('❌ Class profile error:', profileError.message);
+        else profiles = data || [];
+      }
+      const byId = {};
+      profiles.forEach((profile) => { byId[profile.id] = profile; });
+
+      return (enrollments || []).map((row) => ({
+        id: row.student_id,
+        full_name: byId[row.student_id]?.full_name || 'Unknown',
+        joined_at: row.joined_at,
+      }));
     } catch (error) {
       console.error('❌ Get class students exception:', error);
       return [];

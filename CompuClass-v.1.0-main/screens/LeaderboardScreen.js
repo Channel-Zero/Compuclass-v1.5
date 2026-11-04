@@ -15,6 +15,15 @@ function ordinal(n) {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
 
+// Rank 1 is the only "top of the board". A tie with the person above used to
+// report a gap of 0 and the same sentence for 9th place.
+export function positionNote(rank, gap) {
+  if (rank === 1) return 'You are at the top of this board.';
+  const place = ordinal(Math.max(1, rank - 1));
+  if (gap > 0) return `${Number(gap).toLocaleString()} points to reach ${place} place.`;
+  return `Tied with ${place} place.`;
+}
+
 export default function LeaderboardScreen({ navigation }) {
   const { theme } = useTheme();
   const { laptop } = useLayout();
@@ -25,6 +34,7 @@ export default function LeaderboardScreen({ navigation }) {
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [rows, setRows] = useState([]);
   const [myId, setMyId] = useState(null);
+  const [role, setRole] = useState(null);
 
   useFocusEffect(useCallback(() => { init(); }, []));
 
@@ -38,6 +48,7 @@ export default function LeaderboardScreen({ navigation }) {
     try {
       const user = await authService.getCurrentUser();
       setMyId(user?.id || null);
+      setRole(user?.profile?.role || null);
       const { data } = await supabase.from('class_students').select('class_id, classes(name)').eq('student_id', user.id);
       const myClasses = (data || []).filter((c) => c.classes).map((c) => ({ id: c.class_id, name: c.classes.name }));
       setClasses(myClasses);
@@ -105,7 +116,7 @@ export default function LeaderboardScreen({ navigation }) {
         <View style={{ width: `${Math.max(8, Math.round(((rows.length - myRank + 1) / rows.length) * 100))}%`, height: '100%', backgroundColor: theme.primary }} />
       </View>
       <Body variant="small" style={{ marginTop: 12 }}>
-        {gap > 0 ? `${gap.toLocaleString()} points to reach ${ordinal(myRank - 1)} place.` : 'You are at the top of this board.'}
+        {positionNote(myRank, gap)}
       </Body>
     </Card>
   );
@@ -148,7 +159,7 @@ export default function LeaderboardScreen({ navigation }) {
           ]}
         />
       </View>
-      {classes.length === 0 && (
+      {!loading && classes.length === 0 && role !== 'lecturer' && (
         <Pressable onPress={() => navigation.navigate('JoinClass')} accessibilityRole="button" accessibilityLabel="Join a class" style={{ alignSelf: 'flex-start', maxWidth: 400, minHeight: 44, justifyContent: 'center', marginBottom: 8, paddingVertical: 8 }}>
           <Text style={[{ color: theme.primary, fontSize: 14 }, font(theme, 'semibold')]}>Join a class to see your class board</Text>
         </Pressable>

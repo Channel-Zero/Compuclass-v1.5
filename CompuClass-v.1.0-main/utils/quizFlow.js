@@ -108,6 +108,48 @@ export function canonicalQuestionType(type) {
   return SAVE_QUIZ_TYPES[String(type).trim().toLowerCase()] || null;
 }
 
+export const TRUE_FALSE_OPTIONS = ['True', 'False'];
+
+export function withQuestionType(question, type) {
+  const source = question || {};
+  if (canonicalQuestionType(type) === 'true_false') {
+    return {
+      ...source,
+      type: 'true_false',
+      options: [...TRUE_FALSE_OPTIONS],
+      correctAnswer: source.correctAnswer === 1 ? 1 : 0,
+    };
+  }
+  const current = Array.isArray(source.options) ? source.options.map((option) => String(option ?? '')) : [];
+  const options = current.length >= 4 ? current.slice(0, 4) : [...current, '', '', '', ''].slice(0, 4);
+  const correctAnswer = Number.isInteger(source.correctAnswer) ? source.correctAnswer : 0;
+  return { ...source, type: 'multiple-choice', options, correctAnswer };
+}
+
+// quiz_questions stores option labels plus correct_answer text. The editors
+// want a correctAnswer index and either four choices or True/False.
+export function editorQuestionsFromStored(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row, index) => {
+    const storedType = canonicalQuestionType(row?.type) === 'true_false' ? 'true_false' : 'multiple-choice';
+    const labels = normalizeOptions(row?.options);
+    const correctText = String(row?.correct_answer ?? '').trim();
+    let correctAnswer = labels.findIndex((label) => label === correctText);
+    if (correctAnswer < 0 && storedType === 'true_false') {
+      correctAnswer = correctText.toLowerCase() === 'false' ? 1 : 0;
+    }
+    if (correctAnswer < 0) correctAnswer = 0;
+    return withQuestionType({
+      id: row?.id || `stored-${index}`,
+      question: row?.question || '',
+      options: labels,
+      correctAnswer,
+      difficulty: row?.difficulty || 'medium',
+      timeLimitSeconds: row?.time_limit_seconds ?? null,
+      topic: row?.topic || '',
+    }, storedType);
+  });
+}
+
 function optionText(option) {
   if (typeof option === 'string') return option.trim();
   if (option && typeof option === 'object') {

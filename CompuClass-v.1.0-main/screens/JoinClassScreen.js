@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { classService } from '../services/classService';
 import { getErrorMessage } from '../utils/errorMessages';
 import { appTheme, useTheme } from '../context/ThemeContext';
+import { useLayout } from '../components/ui/kit';
 import { useShellBack } from '../context/ChromeContext';
 import { leaveScreen } from '../utils/screenNav';
 
@@ -22,6 +23,7 @@ export default function JoinClassScreen({ navigation }) {
   const { theme } = useTheme();
   const shellBack = useShellBack();
   const insets = useSafeAreaInsets();
+  const { bottom, phone } = useLayout();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [joined, setJoined] = useState(null);
@@ -67,7 +69,7 @@ export default function JoinClassScreen({ navigation }) {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + 24, backgroundColor: theme.background }]}>
+    <View style={[styles.container, { paddingBottom: phone ? bottom : insets.bottom + 24, backgroundColor: theme.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         {shellBack ? <View style={styles.backBtn} /> : (
           <TouchableOpacity onPress={() => leaveScreen(navigation)} style={[styles.backBtn, { backgroundColor: theme.tint }]} accessibilityRole="button" accessibilityLabel="Go back">

@@ -32,26 +32,33 @@ export default function StudentProgressScreen({ navigation }) {
   const loadData = async () => {
     setStatus((current) => (current === 'ready' ? 'ready' : 'loading'));
     try {
-      const [people, classList, progress] = await Promise.all([
-        lecturerService.getStudents(),
-        lecturerService.getClasses(),
-        lecturerService.getStudentProgress(),
-      ]);
-      const byEmail = new Map((people || []).map((student) => [student.id, student]));
-      const nextRoster = {};
-      await Promise.all((classList || []).map(async (item) => {
+      const classList = await lecturerService.getClasses();
+      const entries = await Promise.all((classList || []).map(async (item) => {
         const enrolled = await lecturerService.getClassStudents(item.id);
-        nextRoster[item.id] = (enrolled || []).map((student) => ({
-          ...student,
-          email: byEmail.get(student.id)?.email || student.email || '',
-          full_name: student.full_name || byEmail.get(student.id)?.full_name,
-        }));
+        return [item.id, enrolled || []];
       }));
+      const nextRoster = Object.fromEntries(entries);
       setClasses(classList || []);
       setRoster(nextRoster);
-      setProgressData(progress || {});
       setSelectedClassId((current) => current || classList?.[0]?.id || null);
       setStatus('ready');
+      lecturerService.getStudents().then((people) => {
+        const byId = new Map((people || []).map((student) => [student.id, student]));
+        setRoster((current) => {
+          const next = {};
+          Object.entries(current).forEach(([classId, list]) => {
+            next[classId] = (list || []).map((student) => ({
+              ...student,
+              email: byId.get(student.id)?.email || student.email || '',
+              full_name: student.full_name || byId.get(student.id)?.full_name,
+            }));
+          });
+          return next;
+        });
+      }).catch(() => {});
+      const ids = [...new Set(Object.values(nextRoster).flat().map((student) => student?.id).filter(Boolean))];
+      const progress = await lecturerService.getStudentProgress(ids);
+      setProgressData(progress || {});
     } catch (error) {
       setStatus('error');
       Alert.alert('Error', getErrorMessage(error, { context: 'StudentProgress' }));
@@ -232,7 +239,7 @@ export default function StudentProgressScreen({ navigation }) {
       </Page>
       <ToastBanner toast={toast} />
 
-      <Modal visible={showAddStudent} animationType="fade" transparent>
+      <Modal visible={showAddStudent} animationType="fade" transparent onRequestClose={() => setShowAddStudent(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <Glass strong radius={24} style={styles.modalCard}>
             <Heading level={2}>Enrol student</Heading>
@@ -262,7 +269,7 @@ export default function StudentProgressScreen({ navigation }) {
         </View>
       </Modal>
 
-      <Modal visible={!!selectedStudent} animationType="fade" transparent>
+      <Modal visible={!!selectedStudent} animationType="fade" transparent onRequestClose={() => setSelectedStudent(null)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <Glass strong radius={24} style={styles.detailCard}>
             <View style={styles.assignHeader}>
