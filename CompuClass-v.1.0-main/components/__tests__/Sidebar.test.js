@@ -1,5 +1,5 @@
 import React from 'react';
-import { BackHandler, Modal, Platform, Pressable, Text } from 'react-native';
+import { BackHandler, Platform, Pressable, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import Sidebar, { readSidebarCollapsed, useSidebarCollapsed, writeSidebarCollapsed } from '../Sidebar';
@@ -88,7 +88,7 @@ describe('Sidebar', () => {
       expect(view.getByText('CompuRunner')).toBeTruthy();
       expect(view.getByLabelText('Collapse menu')).toBeTruthy();
       expect(view.getByTestId('drawer-backdrop')).toBeTruthy();
-      view.UNSAFE_getByType(Modal).props.onRequestClose();
+      fireEvent.press(view.getByLabelText('Close menu'));
       expect(onClose).toHaveBeenCalledTimes(1);
     } finally {
       Platform.OS = previous;

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Animated, PanResponder, useWindowDimensions, Easing, BackHandler, Platform, Modal } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Animated, PanResponder, useWindowDimensions, Easing, BackHandler, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -357,29 +357,10 @@ export default function Sidebar({ visible, docked, collapsed = false, onToggleCo
     </View>
   );
 
-  // A transparent Modal sits above native screens. The in-tree copy is what
-  // an edge swipe drives, and what stays mounted while the menu is closed.
-  if (Platform.OS === 'android' && !suspendAnimation && (!!visible || shown)) {
-    return (
-      <Modal
-        visible
-        transparent
-        animationType="none"
-        statusBarTranslucent
-        hardwareAccelerated
-        presentationStyle="overFullScreen"
-        onRequestClose={() => onCloseRef.current?.()}
-      >
-        <View style={[styles.modalFill, { height: windowHeight }]}>{drawerTree}</View>
-      </Modal>
-    );
-  }
-
   return drawerTree;
 }
 
 const styles = StyleSheet.create({
-  modalFill: { flex: 1 },
   overlay: { ...StyleSheet.absoluteFillObject, zIndex: 30, elevation: 30 },
   backdrop: { ...StyleSheet.absoluteFillObject },
   drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, borderTopRightRadius: 24, borderBottomRightRadius: 24, overflow: 'hidden' },
