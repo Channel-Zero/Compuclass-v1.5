@@ -8,6 +8,7 @@ import {
   passingMark,
   plural,
   prepareQuestionsForSave,
+  questionsPayloadForSave,
   progressFromAttempts,
   questionCount,
   spreadCorrectAnswer,
@@ -36,6 +37,53 @@ describe('quiz authoring', () => {
     ]);
     expect(prepared.questions[0].options).toEqual(['Chip', 'Cable']);
     expect(prepared.questions[0].correctAnswer).toBe(0);
+  });
+
+  it('sends the shape live save_quiz accepts for a practice quiz', () => {
+    const prepared = prepareQuestionsForSave([
+      {
+        question: ' What does <p> do? ',
+        options: ['Paragraph ', 'Picture', '', ''],
+        correctAnswer: 0,
+        type: 'multiple-choice',
+      },
+    ]);
+    const payload = questionsPayloadForSave(prepared.questions);
+    expect(payload.ok).toBe(true);
+    expect(payload.questions).toEqual([
+      {
+        question: 'What does <p> do?',
+        type: 'mcq',
+        order_index: 0,
+        options: [
+          { option_text: 'Paragraph', is_correct: true },
+          { option_text: 'Picture', is_correct: false },
+        ],
+      },
+    ]);
+    expect(payload.questions[0]).not.toHaveProperty('correct_answer');
+  });
+
+  it('rejects a question type a practice quiz cannot store', () => {
+    const payload = questionsPayloadForSave([
+      { question: 'Explain RAM', options: ['A', 'B'], correctAnswer: 0, type: 'short_answer' },
+    ]);
+    expect(payload.ok).toBe(false);
+    expect(payload.message).toMatch(/multiple choice or true\/false/);
+  });
+
+  it('maps a true/false question and keeps points when they were set', () => {
+    const payload = questionsPayloadForSave([
+      { question: 'RAM is memory', options: ['True', 'False'], correctAnswer: 1, type: 'true/false', points: 2 },
+    ]);
+    expect(payload.questions[0]).toMatchObject({
+      type: 'true_false',
+      points: 2,
+      options: [
+        { option_text: 'True', is_correct: false },
+        { option_text: 'False', is_correct: true },
+      ],
+    });
   });
 
   it('rejects a blank question, a single option, and a correct answer that was left blank', () => {

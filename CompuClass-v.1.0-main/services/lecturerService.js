@@ -4,7 +4,7 @@ import { cleanText, cleanEmail, sanitizeFileName, ValidationError, LIMITS } from
 import { assertUploadAllowed, storagePathFromStoredValue } from './fileAccess';
 import { buildDocumentObjectPath } from './documentUploadPath';
 import { AppError } from '../utils/errorMessages';
-import { progressFromAttempts } from '../utils/quizFlow';
+import { progressFromAttempts, questionsPayloadForSave } from '../utils/quizFlow';
 
 const MAX_QUESTIONS_PER_QUIZ = 100;
 
@@ -156,21 +156,12 @@ export const lecturerService = {
     try {
       title = cleanText(title, { field: 'Quiz title', maxLength: LIMITS.title, required: true, allowMarkup: false });
       questions = cleanQuestions(questions);
-      // Live quizzes are owned by created_by and written by save_quiz.
-      // p_questions carries the columns the live quiz_questions table has.
-      // points, type, and image_url are included only when the caller set them.
-      const p_questions = questions.map((q, idx) => {
-        const row = {
-          question: q.question,
-          options: q.options,
-          correct_answer: q.options[q.correctAnswer],
-          order_index: idx,
-        };
-        if (q.points != null) row.points = q.points;
-        if (q.type) row.type = q.type;
-        if (q.image_url) row.image_url = q.image_url;
-        return row;
-      });
+      // Live save_quiz (practice) only accepts type mcq or true_false, and
+      // replace_quiz_questions grades options from {option_text, is_correct}.
+      // Sending type "multiple-choice" or a string array is the 400.
+      const built = questionsPayloadForSave(questions);
+      if (!built.ok) throw new ValidationError(built.message);
+      const p_questions = built.questions;
 
       const { data, error } = await supabase.rpc('save_quiz', {
         p_quiz_id: null,
