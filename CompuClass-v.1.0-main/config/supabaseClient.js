@@ -3,7 +3,13 @@
 // while the module is still loading, before React can show an error. A release
 // APK then closes on the splash screen.
 
-export function readSupabasePublicConfig(env = process.env) {
+// Expo inlines only a literal process.env.EXPO_PUBLIC_* member expression.
+// A variable lookup of that name stays empty in an expo export bundle, so the
+// default argument is an object built from those literals.
+export function readSupabasePublicConfig(env = {
+  EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+}) {
   const url = String(env?.EXPO_PUBLIC_SUPABASE_URL || '').trim();
   const anonKey = String(env?.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim();
   return {

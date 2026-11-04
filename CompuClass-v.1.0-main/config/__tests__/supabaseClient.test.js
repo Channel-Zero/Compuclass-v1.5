@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { buildSupabaseClient, missingSupabaseConfigMessage, readSupabasePublicConfig } from '../supabaseClient';
 
 describe('supabase public config', () => {
@@ -36,6 +37,31 @@ describe('supabase public config', () => {
     }, create, options);
     expect(client).toEqual({ auth: {} });
     expect(create).toHaveBeenCalledWith('https://example.supabase.co', 'anon-key', options);
+  });
+
+  it('reads process.env literals when no object is passed', () => {
+    const previousUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const previousKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.EXPO_PUBLIC_SUPABASE_URL = ' https://live.supabase.co ';
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = ' live-key ';
+    expect(readSupabasePublicConfig()).toEqual({
+      url: 'https://live.supabase.co',
+      anonKey: 'live-key',
+      configured: true,
+    });
+    process.env.EXPO_PUBLIC_SUPABASE_URL = previousUrl;
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = previousKey;
+  });
+
+  it('keeps the Expo inline form in the modules that ship', () => {
+    const client = fs.readFileSync(require.resolve('../supabaseClient.js'), 'utf8');
+    const entry = fs.readFileSync(require.resolve('../supabase.js'), 'utf8');
+    [client, entry].forEach((source) => {
+      expect(source).toContain('process.env.EXPO_PUBLIC_SUPABASE_URL');
+      expect(source).toContain('process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY');
+    });
+    expect(client).not.toMatch(/env = process\.env/);
+    expect(entry).not.toMatch(/readSupabasePublicConfig\(\)/);
   });
 
   it('names the two EAS variables a preview build needs', () => {
