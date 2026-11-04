@@ -17,6 +17,10 @@ jest.mock('../../config/supabase', () => {
         order: async () => state.questionRows,
       }),
     })),
+    update: jest.fn((row) => {
+      inserted.push({ table: name, op: 'update', row });
+      return { eq: async () => ({ error: null }) };
+    }),
   });
   return {
     supabase: {
@@ -171,8 +175,30 @@ describe('lecturerService input validation', () => {
     expect(supabase.rpc).not.toHaveBeenCalledWith('set_question_gamification_settings', expect.anything());
   });
 
+  it('updates a saved quiz through save_quiz with its existing type', async () => {
+    await lecturerService.updateQuiz('quiz-9', 'Edited', [{
+      question: 'RAM is volatile.',
+      type: 'true_false',
+      options: ['True', 'False'],
+      correctAnswer: 0,
+    }], 'class');
+    expect(supabase.rpc).toHaveBeenCalledWith('save_quiz', expect.objectContaining({
+      p_quiz_id: 'quiz-9',
+      p_title: 'Edited',
+      p_type: 'class',
+    }));
+    const payload = supabase.rpc.mock.calls.find((call) => call[0] === 'save_quiz')[1].p_questions[0];
+    expect(payload.type).toBe('true_false');
+    expect(payload.options).toEqual([
+      { option_text: 'True', is_correct: true },
+      { option_text: 'False', is_correct: false },
+    ]);
+  });
+
   it('calls assign_quiz_to_classes with the live argument list', async () => {
     await lecturerService.shareQuizToClasses('quiz-1', ['class-1', 'class-2']);
+    expect(supabase.from).toHaveBeenCalledWith('quizzes');
+    expect(supabase.__inserted).toContainEqual({ table: 'quizzes', op: 'update', row: { type: 'class' } });
     expect(supabase.rpc).toHaveBeenCalledWith('assign_quiz_to_classes', {
       p_quiz_id: 'quiz-1',
       p_class_ids: ['class-1', 'class-2'],

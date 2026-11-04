@@ -1,5 +1,5 @@
 import React from 'react';
-import { BackHandler, Pressable, Text } from 'react-native';
+import { BackHandler, Modal, Platform, Pressable, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import Sidebar, { readSidebarCollapsed, useSidebarCollapsed, writeSidebarCollapsed } from '../Sidebar';
@@ -64,6 +64,35 @@ describe('Sidebar', () => {
 
     rerender(<Sidebar docked visible currentScreen="FolderContent" onClose={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />);
     expect(getByRole('button', { name: 'Home' }).props.accessibilityState).toMatchObject({ selected: true });
+  });
+
+  it('keeps a closed phone menu out of the way, then shows it with the scrim', () => {
+    const view = render(<Sidebar visible={false} retain onClose={jest.fn()} onNavigate={jest.fn()} />);
+    expect(view.queryByLabelText('Close menu')).toBeNull();
+    expect(view.queryByText('CompuRunner')).toBeNull();
+
+    view.rerender(<Sidebar visible retain onClose={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />);
+    expect(view.getByLabelText('Close menu')).toBeTruthy();
+    expect(view.getByTestId('drawer-backdrop')).toBeTruthy();
+    expect(view.getByText('CompuRunner')).toBeTruthy();
+  });
+
+  it('shows the phone menu on Android above the screen, including collapse and games', () => {
+    const previous = Platform.OS;
+    Platform.OS = 'android';
+    const onClose = jest.fn();
+    try {
+      const view = render(
+        <Sidebar visible retain onClose={onClose} onToggleCollapsed={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />
+      );
+      expect(view.getByText('CompuRunner')).toBeTruthy();
+      expect(view.getByLabelText('Collapse menu')).toBeTruthy();
+      expect(view.getByTestId('drawer-backdrop')).toBeTruthy();
+      view.UNSAFE_getByType(Modal).props.onRequestClose();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      Platform.OS = previous;
+    }
   });
 
   it('highlights the open screen in the phone drawer and closes from the backdrop', () => {

@@ -7,7 +7,7 @@ import { supabase } from '../config/supabase';
 import { authService } from '../services/authService';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from '../components/ui/Icon';
-import { Heading, Body, Glass, Badge, Button, IconTile, IconButton, Skeleton, Page, font } from '../components/ui/kit';
+import { Heading, Body, Glass, Badge, Button, IconTile, IconButton, Skeleton, Page, font, useLayout } from '../components/ui/kit';
 import { leaveScreen } from '../utils/screenNav';
 import { advanceQuiz, bestScoresByQuiz, normalizeOptions, passingMark, uniqueIds } from '../utils/quizFlow';
 const WHITE = '#FFFFFF';
@@ -39,6 +39,8 @@ function PressableQuiz({ theme, quiz, onPress, bestScore }) {
 
 export default function QuizScreen({ route, navigation }) {
   const { theme } = useTheme();
+  const { bottom, phone } = useLayout();
+  const tabClearance = phone ? bottom : 0;
   const BLUE = theme.primary;
   const YELLOW = theme.yellow;
   const RED = theme.error;
@@ -285,7 +287,7 @@ export default function QuizScreen({ route, navigation }) {
     }
 
     return (
-      <ScrollView style={[styles.container, { backgroundColor: BG }]}>
+      <ScrollView style={[styles.container, { backgroundColor: BG }]} contentContainerStyle={{ paddingBottom: tabClearance }}>
         <View style={[styles.resultBanner, { backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border }]}>
           <IconTile name={result.passed ? 'trophy' : 'refresh'} tone={result.passed ? 'yellow' : 'blue'} size={56} />
           <Text style={[styles.resultTitle, { color: theme.text }]} accessibilityRole="header">Quiz completed</Text>
@@ -383,7 +385,7 @@ export default function QuizScreen({ route, navigation }) {
   const difficultyMeta = DIFFICULTY[currentQ.difficulty] || DIFFICULTY.medium;
 
   return (
-    <View style={[styles.container, { backgroundColor: BG }]}>
+    <View style={[styles.container, { backgroundColor: BG, paddingBottom: tabClearance }]}>
       <View style={[styles.header, { paddingTop: 12, backgroundColor: 'transparent' }]}>
         <IconButton name="chevLeft" label="Back" onPress={() => leaveScreen(navigation)} />
         <Text style={[styles.headerTitle, { color: TEXT }]} accessibilityRole="header">Question {currentQuestion + 1} of {questions.length}</Text>

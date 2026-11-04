@@ -109,8 +109,14 @@ export default function QuizDetailScreen({ navigation, route }) {
 
             <View style={styles.metaRow}>
               <Heading level={2} style={{ flex: 1 }}>Results</Heading>
+              {summary.count > 0 ? null : (
+                <Button label="Edit" variant="secondary" fit onPress={() => navigation.navigate('QuizCreation', { editQuizId: quizId })} accessibilityLabel={`Edit ${quiz.title}`} />
+              )}
               <Button label="Analytics" variant="secondary" fit onPress={() => navigation.navigate('QuizAnalytics', { quizId })} accessibilityLabel="Open quiz analytics" />
             </View>
+            {summary.count > 0 ? (
+              <Body variant="caption" style={{ marginBottom: 12 }}>Questions stay as they are once a student has attempted this quiz.</Body>
+            ) : null}
             <Glass strong style={styles.block}>
               {resultsNote ? <Body variant="caption">{resultsNote}</Body> : null}
               {!resultsNote && summary.count === 0 ? (

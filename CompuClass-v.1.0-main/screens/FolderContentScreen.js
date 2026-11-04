@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Modal, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { lecturerService } from '../services/lecturerService';
@@ -7,12 +7,13 @@ import { useTheme } from '../context/ThemeContext';
 import { getErrorMessage } from '../utils/errorMessages';
 import { openStoredDocument } from '../utils/fileDownload';
 import ClassScopePicker from '../components/ClassScopePicker';
-import { prepareQuestionsForSave, plural } from '../utils/quizFlow';
+import { prepareQuestionsForSave, plural, withQuestionType } from '../utils/quizFlow';
 import { Page, Heading, Body, Glass, Button, IconButton } from '../components/ui/kit';
 import { LECTURER_COLUMN, ScreenHeading } from '../components/lecturerChrome';
 
 export default function FolderContentScreen({ route, navigation }) {
   const { theme } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const { folder } = route.params;
   const [documents, setDocuments] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
@@ -22,7 +23,7 @@ export default function FolderContentScreen({ route, navigation }) {
   const [classes, setClasses] = useState([]);
   const [classId, setClassId] = useState(null);
   const [quizTitle, setQuizTitle] = useState('');
-  const [questions, setQuestions] = useState([{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
+  const [questions, setQuestions] = useState([{ question: '', options: ['', '', '', ''], correctAnswer: 0, type: 'multiple-choice' }]);
   const [status, setStatus] = useState('loading');
   const loadContentRef = useRef(() => {});
 
@@ -94,6 +95,24 @@ export default function FolderContentScreen({ route, navigation }) {
     }
   };
 
+  const deleteDocument = (doc) => {
+    Alert.alert(`Delete ${doc.title}?`, 'This removes the file from the folder.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await lecturerService.deleteDocument(doc.id);
+            await loadContent();
+          } catch (error) {
+            Alert.alert('Error', getErrorMessage(error, { context: 'FolderContent' }));
+          }
+        },
+      },
+    ]);
+  };
+
   const openDocument = async (doc) => {
     try {
       if (!doc.file_url) {
@@ -108,7 +127,7 @@ export default function FolderContentScreen({ route, navigation }) {
   };
 
   const addQuestion = () => {
-    setQuestions([...questions, { question: '', options: ['', '', '', ''], correctAnswer: 0 }]);
+    setQuestions([...questions, { question: '', options: ['', '', '', ''], correctAnswer: 0, type: 'multiple-choice' }]);
   };
 
   return (
@@ -130,12 +149,15 @@ export default function FolderContentScreen({ route, navigation }) {
           ) : null}
           {status === 'ready' && documents.length === 0 ? <Body variant="caption">No documents in this folder yet.</Body> : null}
           {documents.map((doc) => (
-            <TouchableOpacity key={doc.id} onPress={() => openDocument(doc)} accessibilityRole="button" accessibilityLabel={`Open ${doc.title}`}>
-              <Glass strong style={styles.itemCard}>
+            <Glass key={doc.id} strong style={styles.itemCard}>
+              <TouchableOpacity style={{ flex: 1 }} onPress={() => openDocument(doc)} accessibilityRole="button" accessibilityLabel={`Open ${doc.title}`}>
                 <Text style={[styles.itemTitle, { color: theme.text }]}>{doc.title}</Text>
                 <Body variant="caption">Open</Body>
-              </Glass>
-            </TouchableOpacity>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => deleteDocument(doc)} accessibilityRole="button" accessibilityLabel={`Delete ${doc.title}`} style={styles.removeQuestion}>
+                <Text style={{ color: theme.error, fontWeight: '600' }}>Delete</Text>
+              </TouchableOpacity>
+            </Glass>
           ))}
         </View>
 
@@ -156,7 +178,7 @@ export default function FolderContentScreen({ route, navigation }) {
         </View>
       </Page>
 
-      <Modal visible={showUploadDoc} animationType="slide" transparent>
+      <Modal visible={showUploadDoc} animationType="slide" transparent onRequestClose={() => setShowUploadDoc(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Upload Document</Text>
@@ -185,10 +207,11 @@ export default function FolderContentScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      <Modal visible={showCreateQuiz} animationType="slide" transparent>
+      <Modal visible={showCreateQuiz} animationType="slide" transparent onRequestClose={() => setShowCreateQuiz(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
-          <ScrollView style={[styles.modalContent, { backgroundColor: theme.card }]}>
+          <View style={[styles.modalContent, styles.quizModal, { backgroundColor: theme.card }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Create Quiz</Text>
+            <ScrollView style={[styles.quizScroll, { maxHeight: Math.round(windowHeight * 0.5) }]} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.quizScrollContent}>
             <TextInput
               style={[styles.input, { backgroundColor: theme.borderLight, color: theme.text }]}
               placeholder="Quiz Title"
@@ -198,7 +221,41 @@ export default function FolderContentScreen({ route, navigation }) {
             />
             {questions.map((q, idx) => (
               <View key={idx} style={[styles.questionBlock, { backgroundColor: theme.surface }]}>
-                <Text style={[styles.questionLabel, { color: theme.text }]}>Question {idx + 1}</Text>
+                <View style={styles.questionLabelRow}>
+                  <Text style={[styles.questionLabel, { color: theme.text }]}>Question {idx + 1}</Text>
+                  <TouchableOpacity
+                    onPress={() => setQuestions(questions.filter((_, questionIndex) => questionIndex !== idx))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove question ${idx + 1}`}
+                    style={styles.removeQuestion}
+                  >
+                    <Text style={{ color: theme.error, fontWeight: '600' }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.typeRow}>
+                  {[
+                    { id: 'multiple-choice', label: 'Multiple choice' },
+                    { id: 'true_false', label: 'True / False' },
+                  ].map((choice) => {
+                    const selected = (q.type || 'multiple-choice') === choice.id;
+                    return (
+                      <TouchableOpacity
+                        key={choice.id}
+                        onPress={() => {
+                          const next = [...questions];
+                          next[idx] = withQuestionType(q, choice.id);
+                          setQuestions(next);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`${choice.label} for question ${idx + 1}`}
+                        style={[styles.typeChip, { borderColor: selected ? theme.primary : theme.border, backgroundColor: selected ? theme.tint || '#EDF4FF' : 'transparent' }]}
+                      >
+                        <Text style={{ color: selected ? theme.primary : theme.textSecondary, fontWeight: '600' }}>{choice.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
                 <TextInput
                   style={[styles.input, { backgroundColor: theme.borderLight, color: theme.text }]}
                   placeholder="Question"
@@ -245,15 +302,16 @@ export default function FolderContentScreen({ route, navigation }) {
             <TouchableOpacity style={styles.addQuestionButton} onPress={addQuestion}>
               <Text style={[styles.addQuestionText, { color: theme.primary }]}>+ Add Question</Text>
             </TouchableOpacity>
+            </ScrollView>
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={[styles.cancelButton, { backgroundColor: theme.borderLight }]} onPress={() => setShowCreateQuiz(false)}>
+              <TouchableOpacity style={[styles.cancelButton, { backgroundColor: theme.borderLight }]} onPress={() => setShowCreateQuiz(false)} accessibilityRole="button" accessibilityLabel="Cancel">
                 <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.submitButton, { backgroundColor: theme.primary }]} onPress={handleCreateQuiz}>
+              <TouchableOpacity style={[styles.submitButton, { backgroundColor: theme.primary }]} onPress={handleCreateQuiz} accessibilityRole="button" accessibilityLabel="Create">
                 <Text style={styles.submitButtonText}>Create</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -273,6 +331,13 @@ const styles = StyleSheet.create({
   itemTitle: { flex: 1, fontSize: 16, color: '#1F2937' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#fff', borderRadius: 16, padding: 20, maxHeight: '80%' },
+  quizModal: { width: '100%', maxHeight: '90%' },
+  quizScroll: { flexGrow: 0 },
+  quizScrollContent: { paddingBottom: 8 },
+  questionLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  removeQuestion: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  typeChip: { minHeight: 36, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#1F2937' },
   input: { backgroundColor: '#F7FBFD', borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 16 },
   pickButton: { backgroundColor: '#10B981', padding: 16, borderRadius: 8, alignItems: 'center', marginBottom: 12 },

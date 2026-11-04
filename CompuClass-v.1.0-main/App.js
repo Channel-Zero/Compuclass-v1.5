@@ -465,7 +465,8 @@ function AppContent() {
   const runnerTakeover = routeName === 'Game';
   const windowsOpen = routeName === 'Windows 11';
   const menuCollapsed = windowsOpen || collapsed;
-  const shellBack = Boolean(routeName) && !isRootRoute(routeName);
+  const mazeTakeover = routeName === 'CircuitMaze';
+  const shellBack = Boolean(routeName) && !isRootRoute(routeName) && !mazeTakeover;
   const handleBack = () => {
     if (drawer.open || drawer.dragging) {
       drawer.close();
@@ -535,7 +536,7 @@ function AppContent() {
                     onBell={() => setShowAnnouncements(true)}
                     onAvatar={() => handleNavigate('Profile')}
                   />
-                  {runnerTakeover || windowsOpen || simulatorFullscreen ? null : <BackBar routeName={routeName} onBack={handleBack} />}
+                  {runnerTakeover || windowsOpen || simulatorFullscreen || mazeTakeover ? null : <BackBar routeName={routeName} onBack={handleBack} />}
                   <View style={styles.stage}>
                   <Tab.Navigator
                     backBehavior="history"
@@ -569,6 +570,12 @@ function AppContent() {
                     <Tab.Screen name="Game" component={GameScreen} options={{ unmountOnBlur: true }} />
                     <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} options={{ unmountOnBlur: true }} />
                   </Tab.Navigator>
+                  <EdgeSwipeCatcher
+                    enabled={drawer.edgeEnabled && !drawer.open}
+                    onMove={drawer.onEdgeMove}
+                    onEnd={drawer.onEdgeEnd}
+                  />
+                  </View>
                   {drawer.phone && !runnerTakeover && !windowsOpen && !simulatorFullscreen && (
                     <Sidebar
                       retain
@@ -584,12 +591,6 @@ function AppContent() {
                       user={account}
                     />
                   )}
-                  <EdgeSwipeCatcher
-                    enabled={drawer.edgeEnabled && !drawer.open}
-                    onMove={drawer.onEdgeMove}
-                    onEnd={drawer.onEdgeEnd}
-                  />
-                  </View>
                 </View>
                 </ChromeProvider>
               </NavigationContainer>

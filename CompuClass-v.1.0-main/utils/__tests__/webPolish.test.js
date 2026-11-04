@@ -71,11 +71,14 @@ describe('openRemoteDocument', () => {
     }
   );
 
-  it('downloads https documents to a sanitised path on native', async () => {
+  it('opens https documents in a viewer instead of the share sheet', async () => {
+    const { Linking } = require('react-native');
     const { openRemoteDocument } = require('../fileDownload');
     const FileSystem = require('expo-file-system/legacy');
-    FileSystem.downloadAsync.mockResolvedValue({ status: 200, uri: 'file:///docs/notes.pdf' });
-    await expect(openRemoteDocument('https://proj.supabase.co/storage/v1/object/public/documents/a.pdf', '../../notes.pdf')).resolves.toBe('downloaded');
-    expect(FileSystem.downloadAsync).toHaveBeenCalledWith(expect.any(String), 'file:///docs/notes.pdf');
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    await expect(openRemoteDocument('https://proj.supabase.co/storage/v1/object/public/documents/a.pdf', '../../notes.pdf')).resolves.toBe('opened');
+    expect(openURL).toHaveBeenCalledWith('https://proj.supabase.co/storage/v1/object/public/documents/a.pdf');
+    expect(FileSystem.downloadAsync).not.toHaveBeenCalled();
+    openURL.mockRestore();
   });
 });

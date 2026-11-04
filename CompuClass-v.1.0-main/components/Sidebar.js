@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Animated, PanResponder, useWindowDimensions, Easing, BackHandler, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Animated, PanResponder, useWindowDimensions, Easing, BackHandler, Platform, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -89,7 +89,9 @@ function animateDrawer(value, toValue, reduced, onEnd) {
     toValue,
     duration: drawerTransitionMs(reduced),
     easing: Easing.out(Easing.cubic),
-    useNativeDriver: true,
+    // Android drops a native-driver animation that starts before the drawer
+    // view is attached, which leaves the menu and scrim off-screen.
+    useNativeDriver: Platform.OS !== 'android',
   }).start(({ finished }) => {
     if (finished) onEnd?.();
   });
@@ -124,7 +126,7 @@ function NavList({ currentScreen, onPress, user, collapsed }) {
   const points = user?.profile?.xp;
   return (
     <>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
         {PRIMARY_NAV.map((item) => (
           <NavItem key={item.screen} item={item} active={navKeyForRoute(currentScreen) === item.screen} collapsed={collapsed} onPress={onPress} theme={theme} />
         ))}
@@ -160,7 +162,7 @@ export default function Sidebar({ visible, docked, collapsed = false, onToggleCo
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const dockedWidth = sidebarWidthFor(collapsed);
   const sidebarWidth = docked ? dockedWidth : getSidebarWidth(windowWidth);
   const dockedWidthAnim = React.useRef(new Animated.Value(dockedWidth)).current;
@@ -206,7 +208,11 @@ export default function Sidebar({ visible, docked, collapsed = false, onToggleCo
     if (visible) {
       shownRef.current = true;
       setShown(true);
-      animateDrawer(translateX, 0, reducedRef.current);
+      // The shared value is created off-screen. On Android that animation
+      // often finishes before any view is listening, so snap it open once
+      // the menu is actually being shown.
+      if (Platform.OS === 'android') translateX.setValue(0);
+      else animateDrawer(translateX, 0, reducedRef.current);
       return undefined;
     }
     if (!shownRef.current) return undefined;
@@ -302,24 +308,32 @@ export default function Sidebar({ visible, docked, collapsed = false, onToggleCo
     );
   }
 
-  if (!shown && retain) {
-    return <View pointerEvents="none" collapsable={false} style={styles.overlay} />;
-  }
-  if (!shown) return null;
+  // Closed and not retained: nothing to paint. Retained (the phone shell)
+  // keeps the animated views mounted so the shared translateX has a node
+  // before the hamburger opens.
+  if (!shown && !visible && !retain) return null;
 
+  const interactive = (!!visible || shown) && pointerEvents !== 'none';
+  // Android: a native-driver value shared from PhoneDrawer stays at its
+  // off-screen start, so the scrim (opacity 0) and the panel never appear.
+  // Pin the open menu on screen instead of trusting that value.
+  const pinOpen = Platform.OS === 'android' && !!visible && !suspendAnimation;
   const backdropOpacity = translateX.interpolate({
     inputRange: [hiddenX === 0 ? -1 : hiddenX, 0],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
-  return (
+  const drawerTree = (
     <View
       testID="phone-drawer-overlay"
-      pointerEvents={pointerEvents === 'none' ? 'none' : 'auto'}
-      accessibilityViewIsModal
+      pointerEvents={interactive ? 'auto' : 'none'}
+      accessibilityViewIsModal={interactive}
+      accessibilityElementsHidden={!interactive}
+      importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
+      collapsable={false}
       style={[styles.overlay, Platform.OS === 'web' ? { userSelect: 'none' } : null]}
     >
-      <Animated.View pointerEvents="none" style={[styles.backdrop, { opacity: backdropOpacity, backgroundColor: theme.overlay }]} />
+      <Animated.View pointerEvents="none" style={[styles.backdrop, { opacity: pinOpen ? 1 : backdropOpacity, backgroundColor: theme.overlay }]} />
       <Pressable
         testID="drawer-backdrop"
         style={StyleSheet.absoluteFill}
@@ -331,7 +345,7 @@ export default function Sidebar({ visible, docked, collapsed = false, onToggleCo
         testID="phone-drawer"
         style={[
           styles.drawer,
-          { width: sidebarWidth, transform: [{ translateX }] },
+          { width: sidebarWidth, transform: [{ translateX: pinOpen ? 0 : translateX }] },
           Platform.OS === 'web' ? { touchAction: 'pan-y' } : null,
         ]}
         {...panResponder.panHandlers}
@@ -342,9 +356,30 @@ export default function Sidebar({ visible, docked, collapsed = false, onToggleCo
       </Animated.View>
     </View>
   );
+
+  // A transparent Modal sits above native screens. The in-tree copy is what
+  // an edge swipe drives, and what stays mounted while the menu is closed.
+  if (Platform.OS === 'android' && !suspendAnimation && (!!visible || shown)) {
+    return (
+      <Modal
+        visible
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        hardwareAccelerated
+        presentationStyle="overFullScreen"
+        onRequestClose={() => onCloseRef.current?.()}
+      >
+        <View style={[styles.modalFill, { height: windowHeight }]}>{drawerTree}</View>
+      </Modal>
+    );
+  }
+
+  return drawerTree;
 }
 
 const styles = StyleSheet.create({
+  modalFill: { flex: 1 },
   overlay: { ...StyleSheet.absoluteFillObject, zIndex: 30, elevation: 30 },
   backdrop: { ...StyleSheet.absoluteFillObject },
   drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, borderTopRightRadius: 24, borderBottomRightRadius: 24, overflow: 'hidden' },

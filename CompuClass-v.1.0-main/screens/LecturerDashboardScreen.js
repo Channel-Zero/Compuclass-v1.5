@@ -278,7 +278,7 @@ export default function LecturerDashboardScreen({ navigation }) {
       </Page>
       <ToastBanner toast={toast} />
 
-      <Modal visible={showAnnouncement} animationType="slide" transparent>
+      <Modal visible={showAnnouncement} animationType="slide" transparent onRequestClose={() => setShowAnnouncement(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.surface }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Post announcement</Text>
@@ -300,7 +300,7 @@ export default function LecturerDashboardScreen({ navigation }) {
         </View>
       </Modal>
 
-      <Modal visible={showCreateFolder} animationType="slide" transparent>
+      <Modal visible={showCreateFolder} animationType="slide" transparent onRequestClose={() => setShowCreateFolder(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: theme.surface }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Create new folder</Text>

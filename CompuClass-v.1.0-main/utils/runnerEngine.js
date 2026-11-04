@@ -30,6 +30,16 @@ export function playfieldBox(screenW, screenH) {
   return { width, height, groundY: Math.round(height * 0.8) };
 }
 
+// Phones stay portrait until the run locks landscape, and the first layout
+// can still report the portrait size. Always measure the playfield from the
+// landscape pair so the runner is not letterboxed into a tall strip.
+export function landscapePlayfield(screenW, screenH, topInset = 0) {
+  const longSide = Math.max(Number(screenW) || 0, Number(screenH) || 0);
+  const shortSide = Math.min(Number(screenW) || 0, Number(screenH) || 0);
+  const inset = Math.max(0, Number(topInset) || 0);
+  return playfieldBox(Math.max(320, longSide), Math.max(180, shortSide - inset));
+}
+
 export function runnerDisplayName(name, score, index = 0) {
   const clean = String(name || '').trim();
   if (clean && clean.toLowerCase() !== 'player') return clean;

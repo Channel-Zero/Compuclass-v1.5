@@ -97,6 +97,7 @@ export default function ProfileScreen({ onLogout }) {
 
   const displayName = user?.user_metadata?.full_name || user?.profile?.full_name || '';
   const role = user?.profile?.role;
+  const lecturer = role === 'lecturer';
   const joined = user?.profile?.created_at || user?.created_at;
   const joinedLabel = joined ? new Date(joined).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : null;
   const points = gamifyStats?.xp || 0;
@@ -123,12 +124,13 @@ export default function ProfileScreen({ onLogout }) {
           <View style={{ flex: 1, minWidth: 160 }}>
             <Heading level={1} style={{ fontSize: 26, lineHeight: 32 }}>{displayName || 'Your profile'}</Heading>
             <Body variant="small" style={{ marginTop: 4 }}>{[role ? role.charAt(0).toUpperCase() + role.slice(1) : null, joinedLabel ? `Joined ${joinedLabel}` : null].filter(Boolean).join(' · ') || user?.email}</Body>
-            <View style={{ marginTop: 8 }}><Badge label={`${points.toLocaleString()} points`} kind="yellowStrong" /></View>
+            {lecturer ? null : <View style={{ marginTop: 8 }}><Badge label={`${points.toLocaleString()} points`} kind="yellowStrong" /></View>}
           </View>
           <Button label="Settings" icon="sliders" variant="secondary" fit onPress={() => navigation.navigate('Settings')} style={{ height: 44, minHeight: 44 }} />
         </Card>
       )}
 
+      {lecturer ? null : (
       <Card style={{ flexDirection: 'row', marginVertical: 24 }}>
         {[
           { value: points.toLocaleString(), label: 'Points' },
@@ -141,6 +143,7 @@ export default function ProfileScreen({ onLogout }) {
           </View>
         ))}
       </Card>
+      )}
 
       <View style={laptop ? { flexDirection: 'row', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' } : undefined}>
         <View style={{ width: 400, maxWidth: '100%' }}>
@@ -163,7 +166,7 @@ export default function ProfileScreen({ onLogout }) {
             <Text style={[{ color: theme.error, fontSize: 16 }, font(theme, 'semibold')]}>Sign out</Text>
           </Pressable>
         </View>
-        <View style={{ flex: 1, marginTop: laptop ? 0 : 32 }}>
+        {lecturer ? null : <View style={{ flex: 1, marginTop: laptop ? 0 : 32 }}>
           <Heading level={2} style={{ marginBottom: 16 }}>Badges{badges.length ? ` · ${earned.length} of ${badges.length}` : ''}</Heading>
           {badges.length === 0 ? (
             <Card style={{ padding: 20 }}><Body variant="small">Badges you earn from quizzes and streaks show up here.</Body></Card>
@@ -177,7 +180,7 @@ export default function ProfileScreen({ onLogout }) {
               ))}
             </View>
           )}
-        </View>
+        </View>}
       </View>
 
       <Sheet visible={showEditModal} onClose={() => setShowEditModal(false)} title="Edit profile">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,13 +13,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { lecturerService } from '../services/lecturerService';
 import { getErrorMessage } from '../utils/errorMessages';
-import { formatShortDate, passingMark, plural, prepareQuestionsForSave, questionCount as storedQuestionCount } from '../utils/quizFlow';
+import { editorQuestionsFromStored, formatShortDate, passingMark, plural, prepareQuestionsForSave, questionCount as storedQuestionCount, withQuestionType } from '../utils/quizFlow';
 import { formatFileSize } from '../utils/fileSize';
 import { Page, Body, Glass, Button, IconTile, font } from '../components/ui/kit';
 import { LECTURER_COLUMN, ScreenHeading } from '../components/lecturerChrome';
+
+const CREATE_QUIZ_FOOTER_HEIGHT = 84;
 
 export default function QuizCreationScreen({ navigation, route }) {
   const { theme } = useTheme();
@@ -41,46 +44,23 @@ export default function QuizCreationScreen({ navigation, route }) {
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [classes, setClasses] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
+  const [editingQuizId, setEditingQuizId] = useState(null);
+  const [editingType, setEditingType] = useState('practice');
   const loadQuizzesRef = useRef(() => {});
   const loadClassesRef = useRef(() => {});
+  const quizLoadGen = useRef(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (routeFolderId) {
-        setFolderId(routeFolderId);
-        return;
-      }
-      try {
-        const folders = await lecturerService.getFolders();
-        let id = folders?.[0]?.id;
-        if (!id) {
-          const created = await lecturerService.createFolder('General', 'General quizzes');
-          id = created?.id;
-        }
-        if (!cancelled) setFolderId(id || null);
-        if (!id && !cancelled) setListStatus('error');
-      } catch (error) {
-        console.error('Quiz folder error:', error);
-        if (!cancelled) setListStatus('error');
-      }
-    })();
-    loadClassesRef.current();
-    return () => { cancelled = true; };
-  }, [routeFolderId]);
-
-  useEffect(() => {
-    if (folderId) loadQuizzesRef.current();
-  }, [folderId]);
-
-  const loadQuizzes = async () => {
-    if (!folderId) return;
-    setListStatus('loading');
+  const loadQuizzes = async (id = folderId) => {
+    if (!id) return;
+    const gen = ++quizLoadGen.current;
+    setListStatus((current) => (current === 'ready' ? 'ready' : 'loading'));
     try {
-      const data = await lecturerService.getQuizzes(folderId);
-      setQuizzes(data);
+      const data = await lecturerService.getQuizzes(id);
+      if (gen !== quizLoadGen.current) return;
+      setQuizzes(data || []);
       setListStatus('ready');
     } catch (error) {
+      if (gen !== quizLoadGen.current) return;
       console.error('Quizzes error:', error);
       setListStatus('error');
     }
@@ -96,6 +76,59 @@ export default function QuizCreationScreen({ navigation, route }) {
   };
   loadQuizzesRef.current = loadQuizzes;
   loadClassesRef.current = loadClasses;
+
+  useFocusEffect(useCallback(() => {
+    let cancelled = false;
+    (async () => {
+      let id = routeFolderId;
+      if (!id) {
+        try {
+          const folders = await lecturerService.getFolders();
+          id = folders?.[0]?.id;
+          if (!id) {
+            const created = await lecturerService.createFolder('General', 'General quizzes');
+            id = created?.id;
+          }
+        } catch (error) {
+          console.error('Quiz folder error:', error);
+          if (!cancelled) setListStatus('error');
+          return;
+        }
+      }
+      if (cancelled) return;
+      if (!id) {
+        setListStatus('error');
+        return;
+      }
+      setFolderId(id);
+      await loadQuizzesRef.current(id);
+    })();
+    loadClassesRef.current();
+    return () => {
+      cancelled = true;
+      quizLoadGen.current += 1;
+    };
+  }, [routeFolderId]));
+
+  useEffect(() => {
+    const id = route?.params?.editQuizId;
+    if (!id) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const detail = await lecturerService.getQuizDetail(id);
+        if (!alive || !detail) return;
+        setEditingQuizId(detail.id);
+        setEditingType(detail.type === 'class' ? 'class' : 'practice');
+        setQuizTitle(detail.title || '');
+        setQuestions(editorQuestionsFromStored(detail.quiz_questions));
+        setShowCreateQuiz(true);
+      } catch (error) {
+        if (alive) Alert.alert('Error', getErrorMessage(error, { context: 'QuizCreation' }));
+      }
+    })();
+    return () => { alive = false; };
+  }, [route?.params?.editQuizId]);
 
   const handleShareQuiz = (quiz) => {
     setSelectedQuiz(quiz);
@@ -234,8 +267,11 @@ export default function QuizCreationScreen({ navigation, route }) {
 
     setLoading(true);
     try {
-      await lecturerService.createQuiz(folderId, quizTitle, prepared.questions);
+      if (editingQuizId) await lecturerService.updateQuiz(editingQuizId, quizTitle, prepared.questions, editingType);
+      else await lecturerService.createQuiz(folderId, quizTitle, prepared.questions);
       setShowCreateQuiz(false);
+      setEditingQuizId(null);
+      setEditingType('practice');
       setQuizTitle('');
       setQuestions([]);
       loadQuizzes();
@@ -275,6 +311,30 @@ export default function QuizCreationScreen({ navigation, route }) {
         <TouchableOpacity onPress={() => removeQuestion(index)} accessibilityRole="button" accessibilityLabel={`Remove question ${index + 1}`} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="trash" size={20} color={theme.error} />
         </TouchableOpacity>
+      </View>
+      <View style={styles.chipRow}>
+        {[
+          { id: 'multiple-choice', label: 'Multiple choice' },
+          { id: 'true_false', label: 'True / False' },
+        ].map((choice) => {
+          const selected = (question.type || 'multiple-choice') === choice.id;
+          return (
+            <TouchableOpacity
+              key={choice.id}
+              onPress={() => {
+                const updated = [...questions];
+                updated[index] = withQuestionType(question, choice.id);
+                setQuestions(updated);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${choice.label} for question ${index + 1}`}
+              style={[styles.chip, { borderColor: selected ? theme.primary : theme.border, backgroundColor: selected ? theme.tint : theme.card }]}
+            >
+              <Text style={[styles.chipText, { color: selected ? theme.primary : theme.textSecondary }]}>{choice.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
       
       <TextInput
@@ -430,7 +490,7 @@ export default function QuizCreationScreen({ navigation, route }) {
       </Page>
 
       {/* AI Generation Modal */}
-      <Modal visible={showAIGenerate} animationType="slide" transparent>
+      <Modal visible={showAIGenerate} animationType="slide" transparent onRequestClose={() => setShowAIGenerate(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>AI Quiz Generation</Text>
@@ -531,17 +591,17 @@ export default function QuizCreationScreen({ navigation, route }) {
       </Modal>
 
       {/* Manual Quiz Creation Modal */}
-      <Modal visible={showCreateQuiz} animationType="slide" transparent>
+      <Modal visible={showCreateQuiz} animationType="slide" transparent onRequestClose={() => setShowCreateQuiz(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View style={[styles.createModal, { backgroundColor: theme.card }]}>
             <View style={styles.createHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Create Quiz</Text>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>{editingQuizId ? 'Edit Quiz' : 'Create Quiz'}</Text>
               <TouchableOpacity onPress={() => setShowCreateQuiz(false)}>
                 <Ionicons name="close" size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.createContent}>
+            <ScrollView style={styles.createContent} contentContainerStyle={{ paddingBottom: CREATE_QUIZ_FOOTER_HEIGHT }} keyboardShouldPersistTaps="handled">
               <TextInput
                 style={[styles.input, { backgroundColor: theme.borderLight, color: theme.text }]}
                 placeholder="Quiz Title"
@@ -576,7 +636,7 @@ export default function QuizCreationScreen({ navigation, route }) {
       </Modal>
 
       {/* Share Quiz Modal */}
-      <Modal visible={showShareModal} animationType="slide" transparent>
+      <Modal visible={showShareModal} animationType="slide" transparent onRequestClose={() => setShowShareModal(false)}>
         <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
           <View style={[styles.shareModal, { backgroundColor: theme.card }]}>
             <View style={styles.shareHeader}>
@@ -810,7 +870,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addQuestionText: { fontSize: 16, fontWeight: '600' },
-  createFooter: { padding: 20, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.1)' },
+  createFooter: { padding: 20, minHeight: CREATE_QUIZ_FOOTER_HEIGHT, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.1)' },
   saveButton: {},
   saveGradient: { padding: 12, borderRadius: 8, alignItems: 'center' },
   saveText: { color: '#fff', fontWeight: '600' },

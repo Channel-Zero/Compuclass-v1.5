@@ -5,11 +5,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../config/supabase';
 import { escapeLikePattern, LIMITS } from '../utils/inputValidation';
+import { plural } from '../utils/quizFlow';
+import { findAppScreens, quizResultDestination } from '../utils/appSearch';
+import { authService } from '../services/authService';
 import { openStoredDocument } from '../utils/fileDownload';
 import { getErrorMessage } from '../utils/errorMessages';
 import { classService } from '../services/classService';
 import { filterByClassScope } from '../utils/classScope';
 import { appTheme, useTheme } from '../context/ThemeContext';
+import { useLayout } from '../components/ui/kit';
 const BLUE = appTheme.primary; const PURPLE = appTheme.accentInk;
 const WHITE = appTheme.surface; const TEXT = appTheme.text;
 const MUTED = appTheme.textSecondary; const CARD = appTheme.card;
@@ -41,15 +45,27 @@ function SkeletonCard() {
 export default function SearchScreen({ navigation, route }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { bottom } = useLayout();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [quizzes, setQuizzes] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [role, setRole] = useState(null);
   const inputRef = useRef(null);
 
   const latestSearch = useRef(0);
+
+  useEffect(() => {
+    let alive = true;
+    authService.getCurrentUser().then((user) => {
+      if (alive) setRole(user?.profile?.role || 'student');
+    }).catch(() => {
+      if (alive) setRole('student');
+    });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     const incoming = route?.params?.query;
@@ -114,7 +130,13 @@ export default function SearchScreen({ navigation, route }) {
     }
   };
 
-  const hasResults = quizzes.length > 0 || documents.length > 0;
+  const screens = findAppScreens(searchQuery);
+  const hasResults = quizzes.length > 0 || documents.length > 0 || screens.length > 0;
+
+  const openQuiz = (quiz) => {
+    const destination = quizResultDestination(role, quiz.id);
+    navigation.navigate(destination.name, destination.params);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -144,7 +166,7 @@ export default function SearchScreen({ navigation, route }) {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottom }}>
         {loading && [1, 2, 3].map(i => <SkeletonCard key={i} />)}
         {searchQuery.length === 0 && !loading && (
           <View style={styles.emptyState}>
@@ -168,16 +190,32 @@ export default function SearchScreen({ navigation, route }) {
               <View style={styles.section}>
                 <Text style={[styles.sectionLabel, { color: MUTED }]}>Quizzes ({quizzes.length})</Text>
                 {quizzes.map((quiz) => (
-                  <TouchableOpacity key={quiz.id} style={[styles.resultCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('Quiz', { quizId: quiz.id }); }} activeOpacity={0.75}>
+                  <TouchableOpacity key={quiz.id} style={[styles.resultCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openQuiz(quiz); }} activeOpacity={0.75}>
                     <View style={[styles.resultIconWrap, { backgroundColor: '#EDF4FF' }]}>
                       <Ionicons name="help-circle" size={22} color={BLUE} />
                     </View>
                     <View style={styles.resultInfo}>
                       <Text style={[styles.resultTitle, { color: TEXT }]}>{quiz.title}</Text>
-                      <Text style={[styles.resultSubtitle, { color: MUTED }]}>{quiz.quiz_questions?.length || 0} questions</Text>
+                      <Text style={[styles.resultSubtitle, { color: MUTED }]}>{plural(quiz.quiz_questions?.length || 0, 'question')}</Text>
                     </View>
                     <View style={[styles.resultBadge, { backgroundColor: '#FFF9D6' }]}>
                       <Text style={[styles.resultBadgeText, { color: '#7A5C00' }]}>Quiz</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {screens.length > 0 && (
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: MUTED }]}>In the app ({screens.length})</Text>
+                {screens.map((item) => (
+                  <TouchableOpacity key={item.screen} style={[styles.resultCard, { backgroundColor: CARD }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate(item.screen); }} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`Open ${item.title}`}>
+                    <View style={[styles.resultIconWrap, { backgroundColor: '#EDF4FF' }]}>
+                      <Ionicons name="apps" size={22} color={BLUE} />
+                    </View>
+                    <View style={styles.resultInfo}>
+                      <Text style={[styles.resultTitle, { color: TEXT }]}>{item.title}</Text>
+                      <Text style={[styles.resultSubtitle, { color: MUTED }]}>{item.blurb}</Text>
                     </View>
                   </TouchableOpacity>
                 ))}

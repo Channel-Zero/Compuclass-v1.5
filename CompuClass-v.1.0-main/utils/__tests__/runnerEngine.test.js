@@ -26,6 +26,7 @@ import {
   normalizeWorld,
   overlapsPlayer,
   planSpawn,
+  landscapePlayfield,
   playfieldBox,
   playerCenterFor,
   playerXFor,
@@ -110,6 +111,14 @@ describe('jump and duck', () => {
     const tall = playfieldBox(800, 2000);
     expect(tall.height).toBeLessThanOrEqual(2000);
     expect(tall.width / tall.height).toBeCloseTo(16 / 9, 2);
+  });
+
+  it('sizes the runner from landscape dimensions even while the phone is still portrait', () => {
+    const portrait = landscapePlayfield(400, 800, 24);
+    const landscape = landscapePlayfield(800, 400, 24);
+    expect(portrait).toEqual(landscape);
+    expect(portrait.width).toBeGreaterThan(portrait.height);
+    expect(portrait.width).toBeGreaterThanOrEqual(320);
   });
 
   it('cycles the run poses and holds jump, duck, and hurt', () => {
