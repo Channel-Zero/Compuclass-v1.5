@@ -327,7 +327,7 @@ export default function Sidebar({ visible, docked, collapsed = false, onToggleCo
     <View
       testID="phone-drawer-overlay"
       pointerEvents={interactive ? 'auto' : 'none'}
-      accessibilityViewIsModal={interactive}
+      accessible={false}
       accessibilityElementsHidden={!interactive}
       importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
       collapsable={false}
