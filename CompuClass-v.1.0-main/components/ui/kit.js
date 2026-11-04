@@ -264,10 +264,16 @@ export function IconButton({ name, label, onPress, dot, style, accessibilityStat
 export function Field({ label, value, onChangeText, placeholder, secure, keyboardType, autoCapitalize, icon = 'mail', maxLength, hint, onToggleSecure, secureVisible }) {
   const { theme } = useTheme();
   const [focused, setFocused] = React.useState(false);
+  const inputRef = useRef(null);
+  // alignSelf: 'stretch' keeps the field full width inside an alignItems:
+  // 'flex-start' parent (AuthLayout). Without it the Android TextInput sizes to
+  // its text, resizes on every keystroke and drops focus, so the keyboard closes.
+  // The row is pressable so a tap on the icon or padding focuses the input
+  // instead of dismissing the keyboard.
   return (
-    <View style={{ marginBottom: 16 }}>
+    <View style={{ alignSelf: 'stretch', marginBottom: 16 }}>
       {label ? <Text style={[{ fontSize: 14, lineHeight: 20, marginBottom: 8, color: theme.text }, font(theme, 'semibold')]}>{label}</Text> : null}
-      <View style={{
+      <Pressable onPress={() => inputRef.current?.focus()} accessible={false} style={{
         flexDirection: 'row', alignItems: 'center', gap: 12, height: 52, paddingHorizontal: focused ? 15 : 16,
         borderRadius: theme.radiusMd, backgroundColor: theme.surface,
         borderWidth: focused ? 2 : 1, borderColor: focused ? theme.primary : theme.inputBorder,
@@ -275,6 +281,7 @@ export function Field({ label, value, onChangeText, placeholder, secure, keyboar
       }}>
         <Icon name={icon} size={20} color={focused ? theme.primary : theme.textTertiary} />
         <TextInput
+          ref={inputRef}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -293,7 +300,7 @@ export function Field({ label, value, onChangeText, placeholder, secure, keyboar
             <Icon name={secureVisible ? 'eyeOff' : 'eye'} size={20} color={theme.textSecondary} />
           </Pressable>
         ) : null}
-      </View>
+      </Pressable>
       {hint ? <Text style={[{ marginTop: 8, fontSize: 12, lineHeight: 16, color: theme.textTertiary }, font(theme, 'body')]}>{hint}</Text> : null}
     </View>
   );
