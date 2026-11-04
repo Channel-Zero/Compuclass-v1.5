@@ -78,7 +78,7 @@ describe('lecturerService input validation', () => {
 
   it('allows code in question text (rendered as plain text) and saves cleaned values', async () => {
     await lecturerService.createQuiz('f1', 'HTML basics', [
-      { question: ' What does <p> do? ', options: ['Paragraph ', 'Picture', 'Port', 'Page'], correctAnswer: 0 },
+      { question: ' What does <p> do? ', options: ['Paragraph ', 'Picture', 'Port', 'Page'], correctAnswer: 0, type: 'multiple-choice' },
     ]);
     expect(supabase.from).not.toHaveBeenCalledWith('quizzes');
     expect(supabase.from).not.toHaveBeenCalledWith('quiz_questions');
@@ -88,17 +88,24 @@ describe('lecturerService input validation', () => {
       p_type: 'practice',
       p_folder_id: 'f1',
       p_questions: [
-        expect.objectContaining({
+        {
           question: 'What does <p> do?',
-          correct_answer: 'Paragraph',
+          type: 'mcq',
           order_index: 0,
-          options: ['Paragraph', 'Picture', 'Port', 'Page'],
-        }),
+          options: [
+            { option_text: 'Paragraph', is_correct: true },
+            { option_text: 'Picture', is_correct: false },
+            { option_text: 'Port', is_correct: false },
+            { option_text: 'Page', is_correct: false },
+          ],
+        },
       ],
     });
     const payload = supabase.rpc.mock.calls.find((call) => call[0] === 'save_quiz')[1].p_questions[0];
     expect(payload).not.toHaveProperty('lecturer_id');
+    expect(payload).not.toHaveProperty('correct_answer');
     expect(payload).not.toHaveProperty('points');
+    expect(payload.type).not.toBe('multiple-choice');
   });
 
   it('sanitises uploaded file names so they cannot escape the user folder', async () => {
@@ -117,6 +124,16 @@ describe('lecturerService input validation', () => {
     ).rejects.toThrow();
     expect(global.fetch).not.toHaveBeenCalled();
     expect(supabase.__inserted).toHaveLength(0);
+  });
+
+  it('rejects a topic that contains markup before calling save_quiz', async () => {
+    await expect(lecturerService.createQuiz('f1', 'Hardware', [{
+      question: 'What is RAM?',
+      options: ['Memory', 'Disk'],
+      correctAnswer: 0,
+      topic: '<script>alert(1)</script>',
+    }])).rejects.toThrow(/Topic/);
+    expect(supabase.rpc).not.toHaveBeenCalled();
   });
 
   it('uses the quiz uuid from save_quiz and loads question ids for timer settings', async () => {

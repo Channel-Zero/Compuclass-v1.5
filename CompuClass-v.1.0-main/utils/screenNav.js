@@ -43,7 +43,7 @@ export function isRootRoute(routeName) {
 
 export function navKeyForRoute(routeName) {
   if (!routeName) return null;
-  if (routeName === 'QuizCreation' || routeName === 'QuizDetail') return 'Quiz';
+  if (routeName === 'QuizCreation' || routeName === 'QuizDetail' || routeName === 'QuizAnalytics') return 'Quiz';
   if (routeName === 'Game' || routeName === 'GameRunnerLobby') return 'GameRunnerLobby';
   if (HOME_ROUTES.has(routeName)) return 'Home';
   if (NAV_ROUTES.has(routeName)) return routeName;

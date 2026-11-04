@@ -27,6 +27,7 @@ describe('navKeyForRoute', () => {
   it('highlights Quizzes for the lecturer quiz pages', () => {
     expect(navKeyForRoute('QuizCreation')).toBe('Quiz');
     expect(navKeyForRoute('QuizDetail')).toBe('Quiz');
+    expect(navKeyForRoute('QuizAnalytics')).toBe('Quiz');
   });
 });
 

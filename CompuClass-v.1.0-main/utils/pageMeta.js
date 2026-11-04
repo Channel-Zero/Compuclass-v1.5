@@ -43,6 +43,7 @@ export const PAGE_META = {
   ContentUpload: { title: 'Upload Content', description: 'Upload learning documents for your CompuClass students.' },
   QuizCreation: { title: 'Create Quiz', description: 'Create quizzes manually or generate them from a document with AI.' },
   QuizDetail: { title: 'Quiz Details', description: 'Review the questions in this CompuClass quiz.' },
+  QuizAnalytics: { title: 'Quiz Analytics', description: 'See which quiz questions your students got right or wrong, and which topics they should practise.' },
 };
 
 function setMetaTag(name, content) {

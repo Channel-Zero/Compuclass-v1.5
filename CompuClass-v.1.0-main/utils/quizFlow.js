@@ -90,6 +90,74 @@ export function prepareQuestionsForSave(questions) {
   return { ok: true, questions: cleaned };
 }
 
+// Live save_quiz rejects a practice quiz unless every question type is
+// 'mcq' or 'true_false'. The editor and the AI generator label that same
+// question 'multiple-choice', which PostgREST returns as a 400.
+const SAVE_QUIZ_TYPES = {
+  mcq: 'mcq',
+  'multiple-choice': 'mcq',
+  multiple_choice: 'mcq',
+  'true/false': 'true_false',
+  'true-false': 'true_false',
+  true_false: 'true_false',
+  boolean: 'true_false',
+};
+
+export function canonicalQuestionType(type) {
+  if (type == null || String(type).trim() === '') return 'mcq';
+  return SAVE_QUIZ_TYPES[String(type).trim().toLowerCase()] || null;
+}
+
+function optionText(option) {
+  if (typeof option === 'string') return option.trim();
+  if (option && typeof option === 'object') {
+    const label = option.option_text ?? option.text ?? option.label ?? option.value ?? '';
+    return String(label).trim();
+  }
+  return option == null ? '' : String(option).trim();
+}
+
+// replace_quiz_questions reads options as objects with option_text and
+// is_correct, and counts the correct flags. A string array plus
+// correct_answer never marks an option, so the save fails after the type check.
+export function questionsPayloadForSave(questions) {
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return { ok: false, message: 'Please add at least one question.' };
+  }
+  const rows = [];
+  for (let i = 0; i < questions.length; i += 1) {
+    const source = questions[i] || {};
+    const label = `Question ${i + 1}`;
+    const type = canonicalQuestionType(source.type);
+    if (!type) {
+      return { ok: false, message: `${label} must be multiple choice or true/false.` };
+    }
+    const raw = Array.isArray(source.options) ? source.options : [];
+    const options = [];
+    raw.forEach((option, index) => {
+      const text = optionText(option);
+      if (!text) return;
+      options.push({ option_text: text, is_correct: index === source.correctAnswer });
+    });
+    if (options.length < 2) return { ok: false, message: `${label} needs at least two answer options.` };
+    if (options.filter((option) => option.is_correct).length !== 1) {
+      return { ok: false, message: `${label}: mark exactly one correct answer.` };
+    }
+    const row = {
+      question: String(source.question || '').trim(),
+      type,
+      options,
+      order_index: i,
+    };
+    if (source.points != null) row.points = source.points;
+    if (source.image_url) row.image_url = source.image_url;
+    const topic = String(source.topic || '').trim();
+    if (topic) row.topic = topic.slice(0, 80);
+    rows.push(row);
+  }
+  return { ok: true, questions: rows };
+}
+
 export function advanceQuiz({ questions, index, answers, selected, timeLeft }) {
   const list = Array.isArray(questions) ? questions : [];
   const current = list[index];

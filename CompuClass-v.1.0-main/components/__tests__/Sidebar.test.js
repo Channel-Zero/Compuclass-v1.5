@@ -1,7 +1,19 @@
 import React from 'react';
-import { BackHandler } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
-import Sidebar from '../Sidebar';
+import { BackHandler, Pressable, Text } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import Sidebar, { readSidebarCollapsed, useSidebarCollapsed, writeSidebarCollapsed } from '../Sidebar';
+
+jest.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => true }));
+
+function StoredMenu() {
+  const { collapsed, toggleCollapsed } = useSidebarCollapsed();
+  return (
+    <Pressable accessibilityLabel="toggle stored menu" onPress={toggleCollapsed}>
+      <Text>{collapsed ? 'stored-collapsed' : 'stored-open'}</Text>
+    </Pressable>
+  );
+}
 
 describe('Sidebar', () => {
   it('renders nothing when not visible', () => {
@@ -100,5 +112,38 @@ describe('Sidebar', () => {
     render(<Sidebar docked visible currentScreen="Home" onClose={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />);
     expect(handlers).toHaveLength(0);
     spy.mockRestore();
+  });
+
+  it('collapses to icon buttons and can expand again', () => {
+    const onToggle = jest.fn();
+    const view = render(
+      <Sidebar docked collapsed onToggleCollapsed={onToggle} currentScreen="Materials" onClose={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />
+    );
+    expect(view.queryByText('Learning materials')).toBeNull();
+    expect(view.getByLabelText('Learning materials').props.accessibilityState).toMatchObject({ selected: true });
+    expect(view.getByLabelText('Learning materials').props.title).toBe('Learning materials');
+    fireEvent.press(view.getByLabelText('Expand menu'));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <Sidebar docked collapsed={false} onToggleCollapsed={onToggle} currentScreen="Materials" onClose={jest.fn()} onNavigate={jest.fn()} onHomePress={jest.fn()} />
+    );
+    expect(view.getByText('Learning materials')).toBeTruthy();
+    fireEvent.press(view.getByLabelText('Collapse menu'));
+    expect(onToggle).toHaveBeenCalledTimes(2);
+  });
+
+  it('remembers the collapsed menu across sessions', async () => {
+    await AsyncStorage.clear();
+    await writeSidebarCollapsed(AsyncStorage, true);
+    await expect(readSidebarCollapsed(AsyncStorage)).resolves.toBe(true);
+    await writeSidebarCollapsed(AsyncStorage, false);
+    await expect(readSidebarCollapsed(AsyncStorage)).resolves.toBe(false);
+
+    const view = render(<StoredMenu />);
+    await waitFor(() => expect(view.getByText('stored-open')).toBeTruthy());
+    fireEvent.press(view.getByLabelText('toggle stored menu'));
+    await waitFor(() => expect(view.getByText('stored-collapsed')).toBeTruthy());
+    await expect(readSidebarCollapsed(AsyncStorage)).resolves.toBe(true);
   });
 });

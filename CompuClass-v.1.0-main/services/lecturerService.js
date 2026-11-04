@@ -4,7 +4,8 @@ import { cleanText, cleanEmail, sanitizeFileName, ValidationError, LIMITS } from
 import { assertUploadAllowed, storagePathFromStoredValue } from './fileAccess';
 import { buildDocumentObjectPath } from './documentUploadPath';
 import { AppError } from '../utils/errorMessages';
-import { progressFromAttempts } from '../utils/quizFlow';
+import { progressFromAttempts, questionsPayloadForSave } from '../utils/quizFlow';
+import { analyticsReportFromRows, isMissingAnalyticsRpc } from '../utils/quizAnalytics';
 
 const MAX_QUESTIONS_PER_QUIZ = 100;
 
@@ -155,22 +156,17 @@ export const lecturerService = {
   async createQuiz(folderId, title, questions) {
     try {
       title = cleanText(title, { field: 'Quiz title', maxLength: LIMITS.title, required: true, allowMarkup: false });
-      questions = cleanQuestions(questions);
-      // Live quizzes are owned by created_by and written by save_quiz.
-      // p_questions carries the columns the live quiz_questions table has.
-      // points, type, and image_url are included only when the caller set them.
-      const p_questions = questions.map((q, idx) => {
-        const row = {
-          question: q.question,
-          options: q.options,
-          correct_answer: q.options[q.correctAnswer],
-          order_index: idx,
-        };
-        if (q.points != null) row.points = q.points;
-        if (q.type) row.type = q.type;
-        if (q.image_url) row.image_url = q.image_url;
-        return row;
+      questions = cleanQuestions(questions).map((question) => {
+        const topic = String(question.topic || '').trim();
+        if (!topic) return question;
+        return { ...question, topic: cleanText(topic, { field: 'Topic', maxLength: 80, allowMarkup: false }) };
       });
+      // Live save_quiz (practice) only accepts type mcq or true_false, and
+      // replace_quiz_questions grades options from {option_text, is_correct}.
+      // Sending type "multiple-choice" or a string array is the 400.
+      const built = questionsPayloadForSave(questions);
+      if (!built.ok) throw new ValidationError(built.message);
+      const p_questions = built.questions;
 
       const { data, error } = await supabase.rpc('save_quiz', {
         p_quiz_id: null,
@@ -459,6 +455,114 @@ export const lecturerService = {
       ...attempt,
       full_name: names[attempt.user_id] || 'Student',
     }));
+  },
+
+  async getQuizAnalytics() {
+    const { data, error } = await supabase.rpc('get_lecturer_quiz_analytics');
+    if (!error) return data && Array.isArray(data.quizzes) ? data : { quizzes: [] };
+    if (!isMissingAnalyticsRpc(error)) {
+      console.error('Quiz analytics error:', error.message);
+      throw error;
+    }
+    return this.loadQuizAnalyticsFromTables();
+  },
+
+  async loadQuizAnalyticsFromTables() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) throw new AppError('Please sign in again.');
+    const classes = await this.getClasses();
+    const classIds = (classes || []).map((item) => item.id).filter(Boolean);
+    const rosters = await Promise.all(classIds.map((classId) => this.getClassStudents(classId)));
+    const students = [];
+    const seen = new Set();
+    rosters.flat().forEach((student) => {
+      if (!student?.id || seen.has(student.id)) return;
+      seen.add(student.id);
+      students.push({ id: student.id, full_name: student.full_name || 'Student' });
+    });
+
+    const { data: owned, error: ownedError } = await supabase
+      .from('quizzes')
+      .select('id, title, passing_score')
+      .eq('created_by', user.id);
+    if (ownedError) throw ownedError;
+    let quizzes = owned || [];
+    if (classIds.length > 0) {
+      const { data: assignments, error: assignmentError } = await supabase
+        .from('quiz_assignments')
+        .select('quiz_id')
+        .in('class_id', classIds);
+      if (assignmentError) throw assignmentError;
+      const missing = [...new Set((assignments || []).map((row) => row.quiz_id).filter((id) => id && !quizzes.some((quiz) => quiz.id === id)))];
+      if (missing.length > 0) {
+        const { data: extra, error: extraError } = await supabase
+          .from('quizzes')
+          .select('id, title, passing_score')
+          .in('id', missing);
+        if (extraError) throw extraError;
+        quizzes = quizzes.concat(extra || []);
+      }
+    }
+    const quizIds = quizzes.map((quiz) => quiz.id).filter(Boolean);
+    if (quizIds.length === 0) return { quizzes: [] };
+
+    let questionQuery = await supabase
+      .from('quiz_questions')
+      .select('id, quiz_id, question, topic, order_index')
+      .in('quiz_id', quizIds);
+    if (questionQuery.error && /topic/i.test(questionQuery.error.message || '')) {
+      questionQuery = await supabase
+        .from('quiz_questions')
+        .select('id, quiz_id, question, order_index')
+        .in('quiz_id', quizIds);
+    }
+    if (questionQuery.error) throw questionQuery.error;
+    const questions = questionQuery.data;
+
+    const { data: attempts, error: attemptError } = await supabase
+      .from('quiz_attempts')
+      .select('id, quiz_id, user_id, score, completed_at, status')
+      .in('quiz_id', quizIds);
+    if (attemptError) throw attemptError;
+
+    const visibleIds = (attempts || [])
+      .filter((attempt) => seen.has(attempt.user_id) && attempt.status !== 'rejected' && attempt.score != null)
+      .map((attempt) => attempt.id);
+    let answers = [];
+    if (visibleIds.length > 0) {
+      const { data: answerRows, error: answerError } = await supabase
+        .from('quiz_answers')
+        .select('attempt_id, question_id, is_correct, short_answer_text, selected_option_id')
+        .in('attempt_id', visibleIds);
+      if (answerError) {
+        console.error('Quiz answer rows were not readable:', answerError.message);
+      } else {
+        answers = answerRows || [];
+      }
+    }
+
+    const questionIds = [...new Set((questions || []).map((question) => question.id).filter(Boolean))];
+    let options = [];
+    if (questionIds.length > 0) {
+      const { data: optionRows, error: optionError } = await supabase
+        .from('quiz_options')
+        .select('id, question_id, option_text, is_correct')
+        .in('question_id', questionIds);
+      if (optionError) {
+        console.error('Quiz options were not readable:', optionError.message);
+      } else {
+        options = optionRows || [];
+      }
+    }
+
+    return analyticsReportFromRows({
+      quizzes,
+      questions: questions || [],
+      attempts: attempts || [],
+      answers,
+      options,
+      students,
+    });
   },
 
   async addStudent(email, classId) {

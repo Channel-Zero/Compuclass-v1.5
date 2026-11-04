@@ -193,7 +193,8 @@ export default function QuizCreationScreen({ navigation, route }) {
       correctAnswer: 0,
       type: 'multiple-choice',
       difficulty: 'medium',
-      timeLimitSeconds: null
+      timeLimitSeconds: null,
+      topic: '',
     };
     setQuestions([...questions, newQuestion]);
   };
@@ -283,6 +284,15 @@ export default function QuizCreationScreen({ navigation, route }) {
         value={question.question}
         onChangeText={(text) => updateQuestion(index, 'question', text)}
         multiline
+      />
+      <TextInput
+        style={[styles.questionInput, { backgroundColor: theme.card, color: theme.text, marginTop: 8 }]}
+        placeholder="Topic, for example Memory or Networking"
+        placeholderTextColor={theme.textTertiary}
+        value={question.topic || ''}
+        onChangeText={(text) => updateQuestion(index, 'topic', text)}
+        accessibilityLabel={`Topic for question ${index + 1}`}
+        maxLength={80}
       />
       
       {question.options.map((option, optIndex) => (

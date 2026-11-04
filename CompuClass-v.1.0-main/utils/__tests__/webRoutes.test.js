@@ -6,6 +6,7 @@ describe('web routes', () => {
     expect(isUnknownWebPath('/quiz')).toBe(false);
     expect(isUnknownWebPath('/profile')).toBe(false);
     expect(isUnknownWebPath('/lecturer/quizzes')).toBe(false);
+    expect(isUnknownWebPath('/lecturer/analytics')).toBe(false);
     expect(isUnknownWebPath('/lecturer/quiz/abc')).toBe(false);
     expect(isUnknownWebPath('/does-not-exist')).toBe(true);
     expect(isUnknownWebPath('/onboarding')).toBe(false);
