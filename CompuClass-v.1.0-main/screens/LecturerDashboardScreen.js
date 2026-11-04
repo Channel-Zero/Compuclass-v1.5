@@ -21,6 +21,7 @@ const BG = appTheme.background;
 
 const quickActions = (navigation, service) => [
   { icon: 'user', label: 'Student progress', tone: 'blue', onPress: () => navigation.navigate('StudentProgress') },
+  { icon: 'target', label: 'Quiz analytics', tone: 'teal', onPress: () => navigation.navigate('QuizAnalytics') },
   { icon: 'folder', label: 'Upload content', tone: 'teal', onPress: async () => {
     try {
       const folders = await service.getFolders();

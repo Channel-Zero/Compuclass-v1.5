@@ -107,7 +107,10 @@ export default function QuizDetailScreen({ navigation, route }) {
               </View>
             </Glass>
 
-            <Heading level={2} style={{ marginBottom: 12 }}>Results</Heading>
+            <View style={styles.metaRow}>
+              <Heading level={2} style={{ flex: 1 }}>Results</Heading>
+              <Button label="Analytics" variant="secondary" fit onPress={() => navigation.navigate('QuizAnalytics', { quizId })} accessibilityLabel="Open quiz analytics" />
+            </View>
             <Glass strong style={styles.block}>
               {resultsNote ? <Body variant="caption">{resultsNote}</Body> : null}
               {!resultsNote && summary.count === 0 ? (

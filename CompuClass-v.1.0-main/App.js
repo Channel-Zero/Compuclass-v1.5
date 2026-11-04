@@ -39,6 +39,7 @@ import ClassDetailScreen from './screens/ClassDetailScreen';
 import ContentUploadScreen from './screens/ContentUploadScreen';
 import QuizCreationScreen from './screens/QuizCreationScreen';
 import QuizDetailScreen from './screens/QuizDetailScreen';
+import QuizAnalyticsScreen from './screens/QuizAnalyticsScreen';
 import StudentMaterialsScreen from './screens/StudentMaterialsScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ChatbotScreen from './screens/ChatbotScreen';
@@ -108,6 +109,7 @@ function LecturerStack() {
       <Stack.Screen name="ContentUpload" component={ContentUploadScreen} />
       <Stack.Screen name="QuizCreation" component={QuizCreationScreen} />
       <Stack.Screen name="QuizDetail" component={QuizDetailScreen} />
+      <Stack.Screen name="QuizAnalytics" component={QuizAnalyticsScreen} />
       <Stack.Screen name="ClassDetail" component={ClassDetailScreen} />
     </Stack.Navigator>
   );

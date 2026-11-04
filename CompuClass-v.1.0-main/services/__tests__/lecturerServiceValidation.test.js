@@ -126,6 +126,16 @@ describe('lecturerService input validation', () => {
     expect(supabase.__inserted).toHaveLength(0);
   });
 
+  it('rejects a topic that contains markup before calling save_quiz', async () => {
+    await expect(lecturerService.createQuiz('f1', 'Hardware', [{
+      question: 'What is RAM?',
+      options: ['Memory', 'Disk'],
+      correctAnswer: 0,
+      topic: '<script>alert(1)</script>',
+    }])).rejects.toThrow(/Topic/);
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
   it('uses the quiz uuid from save_quiz and loads question ids for timer settings', async () => {
     supabase.__questionRows = { data: [{ id: 'qq-0', order_index: 0 }], error: null };
     const quiz = await lecturerService.createQuiz('f1', 'Timers', [{

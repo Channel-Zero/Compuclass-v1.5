@@ -72,6 +72,17 @@ describe('quiz authoring', () => {
     expect(payload.message).toMatch(/multiple choice or true\/false/);
   });
 
+  it('keeps a topic on the save payload and leaves it off when blank', () => {
+    const payload = questionsPayloadForSave([
+      { question: 'What is RAM?', options: ['Memory', 'Disk'], correctAnswer: 0, topic: ' Memory ' },
+    ]);
+    expect(payload.questions[0].topic).toBe('Memory');
+    const blank = questionsPayloadForSave([
+      { question: 'What is RAM?', options: ['Memory', 'Disk'], correctAnswer: 0, topic: '   ' },
+    ]);
+    expect(blank.questions[0]).not.toHaveProperty('topic');
+  });
+
   it('maps a true/false question and keeps points when they were set', () => {
     const payload = questionsPayloadForSave([
       { question: 'RAM is memory', options: ['True', 'False'], correctAnswer: 1, type: 'true/false', points: 2 },

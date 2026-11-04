@@ -13,6 +13,7 @@ import ClassDetailScreen from '../screens/ClassDetailScreen';
 import StudentProgressScreen from '../screens/StudentProgressScreen';
 import QuizCreationScreen from '../screens/QuizCreationScreen';
 import QuizDetailScreen from '../screens/QuizDetailScreen';
+import QuizAnalyticsScreen from '../screens/QuizAnalyticsScreen';
 import ContentUploadScreen from '../screens/ContentUploadScreen';
 import FolderContentScreen from '../screens/FolderContentScreen';
 import QuizScreen from '../screens/QuizScreen';
@@ -199,6 +200,74 @@ export function installPreviewData() {
     passing_score: 70,
     quiz_questions: QUESTIONS,
   });
+  lecturerService.getQuizAnalytics = async () => ({
+    quizzes: [
+      {
+        id: 'quiz-cpu',
+        title: 'CPU and memory',
+        passing_score: 70,
+        questions: [
+          { id: 'q1', question: 'Which part stores the data the CPU is using right now?', topic: 'Memory', order_index: 0 },
+          { id: 'q2', question: 'What does CPU stand for?', topic: '', order_index: 1 },
+        ],
+        attempts: [
+          {
+            id: 'attempt-cpu-1',
+            user_id: 'student-1',
+            full_name: 'Thandi Nkosi',
+            score: 50,
+            completed_at: '2026-10-02T09:00:00.000Z',
+            answers: [
+              { question_id: 'q1', is_correct: true, selected: 'RAM', correct: 'RAM' },
+              { question_id: 'q2', is_correct: false, selected: 'Computer Personal Unit', correct: 'Central Processing Unit' },
+            ],
+          },
+          {
+            id: 'attempt-cpu-2',
+            user_id: 'student-1',
+            full_name: 'Thandi Nkosi',
+            score: 100,
+            completed_at: '2026-10-12T09:00:00.000Z',
+            answers: [
+              { question_id: 'q1', is_correct: true, selected: 'RAM', correct: 'RAM' },
+              { question_id: 'q2', is_correct: true, selected: 'Central Processing Unit', correct: 'Central Processing Unit' },
+            ],
+          },
+          {
+            id: 'attempt-cpu-3',
+            user_id: 'student-2',
+            full_name: 'Liam Jacobs',
+            score: 0,
+            completed_at: '2026-10-03T09:00:00.000Z',
+            answers: [
+              { question_id: 'q1', is_correct: false, selected: 'GPU', correct: 'RAM' },
+              { question_id: 'q2', is_correct: false, selected: 'Control Power Unit', correct: 'Central Processing Unit' },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'quiz-net',
+        title: 'Networking basics',
+        passing_score: 60,
+        questions: [
+          { id: 'q3', question: 'Which device forwards packets between networks?', topic: null, order_index: 0 },
+        ],
+        attempts: [
+          {
+            id: 'attempt-net-1',
+            user_id: 'student-1',
+            full_name: 'Thandi Nkosi',
+            score: 0,
+            completed_at: '2026-10-20T09:00:00.000Z',
+            answers: [
+              { question_id: 'q3', is_correct: false, selected: 'Monitor', correct: 'Router' },
+            ],
+          },
+        ],
+      },
+    ],
+  });
   lecturerService.getQuizResults = async (quizId) => ATTEMPTS
     .filter((attempt) => attempt.quiz_id === (quizId || 'quiz-cpu'))
     .map((attempt) => ({
@@ -241,6 +310,7 @@ export function ScreenPreview() {
         FolderContent: 'folder',
         Quiz: 'quizzes',
         LecturerDashboard: 'lecturer',
+        QuizAnalytics: 'analytics',
       };
       setScreen(map[name] || 'lecturer');
     },
@@ -256,6 +326,7 @@ export function ScreenPreview() {
   else if (screen === 'progress') body = <StudentProgressScreen navigation={navigation} />;
   else if (screen === 'quiz-create') body = <QuizCreationScreen navigation={navigation} route={route} />;
   else if (screen === 'quiz-detail') body = <QuizDetailScreen navigation={navigation} route={route} />;
+  else if (screen === 'analytics') body = <QuizAnalyticsScreen navigation={navigation} route={{ params: { example: true, quizId: params.quizId || 'quiz-cpu', studentId: params.studentId } }} />;
   else if (screen === 'upload') body = <ContentUploadScreen navigation={navigation} route={route} />;
   else if (screen === 'folder') body = <FolderContentScreen navigation={navigation} route={route} />;
   else if (screen === 'quizzes') body = <QuizScreen navigation={navigation} route={{ params: {} }} />;

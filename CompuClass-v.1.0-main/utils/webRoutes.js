@@ -45,6 +45,7 @@ export const LECTURER_WEB_SCREENS = {
   ContentUpload: 'upload',
   QuizCreation: 'quizzes',
   QuizDetail: 'quiz/:quizId',
+  QuizAnalytics: 'analytics',
   ClassDetail: 'class/:classId',
 };
 

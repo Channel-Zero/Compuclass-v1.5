@@ -151,6 +151,8 @@ export function questionsPayloadForSave(questions) {
     };
     if (source.points != null) row.points = source.points;
     if (source.image_url) row.image_url = source.image_url;
+    const topic = String(source.topic || '').trim();
+    if (topic) row.topic = topic.slice(0, 80);
     rows.push(row);
   }
   return { ok: true, questions: rows };
