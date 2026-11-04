@@ -64,6 +64,7 @@ import { setPageMeta } from './utils/pageMeta';
 
 import { authService } from './services/authService';
 import { supabase } from './config/supabase';
+import { missingSupabaseConfigMessage } from './config/supabaseClient';
 import { sessionCheckDecision } from './utils/sessionCheck';
 import { isUnknownWebPath as pathIsUnknown, linkingConfig, onboardingRedirectPath } from './utils/webRoutes';
 import { ThemeProvider, useTheme, appTheme } from './context/ThemeContext';
@@ -245,6 +246,10 @@ function AppContent() {
   const drawer = usePhoneDrawer(width, routeName);
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
     if (isScreenPreview()) {
       setLoading(false);
       setIsFirstLaunch(false);
@@ -372,6 +377,17 @@ function AppContent() {
       navigationRef.current?.navigate(target);
     } catch { /* navigator not ready */ }
   };
+
+  if (!supabase) {
+    const copy = missingSupabaseConfigMessage();
+    return (
+      <View style={[styles.offlineGate, { backgroundColor: theme.background }]} accessibilityRole="alert">
+        <StatusBar style="dark" />
+        <Text style={{ color: theme.text, fontSize: 22, lineHeight: 28, fontWeight: '700', textAlign: 'center' }}>{copy.title}</Text>
+        <Text style={{ color: theme.textSecondary, fontSize: 16, lineHeight: 24, textAlign: 'center', marginTop: 12 }}>{copy.body}</Text>
+      </View>
+    );
+  }
 
   if ((!fontsLoaded && !fontError) || loading) {
     return (

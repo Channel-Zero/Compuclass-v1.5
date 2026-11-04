@@ -4,7 +4,7 @@
     "slug": "CompuClass",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/brand/compuclass-glass-mark.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F7FBFD"
       },
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.compuclass.app",
@@ -46,7 +46,8 @@
         {
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#F7FBFD"
+          "backgroundColor": "#F7FBFD",
+          "imageWidth": 200
         }
       ]
     ],
