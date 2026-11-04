@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Animated, PanResponder, useWindowDimensions, Easing, BackHandler, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { Icon } from './ui/Icon';
@@ -14,8 +15,50 @@ import {
 } from '../utils/drawerGesture';
 
 const SIDEBAR_MAX_WIDTH = 360;
+export const DOCKED_SIDEBAR_WIDTH = 256;
+export const RAIL_SIDEBAR_WIDTH = 72;
+export const SIDEBAR_COLLAPSED_KEY = 'compuclass.sidebarCollapsed';
+
 export const getSidebarWidth = (windowWidth) => Math.min(windowWidth * 0.78, SIDEBAR_MAX_WIDTH);
 export const getSidebarHiddenX = (windowWidth) => -(getSidebarWidth(windowWidth) + 24);
+export const sidebarWidthFor = (collapsed) => (collapsed ? RAIL_SIDEBAR_WIDTH : DOCKED_SIDEBAR_WIDTH);
+
+export async function readSidebarCollapsed(storage = AsyncStorage) {
+  try {
+    return (await storage.getItem(SIDEBAR_COLLAPSED_KEY)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export async function writeSidebarCollapsed(storage, collapsed) {
+  try {
+    await storage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    // The menu still collapses for this session if storage is unavailable.
+  }
+}
+
+export function useSidebarCollapsed() {
+  const [collapsed, setCollapsed] = useState(false);
+  const ignoreRead = React.useRef(false);
+  useEffect(() => {
+    let alive = true;
+    readSidebarCollapsed(AsyncStorage).then((value) => {
+      if (alive && !ignoreRead.current) setCollapsed(value);
+    });
+    return () => { alive = false; };
+  }, []);
+  const toggleCollapsed = useCallback(() => {
+    ignoreRead.current = true;
+    setCollapsed((current) => {
+      const next = !current;
+      writeSidebarCollapsed(AsyncStorage, next);
+      return next;
+    });
+  }, []);
+  return { collapsed, toggleCollapsed };
+}
 
 export const PRIMARY_NAV = [
   { icon: 'home', title: 'Home', screen: 'Home' },
@@ -52,60 +95,75 @@ function animateDrawer(value, toValue, reduced, onEnd) {
   });
 }
 
-function NavList({ currentScreen, onPress, user }) {
+function NavItem({ item, active, collapsed, onPress, theme }) {
+  return (
+    <Pressable
+      onPress={() => onPress(item)}
+      accessibilityRole="button"
+      accessibilityLabel={item.title}
+      accessibilityState={{ selected: active }}
+      aria-selected={active}
+      title={collapsed ? item.title : undefined}
+      style={[
+        styles.nav,
+        collapsed && styles.navRail,
+        active && { backgroundColor: '#fff', shadowColor: '#0B1B3A', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
+      ]}
+    >
+      <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
+      {collapsed ? null : (
+        <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
+      )}
+    </Pressable>
+  );
+}
+
+function NavList({ currentScreen, onPress, user, collapsed }) {
   const { theme } = useTheme();
   const name = user?.user_metadata?.full_name || user?.profile?.full_name || 'Learner';
   const points = user?.profile?.xp;
   return (
     <>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
-        {PRIMARY_NAV.map((item) => {
-          const active = navKeyForRoute(currentScreen) === item.screen;
-          return (
-            <Pressable
-              key={item.screen}
-              onPress={() => onPress(item)}
-              accessibilityRole="button"
-              accessibilityLabel={item.title}
-              accessibilityState={{ selected: active }}
-              aria-selected={active}
-              style={[styles.nav, active && { backgroundColor: '#fff', shadowColor: '#0B1B3A', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }]}
-            >
-              <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
-              <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
-            </Pressable>
-          );
-        })}
-        <Text style={[{ fontSize: 12, lineHeight: 16, color: theme.textTertiary, paddingHorizontal: 12, paddingTop: 24, paddingBottom: 8 }, font(theme, 'semibold')]}>Explore</Text>
-        {EXPLORE_NAV.map((item) => {
-          const active = navKeyForRoute(currentScreen) === item.screen;
-          return (
-            <Pressable key={item.screen} onPress={() => onPress(item)} accessibilityRole="button" accessibilityLabel={item.title} accessibilityState={{ selected: active }} aria-selected={active} style={[styles.nav, active && { backgroundColor: '#fff' }]}>
-              <Icon name={item.icon} size={20} color={active ? theme.primary : theme.textSecondary} />
-              <Text style={[{ flex: 1, fontSize: 14, lineHeight: 20, color: active ? theme.primary : theme.textSecondary }, font(theme, 'semibold')]}>{item.title}</Text>
-            </Pressable>
-          );
-        })}
+        {PRIMARY_NAV.map((item) => (
+          <NavItem key={item.screen} item={item} active={navKeyForRoute(currentScreen) === item.screen} collapsed={collapsed} onPress={onPress} theme={theme} />
+        ))}
+        {collapsed ? null : (
+          <Text style={[{ fontSize: 12, lineHeight: 16, color: theme.textTertiary, paddingHorizontal: 12, paddingTop: 24, paddingBottom: 8 }, font(theme, 'semibold')]}>Explore</Text>
+        )}
+        {EXPLORE_NAV.map((item) => (
+          <NavItem key={item.screen} item={item} active={navKeyForRoute(currentScreen) === item.screen} collapsed={collapsed} onPress={onPress} theme={theme} />
+        ))}
       </ScrollView>
-      <Pressable onPress={() => onPress({ screen: 'Profile' })} accessibilityRole="button" accessibilityLabel="Open profile" style={[styles.user, { borderColor: theme.border, backgroundColor: 'rgba(255,255,255,0.7)' }]}>
-        <Avatar label={initials(name)} size={40} />
-        <View style={{ flex: 1 }}>
-          <Text style={[{ fontSize: 14, color: theme.text }, font(theme, 'semibold')]} numberOfLines={1}>{name}</Text>
-          <Text style={[{ fontSize: 12, color: theme.textTertiary }, font(theme, 'body')]} numberOfLines={1}>
-            {typeof points === 'number' ? `${points.toLocaleString()} pts` : 'CompuClass'}
-          </Text>
-        </View>
+      <Pressable
+        onPress={() => onPress({ screen: 'Profile' })}
+        accessibilityRole="button"
+        accessibilityLabel={collapsed ? `Open profile, ${name}` : 'Open profile'}
+        title={collapsed ? name : undefined}
+        style={[styles.user, collapsed && styles.userRail, { borderColor: theme.border, backgroundColor: 'rgba(255,255,255,0.7)' }]}
+      >
+        <Avatar label={initials(name)} size={collapsed ? 36 : 40} />
+        {collapsed ? null : (
+          <View style={{ flex: 1 }}>
+            <Text style={[{ fontSize: 14, color: theme.text }, font(theme, 'semibold')]} numberOfLines={1}>{name}</Text>
+            <Text style={[{ fontSize: 12, color: theme.textTertiary }, font(theme, 'body')]} numberOfLines={1}>
+              {typeof points === 'number' ? `${points.toLocaleString()} pts` : 'CompuClass'}
+            </Text>
+          </View>
+        )}
       </Pressable>
     </>
   );
 }
 
-export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePress, translateX: externalTranslateX, suspendAnimation, pointerEvents, retain, currentScreen, user }) {
+export default function Sidebar({ visible, docked, collapsed = false, onToggleCollapsed, onClose, onNavigate, onHomePress, translateX: externalTranslateX, suspendAnimation, pointerEvents, retain, currentScreen, user }) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const { width: windowWidth } = useWindowDimensions();
-  const sidebarWidth = docked ? 256 : getSidebarWidth(windowWidth);
+  const dockedWidth = sidebarWidthFor(collapsed);
+  const sidebarWidth = docked ? dockedWidth : getSidebarWidth(windowWidth);
+  const dockedWidthAnim = React.useRef(new Animated.Value(dockedWidth)).current;
   const hiddenX = getSidebarHiddenX(windowWidth);
   const hiddenXRef = React.useRef(hiddenX);
   hiddenXRef.current = hiddenX;
@@ -118,6 +176,22 @@ export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePr
   const [shown, setShown] = React.useState(!!visible);
   const shownRef = React.useRef(!!visible);
   const animGen = React.useRef(0);
+
+  React.useEffect(() => {
+    if (!docked) return undefined;
+    const next = sidebarWidthFor(collapsed);
+    if (drawerTransitionMs(reduced) === 0) {
+      dockedWidthAnim.setValue(next);
+      return undefined;
+    }
+    Animated.timing(dockedWidthAnim, {
+      toValue: next,
+      duration: drawerTransitionMs(reduced),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+    return undefined;
+  }, [collapsed, docked, reduced, dockedWidthAnim]);
 
   React.useEffect(() => {
     if (docked) return undefined;
@@ -193,20 +267,38 @@ export default function Sidebar({ visible, docked, onClose, onNavigate, onHomePr
   };
 
   const body = (
-    <View style={{ flex: 1, paddingTop: docked ? 24 : insets.top + 16, paddingHorizontal: 16, paddingBottom: 16 }}>
-      <Pressable onPress={() => { onHomePress?.(); onClose?.(); }} accessibilityRole="link" accessibilityLabel="CompuClass home" style={styles.brand}>
-        <Mark size={48} />
-        <Wordmark />
-      </Pressable>
-      <NavList currentScreen={currentScreen} onPress={onPress} user={user} />
+    <View style={{ flex: 1, paddingTop: docked ? 24 : insets.top + 16, paddingHorizontal: collapsed ? 8 : 16, paddingBottom: 16 }}>
+      <View style={[styles.brandBlock, collapsed && styles.brandRail]}>
+        <Pressable onPress={() => { onHomePress?.(); onClose?.(); }} accessibilityRole="link" accessibilityLabel="CompuClass home">
+          <View style={styles.brandMark}>
+            <Mark size={collapsed ? 40 : 48} />
+            {collapsed ? null : <Wordmark />}
+          </View>
+        </Pressable>
+        {onToggleCollapsed ? (
+          <Pressable
+            onPress={onToggleCollapsed}
+            accessibilityRole="button"
+            accessibilityLabel={collapsed ? 'Expand menu' : 'Collapse menu'}
+            accessibilityState={{ expanded: !collapsed }}
+            title={collapsed ? 'Expand menu' : 'Collapse menu'}
+            style={[styles.collapseBtn, { backgroundColor: theme.glassFill, borderColor: theme.glassBorder, alignSelf: collapsed ? 'center' : 'flex-end' }]}
+          >
+            <Icon name={collapsed ? 'chev' : 'chevLeft'} size={20} color={theme.text} />
+          </Pressable>
+        ) : null}
+      </View>
+      <NavList currentScreen={currentScreen} onPress={onPress} user={user} collapsed={collapsed && docked} />
     </View>
   );
 
   if (docked) {
     return (
-      <Glass sidebar radius={0} style={[styles.dock, { width: 256, borderRightColor: 'rgba(220,230,239,0.9)', backgroundColor: theme.glassSidebar }]}>
-        {body}
-      </Glass>
+      <Animated.View style={{ width: dockedWidthAnim, height: '100%' }}>
+        <Glass sidebar radius={0} style={[styles.dock, { width: '100%', borderRightColor: 'rgba(220,230,239,0.9)', backgroundColor: theme.glassSidebar }]}>
+          {body}
+        </Glass>
+      </Animated.View>
     );
   }
 
@@ -270,7 +362,12 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   dock: { position: 'relative', height: '100%', borderRadius: 0, borderTopWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0, shadowOpacity: 0, elevation: 0 },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingBottom: 24 },
+  brandBlock: { paddingHorizontal: 8, paddingBottom: 16, gap: 8 },
+  brandMark: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  brandRail: { alignItems: 'center', paddingHorizontal: 0 },
+  collapseBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   nav: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 44, paddingHorizontal: 12, borderRadius: 12 },
+  navRail: { justifyContent: 'center', paddingHorizontal: 0 },
   user: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, borderWidth: 1, marginTop: 8 },
+  userRail: { justifyContent: 'center', padding: 8 },
 });

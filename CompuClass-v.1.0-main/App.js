@@ -51,7 +51,7 @@ import GameScreen from './screens/GameScreen';
 import GameRunnerLobbyScreen from './screens/GameRunnerLobbyScreen';
 import JoinClassScreen from './screens/JoinClassScreen';
 import NotFoundScreen from './screens/NotFoundScreen';
-import Sidebar from './components/Sidebar';
+import Sidebar, { useSidebarCollapsed } from './components/Sidebar';
 import HeaderSearch from './components/HeaderSearch';
 import { EdgeSwipeCatcher, PhoneMenuButton, usePhoneDrawer } from './components/PhoneDrawer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -84,7 +84,7 @@ const ONBOARDING_KEY = 'onboardingComplete';
 const isUnknownWebPath = () =>
   Platform.OS === 'web' && typeof window !== 'undefined' && pathIsUnknown(window.location.pathname);
 
-const HIDE_TAB_ROUTES = ['CircuitMaze', 'CircuitMazeLobby', 'CircuitMazeTopic', 'Game', 'GameRunnerLobby'];
+const HIDE_TAB_ROUTES = ['CircuitMaze', 'CircuitMazeLobby', 'CircuitMazeTopic', 'Game', 'GameRunnerLobby', 'Windows 11'];
 const HIDE_TOP_ROUTES = ['CircuitMaze', 'Game', 'Windows 11'];
 const TAB_ORDER = ['Dashboard', 'Lecturer', 'Materials', 'Quiz', 'Leaderboard', 'Profile'];
 const TAB_META = {
@@ -244,6 +244,8 @@ function AppContent() {
   const currentRouteRef = useRef('');
   const [routeName, setRouteName] = useState('');
   const drawer = usePhoneDrawer(width, routeName);
+  const { collapsed, toggleCollapsed } = useSidebarCollapsed();
+  const [simulatorFullscreen, setSimulatorFullscreen] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -459,8 +461,10 @@ function AppContent() {
     );
   }
 
-  const hideChrome = HIDE_TOP_ROUTES.includes(routeName);
+  const hideChrome = HIDE_TOP_ROUTES.includes(routeName) || simulatorFullscreen;
   const runnerTakeover = routeName === 'Game';
+  const windowsOpen = routeName === 'Windows 11';
+  const menuCollapsed = windowsOpen || collapsed;
   const shellBack = Boolean(routeName) && !isRootRoute(routeName);
   const handleBack = () => {
     if (drawer.open || drawer.dragging) {
@@ -476,9 +480,22 @@ function AppContent() {
         <ColourField />
         <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }} edges={['left', 'right']}>
           <View style={{ flex: 1, flexDirection: 'row', zIndex: 1 }}>
-            {laptop && !runnerTakeover && (
+            {!drawer.phone && !runnerTakeover && !simulatorFullscreen && (
               <Sidebar
                 docked
+                collapsed={menuCollapsed}
+                onToggleCollapsed={windowsOpen ? undefined : toggleCollapsed}
+                onNavigate={handleNavigate}
+                onHomePress={goHome}
+                currentScreen={routeName}
+                user={account}
+              />
+            )}
+            {drawer.phone && collapsed && !windowsOpen && !runnerTakeover && !simulatorFullscreen && (
+              <Sidebar
+                docked
+                collapsed
+                onToggleCollapsed={() => { toggleCollapsed(); drawer.toggle(); }}
                 onNavigate={handleNavigate}
                 onHomePress={goHome}
                 currentScreen={routeName}
@@ -497,9 +514,9 @@ function AppContent() {
                 onReady={syncRoute}
                 onStateChange={syncRoute}
               >
-                <ChromeProvider value={{ shellBack }}>
+                <ChromeProvider value={{ shellBack, setSimulatorFullscreen }}>
                 <View style={{ flex: 1 }}>
-                  <StatusBar style="dark" />
+                  <StatusBar style="dark" hidden={simulatorFullscreen} />
                   {offlineStartup && (
                     <Text style={[styles.offlineBanner, { backgroundColor: theme.warningWash, color: theme.warningInk }]}>You are offline. Some features need a connection.</Text>
                   )}
@@ -518,11 +535,11 @@ function AppContent() {
                     onBell={() => setShowAnnouncements(true)}
                     onAvatar={() => handleNavigate('Profile')}
                   />
-                  {runnerTakeover ? null : <BackBar routeName={routeName} onBack={handleBack} />}
+                  {runnerTakeover || windowsOpen || simulatorFullscreen ? null : <BackBar routeName={routeName} onBack={handleBack} />}
                   <View style={styles.stage}>
                   <Tab.Navigator
                     backBehavior="history"
-                    tabBar={(props) => (laptop ? null : <PhoneTabBar {...props} userRole={userRole} leafRoute={routeName} />)}
+                    tabBar={(props) => (drawer.phone ? <PhoneTabBar {...props} userRole={userRole} leafRoute={routeName} /> : null)}
                     screenOptions={{ headerShown: false }}
                   >
                     {userRole === 'lecturer' ? (
@@ -552,7 +569,7 @@ function AppContent() {
                     <Tab.Screen name="Game" component={GameScreen} options={{ unmountOnBlur: true }} />
                     <Tab.Screen name="GameRunnerLobby" component={GameRunnerLobbyScreen} options={{ unmountOnBlur: true }} />
                   </Tab.Navigator>
-                  {drawer.phone && !runnerTakeover && (
+                  {drawer.phone && !runnerTakeover && !windowsOpen && !simulatorFullscreen && (
                     <Sidebar
                       retain
                       visible={drawer.open || drawer.dragging}
@@ -560,6 +577,7 @@ function AppContent() {
                       pointerEvents={drawer.dragging ? 'none' : 'auto'}
                       translateX={drawer.translateX}
                       onClose={drawer.close}
+                      onToggleCollapsed={() => { if (!collapsed) toggleCollapsed(); drawer.close(); }}
                       onNavigate={handleNavigate}
                       onHomePress={goHome}
                       currentScreen={routeName}

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
+import Sidebar from '../components/Sidebar';
+import Windows11SimulatorScreen from '../screens/Windows11SimulatorScreen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { supabase } from '../config/supabase';
@@ -280,6 +282,28 @@ export function installPreviewData() {
 
 const FOLDER = FOLDERS[0];
 
+function MenuShell() {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#F7FBFD' }}>
+      <Sidebar
+        docked
+        collapsed={collapsed}
+        onToggleCollapsed={() => setCollapsed((value) => !value)}
+        currentScreen="Materials"
+        onNavigate={() => {}}
+        onHomePress={() => {}}
+        onClose={() => {}}
+        user={{ profile: { full_name: 'Thandi Nkosi', role: 'student', xp: 1200 } }}
+      />
+      <View style={{ flex: 1, padding: 28 }}>
+        <Text style={{ fontSize: 28, fontWeight: '800', color: '#0B1B3A' }}>Learning materials</Text>
+        <Text style={{ marginTop: 8, fontSize: 16, lineHeight: 24, color: '#44526F' }}>Collapse the menu when you want the page to use the width.</Text>
+      </View>
+    </View>
+  );
+}
+
 export function ScreenPreview() {
   installPreviewData();
   const initial = new URLSearchParams(window.location.search).get('preview') || 'lecturer';
@@ -331,6 +355,8 @@ export function ScreenPreview() {
   else if (screen === 'folder') body = <FolderContentScreen navigation={navigation} route={route} />;
   else if (screen === 'quizzes') body = <QuizScreen navigation={navigation} route={{ params: {} }} />;
   else if (screen === 'quiz-play') body = <QuizScreen navigation={navigation} route={{ params: { quizId: 'quiz-cpu' } }} />;
+  else if (screen === 'menu') body = <MenuShell />;
+  else if (screen === 'windows') body = <Windows11SimulatorScreen />;
   else body = <LecturerDashboardScreen navigation={navigation} />;
 
   return (
