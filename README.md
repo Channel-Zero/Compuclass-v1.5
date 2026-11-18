@@ -288,6 +288,8 @@ Created and owned by the CompuClass Group.
 | Lutho Buyaphi |
 | Thabo Kumalo |
 
+📧 **Contact**: compcuclass@gmail.com
+
 ---
 
 ## License
